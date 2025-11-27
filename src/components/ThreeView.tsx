@@ -1,6 +1,7 @@
 import { useRef, useEffect, useState } from "react";
 import * as THREE from "three";
 import { EXRLoader } from "three/addons/loaders/EXRLoader.js";
+import { RGBELoader } from "three/addons/loaders/RGBELoader.js";
 import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
 import { Button } from "@/components/ui/button";
 import type { SceneModel } from "@/pages/Scene";
@@ -28,6 +29,7 @@ export default function ThreeView({ image, models, onReady }: ThreeViewProps) {
   const latRef = useRef(0);
   const [showEnableButton, setShowEnableButton] = useState(false);
   const [gyroActive, setGyroActive] = useState(false);
+  const [loading, setLoading] = useState(true);
 
   // Check if we need to show permission button (iOS)
   useEffect(() => {
@@ -53,6 +55,7 @@ export default function ThreeView({ image, models, onReady }: ThreeViewProps) {
 
   useEffect(() => {
     if (!mountRef.current) return;
+    setLoading(true);
 
     const width = window.innerWidth;
     const height = window.innerHeight;
@@ -75,19 +78,33 @@ export default function ThreeView({ image, models, onReady }: ThreeViewProps) {
     const sphere = new THREE.Mesh(geometry, material);
     scene.add(sphere);
 
+    // Track loading state
+    const totalModels = models?.length || 0;
+    let textureLoaded = false;
+    let modelsLoaded = 0;
+
+    const checkLoadingComplete = () => {
+      if (textureLoaded && modelsLoaded === totalModels) setLoading(false);
+    };
+
+    const onTextureLoaded = (texture: THREE.Texture) => {
+      texture.mapping = THREE.EquirectangularReflectionMapping;
+      material.map = texture;
+      material.needsUpdate = true;
+      textureLoaded = true;
+      checkLoadingComplete();
+    };
+
     // Load texture
     if (image.endsWith(".exr")) {
-      new EXRLoader().load(image, (texture) => {
-        texture.mapping = THREE.EquirectangularReflectionMapping;
-        material.map = texture;
-        material.needsUpdate = true;
-      });
+      new EXRLoader().load(image, onTextureLoaded);
+    } else if (image.endsWith(".hdr")) {
+      new RGBELoader().load(image, onTextureLoaded);
     } else {
-      const texture = new THREE.TextureLoader().load(image);
-      material.map = texture;
+      new THREE.TextureLoader().load(image, onTextureLoaded);
     }
 
-    // Lighting for the bike model
+    // Lighting
     scene.add(new THREE.AmbientLight(0xffffff, 0.5));
     const dirLight = new THREE.DirectionalLight(0xffffff, 1);
     dirLight.position.set(5, 10, 5);
@@ -106,6 +123,8 @@ export default function ThreeView({ image, models, onReady }: ThreeViewProps) {
           obj.scale.set(...(s as [number, number, number]));
         }
         scene.add(obj);
+        modelsLoaded++;
+        checkLoadingComplete();
       });
     });
 
@@ -280,6 +299,11 @@ export default function ThreeView({ image, models, onReady }: ThreeViewProps) {
         left: 0,
       }}
     >
+      {loading && (
+        <div className="absolute inset-0 z-20 flex items-center justify-center bg-black">
+          <div className="text-white text-lg">Loading scene...</div>
+        </div>
+      )}
       {showEnableButton && !gyroActive && (
         <div
           style={{

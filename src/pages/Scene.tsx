@@ -25,11 +25,23 @@ const scenes: Record<string, SceneConfig> = {
       },
     ],
   },
+  office: {
+    image: "/assets/scenes/Office_Microsoft.hdr",
+    models: [
+      {
+        path: "/assets/scenes/Desk.glb",
+        position: [1.15, -1.1, 0],
+        rotation: [0, -1.6, 0],
+        // rotation: [0, Math.PI, 0],
+        // scale: 1,
+      },
+    ],
+  },
 };
 
 export default function Scene() {
-  const { scene } = useParams<{ scene: string }>()
-  const sceneConfig = scene ? scenes[scene] : null
+  const { scene } = useParams<{ scene: string }>();
+  const sceneConfig = scene ? scenes[scene] : null;
 
   if (!sceneConfig) {
     return (
@@ -39,12 +51,12 @@ export default function Scene() {
           <Link to="/">Back to Home</Link>
         </Button>
       </div>
-    )
+    );
   }
 
   return (
     <div className="fixed inset-0">
       <ThreeView image={sceneConfig.image} models={sceneConfig.models} />
     </div>
-  )
+  );
 }
