@@ -1,6 +1,7 @@
-import { useRef, useEffect } from "react"
+import { useRef, useEffect, useState } from "react"
 import * as THREE from "three"
 import { EXRLoader } from "three/addons/loaders/EXRLoader.js"
+import { Button } from "@/components/ui/button"
 
 interface ThreeViewProps {
   image: string
@@ -9,6 +10,34 @@ interface ThreeViewProps {
 
 export default function ThreeView({ image, onReady }: ThreeViewProps) {
   const mountRef = useRef<HTMLDivElement>(null)
+  const cameraRef = useRef<THREE.PerspectiveCamera | null>(null)
+  const gyroActiveRef = useRef(false)
+  const orientationRef = useRef<'portrait' | 'landscape'>(
+    typeof window !== 'undefined' && window.innerWidth > window.innerHeight ? 'landscape' : 'portrait'
+  )
+  const lonRef = useRef(0)
+  const latRef = useRef(0)
+  const [showEnableButton, setShowEnableButton] = useState(false)
+  const [gyroActive, setGyroActive] = useState(false)
+
+  // Check if we need to show permission button (iOS)
+  useEffect(() => {
+    const isIOS = typeof (DeviceOrientationEvent as any).requestPermission === "function"
+    setShowEnableButton(isIOS)
+  }, [])
+
+  const enableMotionControls = async () => {
+    try {
+      const permission = await (DeviceOrientationEvent as any).requestPermission()
+      if (permission === "granted") {
+        gyroActiveRef.current = true
+        setGyroActive(true)
+        setShowEnableButton(false)
+      }
+    } catch {
+      // Permission denied
+    }
+  }
 
   useEffect(() => {
     if (!mountRef.current) return
@@ -20,6 +49,7 @@ export default function ThreeView({ image, onReady }: ThreeViewProps) {
     const scene = new THREE.Scene()
     const camera = new THREE.PerspectiveCamera(75, width / height, 0.1, 100)
     camera.position.set(0, 0, 0.01)
+    cameraRef.current = camera
 
     // Renderer
     const renderer = new THREE.WebGLRenderer({ antialias: true })
@@ -33,8 +63,8 @@ export default function ThreeView({ image, onReady }: ThreeViewProps) {
     const sphere = new THREE.Mesh(geometry, material)
     scene.add(sphere)
 
-    // Load texture (EXR or standard image)
-    if (image.endsWith('.exr')) {
+    // Load texture
+    if (image.endsWith(".exr")) {
       new EXRLoader().load(image, (texture) => {
         texture.mapping = THREE.EquirectangularReflectionMapping
         material.map = texture
@@ -45,72 +75,66 @@ export default function ThreeView({ image, onReady }: ThreeViewProps) {
       material.map = texture
     }
 
-    // Mouse / Touch controls
+    // Mouse/Touch drag controls (fallback)
     let isUserInteracting = false
-    let lon = 0, lat = 0, onPointerDownLon = 0, onPointerDownLat = 0, startX = 0, startY = 0
+    let onPointerDownLon = 0, onPointerDownLat = 0, startX = 0, startY = 0
 
     const onPointerDown = (e: MouseEvent | TouchEvent) => {
       isUserInteracting = true
       startX = "touches" in e ? e.touches[0].clientX : e.clientX
       startY = "touches" in e ? e.touches[0].clientY : e.clientY
-      onPointerDownLon = lon
-      onPointerDownLat = lat
+      onPointerDownLon = lonRef.current
+      onPointerDownLat = latRef.current
     }
 
     const onPointerMove = (e: MouseEvent | TouchEvent) => {
-      if (isUserInteracting) {
-        const x = "touches" in e ? e.touches[0].clientX : e.clientX
-        const y = "touches" in e ? e.touches[0].clientY : e.clientY
-        lon = (startX - x) * 0.1 + onPointerDownLon
-        lat = (y - startY) * 0.1 + onPointerDownLat
-      }
+      if (!isUserInteracting) return
+      const x = "touches" in e ? e.touches[0].clientX : e.clientX
+      const y = "touches" in e ? e.touches[0].clientY : e.clientY
+      lonRef.current = (startX - x) * 0.1 + onPointerDownLon
+      latRef.current = (y - startY) * 0.1 + onPointerDownLat
     }
 
     const onPointerUp = () => (isUserInteracting = false)
 
-    mountRef.current.addEventListener("mousedown", onPointerDown)
-    mountRef.current.addEventListener("mousemove", onPointerMove)
-    mountRef.current.addEventListener("mouseup", onPointerUp)
-    mountRef.current.addEventListener("touchstart", onPointerDown)
-    mountRef.current.addEventListener("touchmove", onPointerMove)
-    mountRef.current.addEventListener("touchend", onPointerUp)
+    renderer.domElement.addEventListener("mousedown", onPointerDown)
+    renderer.domElement.addEventListener("mousemove", onPointerMove)
+    renderer.domElement.addEventListener("mouseup", onPointerUp)
+    renderer.domElement.addEventListener("touchstart", onPointerDown)
+    renderer.domElement.addEventListener("touchmove", onPointerMove)
+    renderer.domElement.addEventListener("touchend", onPointerUp)
 
-    // Gyroscope
-    let hasGyro = false
-    const onDeviceOrientation = (event: DeviceOrientationEvent) => {
-      if (event.alpha !== null && event.beta !== null && event.gamma !== null) {
-        hasGyro = true
-        const degToRad = THREE.MathUtils.degToRad
-        camera.rotation.order = "YXZ"
-        camera.rotation.y = degToRad(event.alpha)
-        camera.rotation.x = degToRad(event.beta - 90)
-        camera.rotation.z = degToRad(event.gamma)
+    // Resize handler with orientation change detection
+    const onResize = () => {
+      const w = window.innerWidth
+      const h = window.innerHeight
+      camera.aspect = w / h
+      camera.updateProjectionMatrix()
+      renderer.setSize(w, h)
+
+      // Detect orientation change
+      const newOrientation = w > h ? 'landscape' : 'portrait'
+      if (newOrientation !== orientationRef.current) {
+        orientationRef.current = newOrientation
+        // Reset to initial view
+        lonRef.current = 0
+        latRef.current = 0
+        camera.position.set(0, 0, 0.01)
+        camera.quaternion.set(0, 0, 0, 1)
+        camera.lookAt(0, 0, 0)
       }
     }
-    window.addEventListener("deviceorientation", onDeviceOrientation)
-
-    // Resize handler
-    const onResize = () => {
-      setTimeout(() => {
-        if (!mountRef.current) return
-        const w = window.innerWidth
-        const h = window.innerHeight
-        camera.aspect = w / h
-        camera.updateProjectionMatrix()
-        renderer.setSize(w, h)
-      }, 100)
-    }
     window.addEventListener("resize", onResize)
-    window.addEventListener("orientationchange", onResize)
-    screen.orientation?.addEventListener("change", onResize)
+
 
     // Animate
     let animationId: number
     const animate = () => {
-      if (!hasGyro) {
-        lat = Math.max(-85, Math.min(85, lat))
-        const phi = THREE.MathUtils.degToRad(90 - lat)
-        const theta = THREE.MathUtils.degToRad(lon)
+      // Only use drag controls when gyro not active
+      if (!gyroActiveRef.current) {
+        latRef.current = Math.max(-85, Math.min(85, latRef.current))
+        const phi = THREE.MathUtils.degToRad(90 - latRef.current)
+        const theta = THREE.MathUtils.degToRad(lonRef.current)
         camera.lookAt(
           Math.sin(phi) * Math.cos(theta),
           Math.cos(phi),
@@ -129,9 +153,12 @@ export default function ThreeView({ image, onReady }: ThreeViewProps) {
     return () => {
       cancelAnimationFrame(animationId)
       window.removeEventListener("resize", onResize)
-      window.removeEventListener("orientationchange", onResize)
-      screen.orientation?.removeEventListener("change", onResize)
-      window.removeEventListener("deviceorientation", onDeviceOrientation)
+      renderer.domElement.removeEventListener("mousedown", onPointerDown)
+      renderer.domElement.removeEventListener("mousemove", onPointerMove)
+      renderer.domElement.removeEventListener("mouseup", onPointerUp)
+      renderer.domElement.removeEventListener("touchstart", onPointerDown)
+      renderer.domElement.removeEventListener("touchmove", onPointerMove)
+      renderer.domElement.removeEventListener("touchend", onPointerUp)
       renderer.dispose()
       geometry.dispose()
       material.dispose()
@@ -139,5 +166,71 @@ export default function ThreeView({ image, onReady }: ThreeViewProps) {
     }
   }, [image, onReady])
 
-  return <div ref={mountRef} style={{ width: '100%', height: '100%', position: 'absolute', top: 0, left: 0 }} />
+  // Device orientation handler - runs when gyro is active
+  useEffect(() => {
+    if (!gyroActive || !cameraRef.current) return
+
+    const camera = cameraRef.current
+
+    // Quaternion to rotate camera to look out the back of device (not top)
+    const q1 = new THREE.Quaternion(-Math.sqrt(0.5), 0, 0, Math.sqrt(0.5))
+
+    const setObjectQuaternion = (quaternion: THREE.Quaternion, alpha: number, beta: number, gamma: number, orient: number) => {
+      const euler = new THREE.Euler()
+      const q0 = new THREE.Quaternion()
+
+      euler.set(beta, alpha, -gamma, "YXZ")
+      quaternion.setFromEuler(euler)
+      quaternion.multiply(q1)
+      quaternion.multiply(q0.setFromAxisAngle(new THREE.Vector3(0, 0, 1), -orient))
+    }
+
+    const onDeviceOrientation = (event: DeviceOrientationEvent) => {
+      if (event.alpha === null || event.beta === null || event.gamma === null) return
+
+      const screenAngle = screen.orientation?.angle || 0
+      const alpha = THREE.MathUtils.degToRad(event.alpha)
+      const beta = THREE.MathUtils.degToRad(event.beta)
+      const gamma = THREE.MathUtils.degToRad(event.gamma)
+      const orient = THREE.MathUtils.degToRad(screenAngle)
+
+      setObjectQuaternion(camera.quaternion, alpha, beta, gamma, orient)
+    }
+
+    window.addEventListener("deviceorientation", onDeviceOrientation)
+
+    return () => {
+      window.removeEventListener("deviceorientation", onDeviceOrientation)
+    }
+  }, [gyroActive])
+
+  // For non-iOS devices, try to enable gyro automatically
+  useEffect(() => {
+    const isIOS = typeof (DeviceOrientationEvent as any).requestPermission === "function"
+    if (isIOS) return
+
+    // Check if device orientation is available
+    const testOrientation = (event: DeviceOrientationEvent) => {
+      if (event.alpha !== null) {
+        gyroActiveRef.current = true
+        setGyroActive(true)
+      }
+      window.removeEventListener("deviceorientation", testOrientation)
+    }
+    window.addEventListener("deviceorientation", testOrientation)
+
+    return () => window.removeEventListener("deviceorientation", testOrientation)
+  }, [])
+
+  return (
+    <div ref={mountRef} style={{ width: "100%", height: "100%", position: "absolute", top: 0, left: 0 }}>
+      {showEnableButton && !gyroActive && (
+        <div style={{ position: "absolute", top: "50%", left: "50%", transform: "translate(-50%, -50%)", zIndex: 10 }}>
+          <Button size="lg" onClick={enableMotionControls}>
+            Tap to Enable Motion Controls
+          </Button>
+        </div>
+      )}
+    </div>
+  )
 }

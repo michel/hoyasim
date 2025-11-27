@@ -5,6 +5,9 @@ import { VitePWA } from 'vite-plugin-pwa'
 import path from 'path'
 
 export default defineConfig({
+  server: {
+    allowedHosts: true,
+  },
   plugins: [
     react(),
     tailwindcss(),
@@ -16,6 +19,8 @@ export default defineConfig({
         short_name: 'hoyasim',
         description: 'hoyasim Progressive Web App',
         theme_color: '#ffffff',
+        orientation: 'landscape',
+        display: 'fullscreen',
         icons: [
           {
             src: 'pwa-192x192.png',
