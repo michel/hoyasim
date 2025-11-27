@@ -1,10 +1,31 @@
-import { useParams, Link } from 'react-router-dom'
-import { Button } from '@/components/ui/button'
-import ThreeView from '@/components/ThreeView'
+import { useParams, Link } from "react-router-dom";
+import { Button } from "@/components/ui/button";
+import ThreeView from "@/components/ThreeView";
 
-const scenes: Record<string, { image: string }> = {
-  biking: { image: '/assets/scenes/biking2k.exr' },
+export interface SceneModel {
+  path: string;
+  position: [number, number, number];
+  rotation?: [number, number, number];
+  scale?: number | [number, number, number];
 }
+
+export interface SceneConfig {
+  image: string;
+  models: SceneModel[];
+}
+
+const scenes: Record<string, SceneConfig> = {
+  biking: {
+    image: "/assets/scenes/biking2k.exr",
+    models: [
+      {
+        path: "/assets/scenes/low_poly_bicycle.glb",
+        position: [0, -0.9, 0],
+        rotation: [0, 1.25, 0],
+      },
+    ],
+  },
+};
 
 export default function Scene() {
   const { scene } = useParams<{ scene: string }>()
@@ -23,7 +44,7 @@ export default function Scene() {
 
   return (
     <div className="fixed inset-0">
-      <ThreeView image={sceneConfig.image} />
+      <ThreeView image={sceneConfig.image} models={sceneConfig.models} />
     </div>
   )
 }
