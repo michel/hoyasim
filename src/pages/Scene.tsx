@@ -1,5 +1,12 @@
-import { useParams, Link } from "react-router-dom";
+import { useParams, Link, useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import ThreeView from "@/components/ThreeView";
 
 export interface SceneModel {
@@ -26,10 +33,10 @@ const scenes: Record<string, SceneConfig> = {
     ],
   },
   office: {
-    image: "/assets/scenes/Office_Microsoft.hdr",
+    image: "/assets/scenes/office_2k.hdr",
     models: [
       {
-        path: "/assets/scenes/Desk.glb",
+        path: "/assets/scenes/desk.glb",
         position: [1.15, -1.1, 0],
         rotation: [0, -1.6, 0],
         // rotation: [0, Math.PI, 0],
@@ -39,8 +46,11 @@ const scenes: Record<string, SceneConfig> = {
   },
 };
 
+const sceneNames = Object.keys(scenes);
+
 export default function Scene() {
   const { scene } = useParams<{ scene: string }>();
+  const navigate = useNavigate();
   const sceneConfig = scene ? scenes[scene] : null;
 
   if (!sceneConfig) {
@@ -57,6 +67,20 @@ export default function Scene() {
   return (
     <div className="fixed inset-0">
       <ThreeView image={sceneConfig.image} models={sceneConfig.models} />
+      <div className="absolute top-4 right-4 z-30">
+        <Select value={scene} onValueChange={(value) => navigate(`/scenes/${value}`)}>
+          <SelectTrigger className="w-32 bg-black/50 text-white border-white/20">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {sceneNames.map((name) => (
+              <SelectItem key={name} value={name} className="capitalize">
+                {name}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
     </div>
   );
 }

@@ -226,9 +226,10 @@ export default function ThreeView({ image, models, onReady }: ThreeViewProps) {
     if (!gyroActive || !cameraRef.current) return;
 
     const camera = cameraRef.current;
-
-    // Quaternion to rotate camera to look out the back of device (not top)
     const q1 = new THREE.Quaternion(-Math.sqrt(0.5), 0, 0, Math.sqrt(0.5));
+
+    // Capture initial device orientation to calculate offset
+    let initialOrientation: { alpha: number; beta: number; gamma: number } | null = null;
 
     const setObjectQuaternion = (
       quaternion: THREE.Quaternion,
@@ -252,10 +253,26 @@ export default function ThreeView({ image, models, onReady }: ThreeViewProps) {
       if (event.alpha === null || event.beta === null || event.gamma === null)
         return;
 
+      // Capture initial orientation on first reading
+      if (initialOrientation === null) {
+        initialOrientation = {
+          alpha: event.alpha,
+          beta: event.beta,
+          gamma: event.gamma,
+        };
+      }
+
       const screenAngle = screen.orientation?.angle || 0;
-      const alpha = THREE.MathUtils.degToRad(event.alpha);
-      const beta = THREE.MathUtils.degToRad(event.beta);
-      const gamma = THREE.MathUtils.degToRad(event.gamma);
+
+      // Apply offset so view starts at scene's starting position
+      // Starting position = looking at +X = alpha -90°, beta 90° (upright), gamma 0°
+      const adjustedAlpha = event.alpha - initialOrientation.alpha - 90;
+      const adjustedBeta = event.beta - initialOrientation.beta + 90;
+      const adjustedGamma = event.gamma - initialOrientation.gamma;
+
+      const alpha = THREE.MathUtils.degToRad(adjustedAlpha);
+      const beta = THREE.MathUtils.degToRad(adjustedBeta);
+      const gamma = THREE.MathUtils.degToRad(adjustedGamma);
       const orient = THREE.MathUtils.degToRad(screenAngle);
 
       setObjectQuaternion(camera.quaternion, alpha, beta, gamma, orient);
@@ -266,7 +283,7 @@ export default function ThreeView({ image, models, onReady }: ThreeViewProps) {
     return () => {
       window.removeEventListener("deviceorientation", onDeviceOrientation);
     };
-  }, [gyroActive]);
+  }, [gyroActive, image]);
 
   // For non-iOS devices, try to enable gyro automatically
   useEffect(() => {
