@@ -68,13 +68,16 @@ export default function Scene() {
     <div className="fixed inset-0">
       <ThreeView image={sceneConfig.image} models={sceneConfig.models} />
       <div className="absolute top-4 right-4 z-30">
-        <Select value={scene} onValueChange={(value) => navigate(`/scenes/${value}`)}>
+        <Select
+          value={scene}
+          onValueChange={(value) => navigate(`/scenes/${value}`)}
+        >
           <SelectTrigger className="w-32 bg-black/50 text-white border-white/20">
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
             {sceneNames.map((name) => (
-              <SelectItem key={name} value={name} className="capitalize">
+              <SelectItem key={name} value={name}>
                 {name}
               </SelectItem>
             ))}
