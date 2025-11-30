@@ -33,3 +33,4 @@ Thumbs.db
 dev-dist
 sw.js
 workbox-*.js
+.claude

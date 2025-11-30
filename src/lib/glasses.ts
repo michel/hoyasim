@@ -1,14 +1,14 @@
-import * as THREE from "three"
-import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js"
+import * as THREE from 'three'
+import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js'
 
-const ASSETS_PATH = import.meta.env.BASE_URL + "assets/glasses/"
+const ASSETS_PATH = `${import.meta.env.BASE_URL}assets/glasses/`
 
 // State returned by loadGlasses - contains lens groups and control functions
 export interface GlassesState {
   leftGroup: THREE.Group
   rightGroup: THREE.Group
-  leftGroupAlt: THREE.Group    // Alternative left lens (for swapping)
-  rightGroupAlt: THREE.Group   // Alternative right lens (for swapping)
+  leftGroupAlt: THREE.Group // Alternative left lens (for swapping)
+  rightGroupAlt: THREE.Group // Alternative right lens (for swapping)
   update: (polarAngle: number, minPolar: number, maxPolar: number) => void
   swapLeft: () => void
   swapRight: () => void
@@ -18,10 +18,10 @@ export interface GlassesState {
 
 // Internal refs for meshes that need per-frame updates
 interface LensRefs {
-  lensAMesh: THREE.Object3D | null   // Left lens with mapA (fades out when looking down)
-  lensBMesh: THREE.Object3D | null   // Left lens with mapB (fades in when looking down)
-  gradCanvas: HTMLCanvasElement | null  // Canvas for right lens gradient
-  gradTex: THREE.CanvasTexture | null   // Texture created from gradient canvas
+  lensAMesh: THREE.Object3D | null // Left lens with mapA (fades out when looking down)
+  lensBMesh: THREE.Object3D | null // Left lens with mapB (fades in when looking down)
+  gradCanvas: HTMLCanvasElement | null // Canvas for right lens gradient
+  gradTex: THREE.CanvasTexture | null // Texture created from gradient canvas
 }
 
 const loader = new GLTFLoader()
@@ -34,7 +34,7 @@ function loadGLB(path: string): Promise<THREE.Group> {
       ASSETS_PATH + path,
       (gltf) => resolve(gltf.scene),
       undefined,
-      reject
+      reject,
     )
   })
 }
@@ -42,12 +42,7 @@ function loadGLB(path: string): Promise<THREE.Group> {
 // Promisified texture loader
 function loadTexture(path: string): Promise<THREE.Texture> {
   return new Promise((resolve, reject) => {
-    textureLoader.load(
-      ASSETS_PATH + path,
-      resolve,
-      undefined,
-      reject
-    )
+    textureLoader.load(ASSETS_PATH + path, resolve, undefined, reject)
   })
 }
 
@@ -63,7 +58,7 @@ function createFrameMaterial(): THREE.MeshPhysicalMaterial {
 // Semi-transparent gray material for the mask/blank areas
 function createMaskMaterial(): THREE.MeshPhysicalMaterial {
   return new THREE.MeshPhysicalMaterial({
-    color: new THREE.Color("#a7a7a7"),
+    color: new THREE.Color('#a7a7a7'),
     transmission: 0.95,
     thickness: 0.0,
     roughness: 0.4,
@@ -75,14 +70,16 @@ function createMaskMaterial(): THREE.MeshPhysicalMaterial {
 // Left lens material - uses a texture map for thickness/roughness
 // The texture controls how light transmits through the lens
 // Two versions (mapA and mapB) crossfade based on viewing angle
-function createLeftLensMaterial(map: THREE.Texture): THREE.MeshPhysicalMaterial {
+function createLeftLensMaterial(
+  map: THREE.Texture,
+): THREE.MeshPhysicalMaterial {
   return new THREE.MeshPhysicalMaterial({
-    transmission: 1,       // Fully transmissive (see-through)
+    transmission: 1, // Fully transmissive (see-through)
     thickness: 0,
-    ior: 1.11,             // Index of refraction (slight distortion)
+    ior: 1.11, // Index of refraction (slight distortion)
     roughness: 1,
-    thicknessMap: map,     // Texture controls thickness variation
-    roughnessMap: map,     // Same texture controls roughness variation
+    thicknessMap: map, // Texture controls thickness variation
+    roughnessMap: map, // Same texture controls roughness variation
     transparent: true,
     opacity: 1,
   })
@@ -90,20 +87,24 @@ function createLeftLensMaterial(map: THREE.Texture): THREE.MeshPhysicalMaterial 
 
 // Creates a horizontal gradient canvas texture for the right lens
 // The gradient creates a "progressive lens" effect with clear center and blurred edges
-function createGradientCanvas(): { canvas: HTMLCanvasElement; texture: THREE.CanvasTexture } {
+function createGradientCanvas(): {
+  canvas: HTMLCanvasElement
+  texture: THREE.CanvasTexture
+} {
   const SIZE = 256
-  const canvas = document.createElement("canvas")
+  const canvas = document.createElement('canvas')
   canvas.width = SIZE
   canvas.height = SIZE
 
-  const ctx = canvas.getContext("2d")!
+  const ctx = canvas.getContext('2d')
+  if (!ctx) throw new Error('Failed to get 2d context')
   const offset = -SIZE * 0.2
   // Gradient: white -> black -> black -> white (clear edges, dark center band)
   const g = ctx.createLinearGradient(offset, 0, SIZE + offset, 0)
-  g.addColorStop(0, "#fff")
-  g.addColorStop(0.45, "#000")
-  g.addColorStop(0.55, "#000")
-  g.addColorStop(1, "#fff")
+  g.addColorStop(0, '#fff')
+  g.addColorStop(0.45, '#000')
+  g.addColorStop(0.55, '#000')
+  g.addColorStop(1, '#fff')
   ctx.fillStyle = g
   ctx.fillRect(0, 0, SIZE, SIZE)
 
@@ -115,9 +116,11 @@ function createGradientCanvas(): { canvas: HTMLCanvasElement; texture: THREE.Can
 
 // Right lens material - uses dynamic gradient texture
 // The gradient position updates based on camera angle to simulate progressive lens
-function createRightLensMaterial(gradTex: THREE.CanvasTexture): THREE.MeshPhysicalMaterial {
+function createRightLensMaterial(
+  gradTex: THREE.CanvasTexture,
+): THREE.MeshPhysicalMaterial {
   return new THREE.MeshPhysicalMaterial({
-    color: new THREE.Color("#ffffff"),
+    color: new THREE.Color('#ffffff'),
     transmission: 1,
     thickness: 0.5,
     ior: 1.15,
@@ -160,31 +163,31 @@ export async function loadGlasses(camera: THREE.Camera): Promise<GlassesState> {
   // Load the two texture maps for left lens crossfade effect
   // mapA = normal view, mapB = inverted (for looking down)
   const [mapA, mapB] = await Promise.all([
-    loadTexture("lens_left_map.png"),
-    loadTexture("lens_left_map_invert.png"),
+    loadTexture('lens_left_map.png'),
+    loadTexture('lens_left_map_invert.png'),
   ])
   mapA.colorSpace = THREE.SRGBColorSpace
   mapB.colorSpace = THREE.SRGBColorSpace
 
   // Load all GLB models in parallel for performance
   const [
-    lensLeft,       // Primary left lens geometry
-    lensLeftFar,    // Alternate left lens (different prescription)
-    lensRight,      // Primary right lens geometry
-    lensRight02,    // Alternate right lens
-    frameLeft,      // Left frame
-    frameRight,     // Right frame
-    blankL,         // Left mask/overlay
-    blankR,         // Right mask/overlay
+    lensLeft, // Primary left lens geometry
+    lensLeftFar, // Alternate left lens (different prescription)
+    lensRight, // Primary right lens geometry
+    lensRight02, // Alternate right lens
+    frameLeft, // Left frame
+    frameRight, // Right frame
+    blankL, // Left mask/overlay
+    blankR, // Right mask/overlay
   ] = await Promise.all([
-    loadGLB("lens_left.glb"),
-    loadGLB("lens_left_far.glb"),
-    loadGLB("lens_right.glb"),
-    loadGLB("lens_right_02.glb"),
-    loadGLB("lens_frame_left.glb"),
-    loadGLB("lens_frame_right.glb"),
-    loadGLB("blank_l.glb"),
-    loadGLB("blank_r.glb"),
+    loadGLB('lens_left.glb'),
+    loadGLB('lens_left_far.glb'),
+    loadGLB('lens_right.glb'),
+    loadGLB('lens_right_02.glb'),
+    loadGLB('lens_frame_left.glb'),
+    loadGLB('lens_frame_right.glb'),
+    loadGLB('blank_l.glb'),
+    loadGLB('blank_r.glb'),
   ])
 
   // === LEFT LENS GROUP ===
@@ -192,27 +195,37 @@ export async function loadGlasses(camera: THREE.Camera): Promise<GlassesState> {
   // lensAMesh (mapA) fades out while lensBMesh (mapB) fades in when looking down
   const matA = createLeftLensMaterial(mapA)
   const matB = createLeftLensMaterial(mapB)
-  matB.opacity = 0  // Start with mapB invisible
+  matB.opacity = 0 // Start with mapB invisible
 
   // Clone the lens geometry twice - one for each material
   const lensAMesh = lensLeft.clone()
   const lensBMesh = lensLeft.clone()
-  lensAMesh.traverse((c) => { if ((c as THREE.Mesh).isMesh) (c as THREE.Mesh).material = matA })
-  lensBMesh.traverse((c) => { if ((c as THREE.Mesh).isMesh) (c as THREE.Mesh).material = matB })
+  lensAMesh.traverse((c) => {
+    if ((c as THREE.Mesh).isMesh) (c as THREE.Mesh).material = matA
+  })
+  lensBMesh.traverse((c) => {
+    if ((c as THREE.Mesh).isMesh) (c as THREE.Mesh).material = matB
+  })
   refs.lensAMesh = lensAMesh
   refs.lensBMesh = lensBMesh
 
   // Position and material for left frame
   frameLeft.position.set(0.01, 0, 0.01)
-  frameLeft.traverse((c) => { if ((c as THREE.Mesh).isMesh) (c as THREE.Mesh).material = createFrameMaterial() })
+  frameLeft.traverse((c) => {
+    if ((c as THREE.Mesh).isMesh)
+      (c as THREE.Mesh).material = createFrameMaterial()
+  })
 
   // Left mask gets semi-transparent material
-  blankL.traverse((c) => { if ((c as THREE.Mesh).isMesh) (c as THREE.Mesh).material = createMaskMaterial() })
+  blankL.traverse((c) => {
+    if ((c as THREE.Mesh).isMesh)
+      (c as THREE.Mesh).material = createMaskMaterial()
+  })
 
   // Assemble left group and position in front of left eye
   leftGroup.add(lensAMesh, lensBMesh, frameLeft, blankL)
   leftGroup.scale.set(0.95, 0.95, 1.5)
-  leftGroup.position.set(-2.2, 0, -3.99)  // Left of center, in front of camera
+  leftGroup.position.set(-2.2, 0, -3.99) // Left of center, in front of camera
 
   // === LEFT LENS GROUP ALT (alternate prescription) ===
   // Same setup but uses lensLeftFar geometry (different lens shape)
@@ -222,8 +235,12 @@ export async function loadGlasses(camera: THREE.Camera): Promise<GlassesState> {
 
   const lensAMeshAlt = lensLeftFar.clone()
   const lensBMeshAlt = lensLeftFar.clone()
-  lensAMeshAlt.traverse((c) => { if ((c as THREE.Mesh).isMesh) (c as THREE.Mesh).material = matAAlt })
-  lensBMeshAlt.traverse((c) => { if ((c as THREE.Mesh).isMesh) (c as THREE.Mesh).material = matBAlt })
+  lensAMeshAlt.traverse((c) => {
+    if ((c as THREE.Mesh).isMesh) (c as THREE.Mesh).material = matAAlt
+  })
+  lensBMeshAlt.traverse((c) => {
+    if ((c as THREE.Mesh).isMesh) (c as THREE.Mesh).material = matBAlt
+  })
 
   const frameLeftAlt = frameLeft.clone(true)
   const blankLAlt = blankL.clone(true)
@@ -231,7 +248,7 @@ export async function loadGlasses(camera: THREE.Camera): Promise<GlassesState> {
   leftGroupAlt.add(lensAMeshAlt, lensBMeshAlt, frameLeftAlt, blankLAlt)
   leftGroupAlt.scale.copy(leftGroup.scale)
   leftGroupAlt.position.copy(leftGroup.position)
-  leftGroupAlt.position.y = -4  // Hidden below viewport (for swap animation)
+  leftGroupAlt.position.y = -4 // Hidden below viewport (for swap animation)
 
   // === RIGHT LENS GROUP ===
   // Uses dynamic canvas gradient that shifts based on viewing angle
@@ -240,20 +257,30 @@ export async function loadGlasses(camera: THREE.Camera): Promise<GlassesState> {
   refs.gradTex = gradTex
 
   const rightMat = createRightLensMaterial(gradTex)
-  lensRight.traverse((c) => { if ((c as THREE.Mesh).isMesh) (c as THREE.Mesh).material = rightMat })
+  lensRight.traverse((c) => {
+    if ((c as THREE.Mesh).isMesh) (c as THREE.Mesh).material = rightMat
+  })
 
-  frameRight.traverse((c) => { if ((c as THREE.Mesh).isMesh) (c as THREE.Mesh).material = createFrameMaterial() })
-  blankR.traverse((c) => { if ((c as THREE.Mesh).isMesh) (c as THREE.Mesh).material = createMaskMaterial() })
+  frameRight.traverse((c) => {
+    if ((c as THREE.Mesh).isMesh)
+      (c as THREE.Mesh).material = createFrameMaterial()
+  })
+  blankR.traverse((c) => {
+    if ((c as THREE.Mesh).isMesh)
+      (c as THREE.Mesh).material = createMaskMaterial()
+  })
 
   // Assemble right group and position in front of right eye
   rightGroup.add(lensRight, frameRight, blankR)
   rightGroup.scale.set(0.95, 0.95, 1.5)
-  rightGroup.position.set(2.2, 0, -3.99)  // Right of center, in front of camera
+  rightGroup.position.set(2.2, 0, -3.99) // Right of center, in front of camera
 
   // === RIGHT LENS GROUP ALT ===
   const { texture: gradTexAlt } = createGradientCanvas()
   const rightMatAlt = createRightLensMaterial(gradTexAlt)
-  lensRight02.traverse((c) => { if ((c as THREE.Mesh).isMesh) (c as THREE.Mesh).material = rightMatAlt })
+  lensRight02.traverse((c) => {
+    if ((c as THREE.Mesh).isMesh) (c as THREE.Mesh).material = rightMatAlt
+  })
 
   const frameRightAlt = frameRight.clone(true)
   const blankRAlt = blankR.clone(true)
@@ -261,7 +288,7 @@ export async function loadGlasses(camera: THREE.Camera): Promise<GlassesState> {
   rightGroupAlt.add(lensRight02, frameRightAlt, blankRAlt)
   rightGroupAlt.scale.copy(rightGroup.scale)
   rightGroupAlt.position.copy(rightGroup.position)
-  rightGroupAlt.position.y = -4  // Hidden below viewport
+  rightGroupAlt.position.y = -4 // Hidden below viewport
 
   // Attach all groups to camera so they move with the view
   camera.add(leftGroup, rightGroup, leftGroupAlt, rightGroupAlt)
@@ -289,29 +316,30 @@ export async function loadGlasses(camera: THREE.Camera): Promise<GlassesState> {
         minPolar,
         maxPolar,
         -SIZE * 0.3,
-        SIZE * 0.02
+        SIZE * 0.02,
       )
       // Redraw gradient with new offset
-      const ctx = refs.gradCanvas.getContext("2d")!
+      const ctx = refs.gradCanvas.getContext('2d')
+      if (!ctx) return
       ctx.clearRect(0, 0, SIZE, SIZE)
       const grd = ctx.createLinearGradient(offset, 0, SIZE + offset, 0)
-      grd.addColorStop(0, "#fff")
-      grd.addColorStop(0.35, "#000")
-      grd.addColorStop(0.55, "#000")
-      grd.addColorStop(1, "#fff")
+      grd.addColorStop(0, '#fff')
+      grd.addColorStop(0.35, '#000')
+      grd.addColorStop(0.55, '#000')
+      grd.addColorStop(1, '#fff')
       ctx.fillStyle = grd
       ctx.fillRect(0, 0, SIZE, SIZE)
-      refs.gradTex.needsUpdate = true  // Tell THREE.js to re-upload texture
+      refs.gradTex.needsUpdate = true // Tell THREE.js to re-upload texture
     }
 
     // LEFT LENS: Crossfade between two texture maps based on viewing angle
     // Simulates bifocal/progressive transition when looking down
     if (refs.lensAMesh && refs.lensBMesh) {
-      const neutral = Math.PI / 2  // Horizontal = 90 degrees
-      const delta = neutral - polarAngle  // How far from horizontal
+      const neutral = Math.PI / 2 // Horizontal = 90 degrees
+      const delta = neutral - polarAngle // How far from horizontal
       // Smoothstep transition starting at 0, complete at 1 degree
       const t = THREE.MathUtils.smoothstep(delta, 0, Math.PI / 180)
-      const eased = 1 - Math.pow(1 - t, 3)  // Ease-out cubic
+      const eased = 1 - (1 - t) ** 3 // Ease-out cubic
       // Crossfade: mapA fades out, mapB fades in
       refs.lensAMesh.traverse((c) => {
         if ((c as THREE.Mesh).isMesh) {
@@ -354,7 +382,7 @@ export async function loadGlasses(camera: THREE.Camera): Promise<GlassesState> {
     for (const group of groups) {
       if (group.userData.animating) {
         const target = group.userData.targetY as number
-        const speed = 0.08  // Lerp factor (0-1, higher = faster)
+        const speed = 0.08 // Lerp factor (0-1, higher = faster)
         group.position.y += (target - group.position.y) * speed
         // Snap to target when close enough
         if (Math.abs(group.position.y - target) < 0.001) {

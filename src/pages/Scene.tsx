@@ -1,29 +1,29 @@
-import { useState } from "react";
-import { useParams, Link, useNavigate } from "react-router-dom";
-import { Button } from "@/components/ui/button";
+import { useState } from 'react'
+import { Link, useNavigate, useParams } from 'react-router-dom'
+import { GlassesControls } from '@/components/GlassesControls'
+import ThreeView from '@/components/ThreeView'
+import { Button } from '@/components/ui/button'
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "@/components/ui/select";
-import ThreeView from "@/components/ThreeView";
-import { GlassesControls } from "@/components/GlassesControls";
+} from '@/components/ui/select'
 
 export interface SceneModel {
-  path: string;
-  position: [number, number, number];
-  rotation?: [number, number, number];
-  scale?: number | [number, number, number];
+  path: string
+  position: [number, number, number]
+  rotation?: [number, number, number]
+  scale?: number | [number, number, number]
 }
 
 export interface SceneConfig {
-  image: string;
-  models: SceneModel[];
+  image: string
+  models: SceneModel[]
 }
 
-const base = import.meta.env.BASE_URL;
+const base = import.meta.env.BASE_URL
 
 const scenes: Record<string, SceneConfig> = {
   biking: {
@@ -48,18 +48,18 @@ const scenes: Record<string, SceneConfig> = {
       },
     ],
   },
-};
+}
 
-const sceneNames = Object.keys(scenes);
+const sceneNames = Object.keys(scenes)
 
 export default function Scene() {
-  const { scene } = useParams<{ scene: string }>();
-  const navigate = useNavigate();
-  const sceneConfig = scene ? scenes[scene] : null;
+  const { scene } = useParams<{ scene: string }>()
+  const navigate = useNavigate()
+  const sceneConfig = scene ? scenes[scene] : null
   const [glassesControls, setGlassesControls] = useState<{
-    swapLeft: () => void;
-    swapRight: () => void;
-  } | null>(null);
+    swapLeft: () => void
+    swapRight: () => void
+  } | null>(null)
 
   if (!sceneConfig) {
     return (
@@ -69,7 +69,7 @@ export default function Scene() {
           <Link to="/">Back to Home</Link>
         </Button>
       </div>
-    );
+    )
   }
 
   return (
@@ -103,5 +103,5 @@ export default function Scene() {
         />
       )}
     </div>
-  );
+  )
 }
