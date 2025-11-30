@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { useParams, Link, useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import {
@@ -8,6 +9,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import ThreeView from "@/components/ThreeView";
+import { GlassesControls } from "@/components/GlassesControls";
 
 export interface SceneModel {
   path: string;
@@ -21,22 +23,24 @@ export interface SceneConfig {
   models: SceneModel[];
 }
 
+const base = import.meta.env.BASE_URL;
+
 const scenes: Record<string, SceneConfig> = {
   biking: {
-    image: "/assets/scenes/biking2k.exr",
+    image: `${base}assets/scenes/biking2k.exr`,
     models: [
       {
-        path: "/assets/scenes/low_poly_bicycle.glb",
+        path: `${base}assets/scenes/low_poly_bicycle.glb`,
         position: [0, -0.9, 0],
         rotation: [0, 1.25, 0],
       },
     ],
   },
   office: {
-    image: "/assets/scenes/office_2k.hdr",
+    image: `${base}assets/scenes/office_2k.hdr`,
     models: [
       {
-        path: "/assets/scenes/desk.glb",
+        path: `${base}assets/scenes/desk.glb`,
         position: [1.15, -1.1, 0],
         rotation: [0, -1.6, 0],
         // rotation: [0, Math.PI, 0],
@@ -52,6 +56,10 @@ export default function Scene() {
   const { scene } = useParams<{ scene: string }>();
   const navigate = useNavigate();
   const sceneConfig = scene ? scenes[scene] : null;
+  const [glassesControls, setGlassesControls] = useState<{
+    swapLeft: () => void;
+    swapRight: () => void;
+  } | null>(null);
 
   if (!sceneConfig) {
     return (
@@ -66,7 +74,11 @@ export default function Scene() {
 
   return (
     <div className="fixed inset-0">
-      <ThreeView image={sceneConfig.image} models={sceneConfig.models} />
+      <ThreeView
+        image={sceneConfig.image}
+        models={sceneConfig.models}
+        onGlassesReady={setGlassesControls}
+      />
       <div className="absolute top-4 right-4 z-30">
         <Select
           value={scene}
@@ -84,6 +96,12 @@ export default function Scene() {
           </SelectContent>
         </Select>
       </div>
+      {glassesControls && (
+        <GlassesControls
+          onSwapLeft={glassesControls.swapLeft}
+          onSwapRight={glassesControls.swapRight}
+        />
+      )}
     </div>
   );
 }
