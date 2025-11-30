@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { GlassesControls } from '@/components/GlassesControls'
+import { LandscapeGuard } from '@/components/LandscapeGuard'
 import ThreeView from '@/components/ThreeView'
 import { Button } from '@/components/ui/button'
 import {
@@ -71,35 +72,37 @@ export default function Scene() {
   }
 
   return (
-    <div className="fixed inset-0">
-      <ThreeView
-        image={sceneConfig.image}
-        models={sceneConfig.models}
-        onGlassesReady={setGlassesControls}
-      />
-      <div className="absolute top-4 right-4 z-30">
-        <Select
-          value={scene}
-          onValueChange={(value) => navigate(`/scenes/${value}`)}
-        >
-          <SelectTrigger className="w-32 bg-black/50 text-white border-white/20">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            {sceneNames.map((name) => (
-              <SelectItem key={name} value={name}>
-                {name}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      </div>
-      {glassesControls && (
-        <GlassesControls
-          onSwapLeft={glassesControls.swapLeft}
-          onSwapRight={glassesControls.swapRight}
+    <LandscapeGuard>
+      <div className="fixed inset-0">
+        <ThreeView
+          image={sceneConfig.image}
+          models={sceneConfig.models}
+          onGlassesReady={setGlassesControls}
         />
-      )}
-    </div>
+        <div className="absolute top-4 right-4 z-30">
+          <Select
+            value={scene}
+            onValueChange={(value) => navigate(`/scenes/${value}`)}
+          >
+            <SelectTrigger className="w-32 bg-black/50 text-white border-white/20">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {sceneNames.map((name) => (
+                <SelectItem key={name} value={name}>
+                  {name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+        {glassesControls && (
+          <GlassesControls
+            onSwapLeft={glassesControls.swapLeft}
+            onSwapRight={glassesControls.swapRight}
+          />
+        )}
+      </div>
+    </LandscapeGuard>
   )
 }

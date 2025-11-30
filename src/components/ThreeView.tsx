@@ -306,8 +306,9 @@ export default function ThreeView({
       euler.set(beta, alpha, -gamma, 'YXZ')
       quaternion.setFromEuler(euler)
       quaternion.multiply(q1)
+      // Apply screen orientation correction around Y axis (up) instead of Z (view)
       quaternion.multiply(
-        q0.setFromAxisAngle(new THREE.Vector3(0, 0, 1), -orient),
+        q0.setFromAxisAngle(new THREE.Vector3(0, 1, 0), orient),
       )
     }
 
@@ -327,8 +328,8 @@ export default function ThreeView({
       const screenAngle = screen.orientation?.angle || 0
 
       // Apply offset so view starts at scene's starting position
-      // Starting position = looking at +X = alpha -90°, beta 90° (upright), gamma 0°
-      const adjustedAlpha = event.alpha - initialOrientation.alpha - 90
+      // Adjust alpha offset based on screen orientation to maintain same view direction
+      const adjustedAlpha = event.alpha - initialOrientation.alpha - 90 - screenAngle
       const adjustedBeta = event.beta - initialOrientation.beta + 90
       const adjustedGamma = event.gamma - initialOrientation.gamma
 
