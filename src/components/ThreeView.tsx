@@ -4,6 +4,7 @@ import { EXRLoader } from "three/addons/loaders/EXRLoader.js";
 import { RGBELoader } from "three/addons/loaders/RGBELoader.js";
 import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
 import { Button } from "@/components/ui/button";
+import { loadGlasses, type GlassesState } from "@/lib/glasses";
 import type { SceneModel } from "@/pages/Scene";
 
 interface ThreeViewProps {
@@ -14,11 +15,13 @@ interface ThreeViewProps {
     camera: THREE.PerspectiveCamera;
     renderer: THREE.WebGLRenderer;
   }) => void;
+  onGlassesReady?: (controls: { swapLeft: () => void; swapRight: () => void }) => void;
 }
 
-export default function ThreeView({ image, models, onReady }: ThreeViewProps) {
+export default function ThreeView({ image, models, onReady, onGlassesReady }: ThreeViewProps) {
   const mountRef = useRef<HTMLDivElement>(null);
   const cameraRef = useRef<THREE.PerspectiveCamera | null>(null);
+  const glassesRef = useRef<GlassesState | null>(null);
   const gyroActiveRef = useRef(false);
   const orientationRef = useRef<"portrait" | "landscape">(
     typeof window !== "undefined" && window.innerWidth > window.innerHeight
@@ -62,9 +65,10 @@ export default function ThreeView({ image, models, onReady }: ThreeViewProps) {
 
     // Scene & Camera
     const scene = new THREE.Scene();
-    const camera = new THREE.PerspectiveCamera(75, width / height, 0.1, 100);
+    const camera = new THREE.PerspectiveCamera(60, width / height, 0.1, 100);
     camera.position.set(0, 0, 0.01);
     cameraRef.current = camera;
+    scene.add(camera);
 
     // Renderer
     const renderer = new THREE.WebGLRenderer({ antialias: true });
@@ -182,6 +186,16 @@ export default function ThreeView({ image, models, onReady }: ThreeViewProps) {
     };
     window.addEventListener("resize", onResize);
 
+    // Load glasses
+    loadGlasses(camera).then((glasses) => {
+      glassesRef.current = glasses;
+      onGlassesReady?.({ swapLeft: glasses.swapLeft, swapRight: glasses.swapRight });
+    });
+
+    // Polar angle limits for glasses effects
+    const minPolarAngle = Math.PI / 2.5;
+    const maxPolarAngle = Math.PI / 1.6;
+
     // Animate
     let animationId: number;
     const animate = () => {
@@ -196,6 +210,17 @@ export default function ThreeView({ image, models, onReady }: ThreeViewProps) {
           Math.sin(phi) * Math.sin(theta),
         );
       }
+
+      // Update glasses effects based on camera polar angle
+      if (glassesRef.current) {
+        // Calculate polar angle from camera direction
+        const direction = new THREE.Vector3(0, 0, -1);
+        direction.applyQuaternion(camera.quaternion);
+        const polarAngle = Math.acos(direction.y);
+        glassesRef.current.update(polarAngle, minPolarAngle, maxPolarAngle);
+        glassesRef.current.animateSwap();
+      }
+
       renderer.render(scene, camera);
       animationId = requestAnimationFrame(animate);
     };
@@ -214,12 +239,14 @@ export default function ThreeView({ image, models, onReady }: ThreeViewProps) {
       renderer.domElement.removeEventListener("touchstart", onPointerDown);
       renderer.domElement.removeEventListener("touchmove", onPointerMove);
       renderer.domElement.removeEventListener("touchend", onPointerUp);
+      glassesRef.current?.dispose();
+      glassesRef.current = null;
       renderer.dispose();
       geometry.dispose();
       material.dispose();
       currentMount?.removeChild(renderer.domElement);
     };
-  }, [image, models, onReady]);
+  }, [image, models, onReady, onGlassesReady]);
 
   // Device orientation handler - runs when gyro is active
   useEffect(() => {
