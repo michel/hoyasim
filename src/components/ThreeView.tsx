@@ -42,11 +42,6 @@ export default function ThreeView({
   const cameraRef = useRef<THREE.PerspectiveCamera | null>(null)
   const glassesRef = useRef<GlassesState | null>(null)
   const gyroActiveRef = useRef(false)
-  const orientationRef = useRef<'portrait' | 'landscape'>(
-    typeof window !== 'undefined' && window.innerWidth > window.innerHeight
-      ? 'landscape'
-      : 'portrait',
-  )
   const lonRef = useRef(0)
   const latRef = useRef(0)
   const [showEnableButton, setShowEnableButton] = useState(false)
@@ -191,25 +186,13 @@ export default function ThreeView({
     renderer.domElement.addEventListener('touchmove', onPointerMove)
     renderer.domElement.addEventListener('touchend', onPointerUp)
 
-    // Resize handler with orientation change detection
+    // Resize handler
     const onResize = () => {
       const w = window.innerWidth
       const h = window.innerHeight
       camera.aspect = w / h
       camera.updateProjectionMatrix()
       renderer.setSize(w, h)
-
-      // Detect orientation change
-      const newOrientation = w > h ? 'landscape' : 'portrait'
-      if (newOrientation !== orientationRef.current) {
-        orientationRef.current = newOrientation
-        // Reset to initial view
-        lonRef.current = 0
-        latRef.current = 0
-        camera.position.set(0, 0, 0.01)
-        camera.quaternion.set(0, 0, 0, 1)
-        camera.lookAt(0, 0, 0)
-      }
     }
     window.addEventListener('resize', onResize)
 
@@ -280,19 +263,24 @@ export default function ThreeView({
   }, [image, models, onReady, onGlassesReady])
 
   // Device orientation handler - runs when gyro is active
+  // Based on three.js DeviceOrientationControls reference implementation
   useEffect(() => {
     if (!gyroActive || !cameraRef.current) return
 
     const camera = cameraRef.current
+
+    // Pre-allocated quaternions for performance
+    const zee = new THREE.Vector3(0, 0, 1)
+    const euler = new THREE.Euler()
+    const q0 = new THREE.Quaternion()
+    // World correction: -90° rotation around X to align Three.js camera with device
     const q1 = new THREE.Quaternion(-Math.sqrt(0.5), 0, 0, Math.sqrt(0.5))
 
-    // Capture initial device orientation to calculate offset
-    let initialOrientation: {
-      alpha: number
-      beta: number
-      gamma: number
-    } | null = null
+    // Alpha offset to align initial view direction
+    let alphaOffset = 0
+    let hasInitialized = false
 
+    // Standard three.js device orientation quaternion algorithm
     const setObjectQuaternion = (
       quaternion: THREE.Quaternion,
       alpha: number,
@@ -300,44 +288,31 @@ export default function ThreeView({
       gamma: number,
       orient: number,
     ) => {
-      const euler = new THREE.Euler()
-      const q0 = new THREE.Quaternion()
-
+      // Device orientation -> Euler angles (Tait-Bryan ZXY -> YXZ order)
       euler.set(beta, alpha, -gamma, 'YXZ')
       quaternion.setFromEuler(euler)
+      // Camera looks out the back of the device
       quaternion.multiply(q1)
-      // Apply screen orientation correction around Y axis (up) instead of Z (view)
-      quaternion.multiply(
-        q0.setFromAxisAngle(new THREE.Vector3(0, 1, 0), orient),
-      )
+      // Adjust for screen orientation (rotation around Z-axis)
+      quaternion.multiply(q0.setFromAxisAngle(zee, -orient))
     }
 
     const onDeviceOrientation = (event: DeviceOrientationEvent) => {
       if (event.alpha === null || event.beta === null || event.gamma === null)
         return
 
-      // Capture initial orientation on first reading
-      if (initialOrientation === null) {
-        initialOrientation = {
-          alpha: event.alpha,
-          beta: event.beta,
-          gamma: event.gamma,
-        }
+      // Capture initial alpha to start looking forward in the scene
+      if (!hasInitialized) {
+        // In landscape mode (90°), we subtract 90 from alpha to look forward
+        const _screenAngle = screen.orientation?.angle || 0
+        alphaOffset = -event.alpha + 180
+        hasInitialized = true
       }
 
-      const screenAngle = screen.orientation?.angle || 0
-
-      // Apply offset so view starts at scene's starting position
-      // Adjust alpha offset based on screen orientation to maintain same view direction
-      const adjustedAlpha =
-        event.alpha - initialOrientation.alpha - 90 - screenAngle
-      const adjustedBeta = event.beta - initialOrientation.beta + 90
-      const adjustedGamma = event.gamma - initialOrientation.gamma
-
-      const alpha = THREE.MathUtils.degToRad(adjustedAlpha)
-      const beta = THREE.MathUtils.degToRad(adjustedBeta)
-      const gamma = THREE.MathUtils.degToRad(adjustedGamma)
-      const orient = THREE.MathUtils.degToRad(screenAngle)
+      const alpha = THREE.MathUtils.degToRad(event.alpha + alphaOffset)
+      const beta = THREE.MathUtils.degToRad(event.beta)
+      const gamma = THREE.MathUtils.degToRad(event.gamma)
+      const orient = THREE.MathUtils.degToRad(screen.orientation?.angle || 0)
 
       setObjectQuaternion(camera.quaternion, alpha, beta, gamma, orient)
     }
