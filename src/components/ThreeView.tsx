@@ -309,7 +309,7 @@ export default function ThreeView({
 
       // Capture initial alpha to start looking forward in the scene
       if (!hasInitialized) {
-        alphaOffset = -event.alpha 
+        alphaOffset = -event.alpha
         hasInitialized = true
       }
 
@@ -326,7 +326,7 @@ export default function ThreeView({
     return () => {
       window.removeEventListener('deviceorientation', onDeviceOrientation)
     }
-  }, [gyroActive, image])
+  }, [gyroActive])
 
   // For non-iOS devices, try to enable gyro automatically
   useEffect(() => {
@@ -360,7 +360,9 @@ export default function ThreeView({
         <div className="absolute inset-0 z-20 flex flex-col items-center justify-center gap-4 bg-gradient-to-br from-slate-950 via-slate-900 to-zinc-900">
           <div className="glass rounded-3xl p-8 flex flex-col items-center gap-4 shadow-2xl">
             <Loader2 className="h-10 w-10 animate-spin text-white/80" />
-            <div className="text-white/90 text-lg font-light">Loading scene...</div>
+            <div className="text-white/90 text-lg font-light">
+              Loading scene...
+            </div>
           </div>
         </div>
       )}
