@@ -118,7 +118,7 @@ export default function ThreeView({ image, models, onReady, onGlassesReady }: Th
 
     // Configure Draco loader for compressed GLB files
     const dracoLoader = new DRACOLoader();
-    dracoLoader.setDecoderPath(import.meta.env.BASE_URL + "draco/");
+    dracoLoader.setDecoderPath(`${import.meta.env.BASE_URL}draco/`);
     const gltfLoader = new GLTFLoader();
     gltfLoader.setDRACOLoader(dracoLoader);
 

@@ -27,7 +27,7 @@ const base = import.meta.env.BASE_URL;
 
 const scenes: Record<string, SceneConfig> = {
   biking: {
-    image: `${base}assets/scenes/biking1k.exr`,
+    image: `${base}assets/scenes/biking2k.exr`,
     models: [
       {
         path: `${base}assets/scenes/low_poly_bicycle.glb`,
