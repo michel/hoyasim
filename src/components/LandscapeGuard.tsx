@@ -46,7 +46,7 @@ function RotatePhoneIcon() {
 
 function PortraitWarning() {
   return (
-    <div className="fixed inset-0 z-50 bg-gradient-to-br from-slate-900 via-purple-900/50 to-slate-900 flex flex-col items-center justify-center text-white">
+    <div className="fixed inset-0 z-50 bg-gradient-to-br from-slate-950 via-slate-900 to-zinc-900 flex flex-col items-center justify-center text-white">
       <div className="glass rounded-3xl p-10 flex flex-col items-center gap-4 shadow-2xl">
         <RotatePhoneIcon />
         <p className="text-lg font-light text-white/90">Please rotate your device</p>

@@ -309,7 +309,7 @@ export default function ThreeView({
 
       // Capture initial alpha to start looking forward in the scene
       if (!hasInitialized) {
-        alphaOffset = -event.alpha + 180
+        alphaOffset = -event.alpha 
         hasInitialized = true
       }
 
@@ -357,7 +357,7 @@ export default function ThreeView({
       }}
     >
       {loading && (
-        <div className="absolute inset-0 z-20 flex flex-col items-center justify-center gap-4 bg-gradient-to-br from-slate-900 via-purple-900/50 to-slate-900">
+        <div className="absolute inset-0 z-20 flex flex-col items-center justify-center gap-4 bg-gradient-to-br from-slate-950 via-slate-900 to-zinc-900">
           <div className="glass rounded-3xl p-8 flex flex-col items-center gap-4 shadow-2xl">
             <Loader2 className="h-10 w-10 animate-spin text-white/80" />
             <div className="text-white/90 text-lg font-light">Loading scene...</div>
