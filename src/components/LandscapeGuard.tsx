@@ -10,6 +10,7 @@ function RotatePhoneIcon() {
       xmlns="http://www.w3.org/2000/svg"
       className="mb-6"
     >
+      <title>Rotate phone to landscape</title>
       {/* Phone in portrait position */}
       <rect
         x="35"
@@ -31,7 +32,14 @@ function RotatePhoneIcon() {
         fill="none"
         strokeLinecap="round"
       />
-      <path d="M80 75 L85 82 L92 77" stroke="white" strokeWidth="3" fill="none" strokeLinecap="round" strokeLinejoin="round" />
+      <path
+        d="M80 75 L85 82 L92 77"
+        stroke="white"
+        strokeWidth="3"
+        fill="none"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
     </svg>
   )
 }
@@ -46,8 +54,8 @@ function PortraitWarning() {
 }
 
 export function LandscapeGuard({ children }: { children: React.ReactNode }) {
-  const [isPortrait, setIsPortrait] = useState(() =>
-    window.innerWidth < window.innerHeight
+  const [isPortrait, setIsPortrait] = useState(
+    () => window.innerWidth < window.innerHeight,
   )
 
   useEffect(() => {

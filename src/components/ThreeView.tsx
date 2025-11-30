@@ -329,7 +329,8 @@ export default function ThreeView({
 
       // Apply offset so view starts at scene's starting position
       // Adjust alpha offset based on screen orientation to maintain same view direction
-      const adjustedAlpha = event.alpha - initialOrientation.alpha - 90 - screenAngle
+      const adjustedAlpha =
+        event.alpha - initialOrientation.alpha - 90 - screenAngle
       const adjustedBeta = event.beta - initialOrientation.beta + 90
       const adjustedGamma = event.gamma - initialOrientation.gamma
 
