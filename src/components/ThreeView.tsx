@@ -357,22 +357,16 @@ export default function ThreeView({
       }}
     >
       {loading && (
-        <div className="absolute inset-0 z-20 flex flex-col items-center justify-center gap-4 bg-black">
-          <Loader2 className="h-10 w-10 animate-spin text-white" />
-          <div className="text-white text-lg">Loading scene...</div>
+        <div className="absolute inset-0 z-20 flex flex-col items-center justify-center gap-4 bg-gradient-to-br from-slate-900 via-purple-900/50 to-slate-900">
+          <div className="glass rounded-3xl p-8 flex flex-col items-center gap-4 shadow-2xl">
+            <Loader2 className="h-10 w-10 animate-spin text-white/80" />
+            <div className="text-white/90 text-lg font-light">Loading scene...</div>
+          </div>
         </div>
       )}
       {showEnableButton && !gyroActive && (
-        <div
-          style={{
-            position: 'absolute',
-            top: '50%',
-            left: '50%',
-            transform: 'translate(-50%, -50%)',
-            zIndex: 10,
-          }}
-        >
-          <Button size="lg" onClick={enableMotionControls}>
+        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-10">
+          <Button variant="glass" size="lg" onClick={enableMotionControls}>
             Tap to Enable Motion Controls
           </Button>
         </div>

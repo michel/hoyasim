@@ -63,11 +63,13 @@ export default function Scene() {
 
   if (!sceneConfig) {
     return (
-      <div className="min-h-screen flex flex-col items-center justify-center gap-4">
-        <h1 className="text-4xl font-bold">Scene not found</h1>
-        <Button asChild variant="outline">
-          <Link to="/">Back to Home</Link>
-        </Button>
+      <div className="min-h-screen flex flex-col items-center justify-center bg-gradient-to-br from-slate-900 via-purple-900/50 to-slate-900">
+        <div className="glass rounded-3xl px-12 py-10 flex flex-col items-center gap-6 shadow-2xl">
+          <h1 className="text-3xl font-light text-white">Scene not found</h1>
+          <Button variant="glass" asChild>
+            <Link to="/">Back to Home</Link>
+          </Button>
+        </div>
       </div>
     )
   }
@@ -87,7 +89,7 @@ export default function Scene() {
             value={scene}
             onValueChange={(value) => navigate(`/scenes/${value}`)}
           >
-            <SelectTrigger className="w-32 bg-black/50 text-white border-white/20">
+            <SelectTrigger className="w-32">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>

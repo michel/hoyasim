@@ -8,7 +8,7 @@ function RotatePhoneIcon() {
       viewBox="0 0 120 120"
       fill="none"
       xmlns="http://www.w3.org/2000/svg"
-      className="mb-6"
+      className="mb-2"
     >
       <title>Rotate phone to landscape</title>
       {/* Phone in portrait position */}
@@ -46,9 +46,11 @@ function RotatePhoneIcon() {
 
 function PortraitWarning() {
   return (
-    <div className="fixed inset-0 z-50 bg-black flex flex-col items-center justify-center text-white">
-      <RotatePhoneIcon />
-      <p className="text-lg font-medium">Please rotate your device</p>
+    <div className="fixed inset-0 z-50 bg-gradient-to-br from-slate-900 via-purple-900/50 to-slate-900 flex flex-col items-center justify-center text-white">
+      <div className="glass rounded-3xl p-10 flex flex-col items-center gap-4 shadow-2xl">
+        <RotatePhoneIcon />
+        <p className="text-lg font-light text-white/90">Please rotate your device</p>
+      </div>
     </div>
   )
 }
