@@ -27,7 +27,7 @@ const base = import.meta.env.BASE_URL;
 
 const scenes: Record<string, SceneConfig> = {
   biking: {
-    image: `${base}assets/scenes/biking2k.exr`,
+    image: `${base}assets/scenes/biking1k.exr`,
     models: [
       {
         path: `${base}assets/scenes/low_poly_bicycle.glb`,
@@ -37,14 +37,12 @@ const scenes: Record<string, SceneConfig> = {
     ],
   },
   office: {
-    image: `${base}assets/scenes/office_2k.hdr`,
+    image: `${base}assets/scenes/office_1k.hdr`,
     models: [
       {
         path: `${base}assets/scenes/desk.glb`,
         position: [1.15, -1.1, 0],
         rotation: [0, -1.6, 0],
-        // rotation: [0, Math.PI, 0],
-        // scale: 1,
       },
     ],
   },

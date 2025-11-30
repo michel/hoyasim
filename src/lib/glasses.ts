@@ -1,7 +1,12 @@
 import * as THREE from "three";
 import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
+import { DRACOLoader } from "three/addons/loaders/DRACOLoader.js";
 
 const ASSETS_PATH = import.meta.env.BASE_URL + "assets/glasses/";
+
+// Configure Draco loader for compressed GLB files
+const dracoLoader = new DRACOLoader();
+dracoLoader.setDecoderPath(import.meta.env.BASE_URL + "draco/");
 
 // State returned by loadGlasses - contains lens groups and control functions
 export interface GlassesState {
@@ -25,6 +30,7 @@ interface LensRefs {
 }
 
 const loader = new GLTFLoader();
+loader.setDRACOLoader(dracoLoader);
 const textureLoader = new THREE.TextureLoader();
 
 // Promisified GLB loader

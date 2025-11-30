@@ -3,6 +3,7 @@ import * as THREE from "three";
 import { EXRLoader } from "three/addons/loaders/EXRLoader.js";
 import { RGBELoader } from "three/addons/loaders/RGBELoader.js";
 import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
+import { DRACOLoader } from "three/addons/loaders/DRACOLoader.js";
 import { Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { loadGlasses, type GlassesState } from "@/lib/glasses";
@@ -115,9 +116,15 @@ export default function ThreeView({ image, models, onReady, onGlassesReady }: Th
     dirLight.position.set(5, 10, 5);
     scene.add(dirLight);
 
+    // Configure Draco loader for compressed GLB files
+    const dracoLoader = new DRACOLoader();
+    dracoLoader.setDecoderPath(import.meta.env.BASE_URL + "draco/");
+    const gltfLoader = new GLTFLoader();
+    gltfLoader.setDRACOLoader(dracoLoader);
+
     // Load models
     models?.forEach((model) => {
-      new GLTFLoader().load(model.path, (gltf) => {
+      gltfLoader.load(model.path, (gltf) => {
         const obj = gltf.scene;
         obj.position.set(...model.position);
         if (model.rotation) obj.rotation.set(...model.rotation);
@@ -242,6 +249,7 @@ export default function ThreeView({ image, models, onReady, onGlassesReady }: Th
       renderer.domElement.removeEventListener("touchend", onPointerUp);
       glassesRef.current?.dispose();
       glassesRef.current = null;
+      dracoLoader.dispose();
       renderer.dispose();
       geometry.dispose();
       material.dispose();
