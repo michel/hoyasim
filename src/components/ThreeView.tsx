@@ -3,6 +3,7 @@ import * as THREE from "three";
 import { EXRLoader } from "three/addons/loaders/EXRLoader.js";
 import { RGBELoader } from "three/addons/loaders/RGBELoader.js";
 import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
+import { Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { loadGlasses, type GlassesState } from "@/lib/glasses";
 import type { SceneModel } from "@/pages/Scene";
@@ -344,7 +345,8 @@ export default function ThreeView({ image, models, onReady, onGlassesReady }: Th
       }}
     >
       {loading && (
-        <div className="absolute inset-0 z-20 flex items-center justify-center bg-black">
+        <div className="absolute inset-0 z-20 flex flex-col items-center justify-center gap-4 bg-black">
+          <Loader2 className="h-10 w-10 animate-spin text-white" />
           <div className="text-white text-lg">Loading scene...</div>
         </div>
       )}

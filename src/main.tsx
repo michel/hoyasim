@@ -1,6 +1,7 @@
 import { lazy, StrictMode, Suspense } from 'react'
 import { createRoot } from 'react-dom/client'
 import { BrowserRouter, Route, Routes } from 'react-router-dom'
+import { Loader2 } from 'lucide-react'
 import './index.css'
 
 const Home = lazy(() => import('./pages/Home'))
@@ -15,7 +16,7 @@ createRoot(rootElement).render(
       <Suspense
         fallback={
           <div className="min-h-screen flex items-center justify-center">
-            Loading...
+            <Loader2 className="h-8 w-8 animate-spin text-gray-600" />
           </div>
         }
       >
