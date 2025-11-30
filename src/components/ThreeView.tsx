@@ -326,7 +326,7 @@ export default function ThreeView({
     return () => {
       window.removeEventListener('deviceorientation', onDeviceOrientation)
     }
-  }, [gyroActive])
+  }, [gyroActive, image])
 
   // For non-iOS devices, try to enable gyro automatically
   useEffect(() => {
