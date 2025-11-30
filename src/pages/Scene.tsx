@@ -59,6 +59,7 @@ export default function Scene() {
     swapLeft: () => void
     swapRight: () => void
   } | null>(null)
+  const [gyroActive, setGyroActive] = useState(false)
 
   if (!sceneConfig) {
     return (
@@ -77,6 +78,8 @@ export default function Scene() {
         <ThreeView
           image={sceneConfig.image}
           models={sceneConfig.models}
+          gyroActive={gyroActive}
+          onGyroActiveChange={setGyroActive}
           onGlassesReady={setGlassesControls}
         />
         <div className="absolute top-4 right-4 z-30">

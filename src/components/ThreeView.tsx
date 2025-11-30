@@ -21,6 +21,8 @@ const DeviceOrientationEventiOS =
 interface ThreeViewProps {
   image: string
   models?: SceneModel[]
+  gyroActive: boolean
+  onGyroActiveChange: (active: boolean) => void
   onReady?: (ref: {
     scene: THREE.Scene
     camera: THREE.PerspectiveCamera
@@ -35,18 +37,22 @@ interface ThreeViewProps {
 export default function ThreeView({
   image,
   models,
+  gyroActive,
+  onGyroActiveChange,
   onReady,
   onGlassesReady,
 }: ThreeViewProps) {
   const mountRef = useRef<HTMLDivElement>(null)
   const cameraRef = useRef<THREE.PerspectiveCamera | null>(null)
   const glassesRef = useRef<GlassesState | null>(null)
-  const gyroActiveRef = useRef(false)
+  const gyroActiveRef = useRef(gyroActive)
   const lonRef = useRef(0)
   const latRef = useRef(0)
   const [showEnableButton, setShowEnableButton] = useState(false)
-  const [gyroActive, setGyroActive] = useState(false)
   const [loading, setLoading] = useState(true)
+
+  // Keep ref in sync with prop
+  gyroActiveRef.current = gyroActive
 
   // Check if we need to show permission button (iOS)
   useEffect(() => {
@@ -59,8 +65,7 @@ export default function ThreeView({
     try {
       const permission = await DeviceOrientationEventiOS.requestPermission?.()
       if (permission === 'granted') {
-        gyroActiveRef.current = true
-        setGyroActive(true)
+        onGyroActiveChange(true)
         setShowEnableButton(false)
       }
     } catch {
@@ -264,6 +269,7 @@ export default function ThreeView({
 
   // Device orientation handler - runs when gyro is active
   // Based on three.js DeviceOrientationControls reference implementation
+  // Re-runs when image changes (new camera created) or gyroActive changes
   useEffect(() => {
     if (!gyroActive || !cameraRef.current) return
 
@@ -303,8 +309,6 @@ export default function ThreeView({
 
       // Capture initial alpha to start looking forward in the scene
       if (!hasInitialized) {
-        // In landscape mode (90°), we subtract 90 from alpha to look forward
-        const _screenAngle = screen.orientation?.angle || 0
         alphaOffset = -event.alpha + 180
         hasInitialized = true
       }
@@ -332,17 +336,14 @@ export default function ThreeView({
 
     // Check if device orientation is available
     const testOrientation = (event: DeviceOrientationEvent) => {
-      if (event.alpha !== null) {
-        gyroActiveRef.current = true
-        setGyroActive(true)
-      }
+      if (event.alpha !== null) onGyroActiveChange(true)
       window.removeEventListener('deviceorientation', testOrientation)
     }
     window.addEventListener('deviceorientation', testOrientation)
 
     return () =>
       window.removeEventListener('deviceorientation', testOrientation)
-  }, [])
+  }, [onGyroActiveChange])
 
   return (
     <div
