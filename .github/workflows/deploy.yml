@@ -30,7 +30,7 @@ jobs:
           key: node-modules-${{ hashFiles('bun.lock') }}
       - name: Install dependencies
         if: steps.cache.outputs.cache-hit != 'true'
-        run: bun install --frozen-lockfile
+        run: bun ci
       - run: bun run type-check
       - run: bun run lint
       - run: bun run test
