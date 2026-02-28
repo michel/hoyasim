@@ -12,6 +12,8 @@ import { LAT_MAX, LAT_MIN } from './usePointerControls'
 export const POLAR_ANGLE_MIN = Math.PI / 2.5
 export const POLAR_ANGLE_MAX = Math.PI / 1.6
 
+const _direction = new THREE.Vector3()
+
 // ── Hook ─────────────────────────────────────────────────────────────
 
 export function useAssetLoader(
@@ -132,9 +134,8 @@ export function useAssetLoader(
       }
 
       if (glassesRef.current) {
-        const direction = new THREE.Vector3(0, 0, -1)
-        direction.applyQuaternion(camera.quaternion)
-        const polarAngle = Math.acos(direction.y)
+        _direction.set(0, 0, -1).applyQuaternion(camera.quaternion)
+        const polarAngle = Math.acos(_direction.y)
         glassesRef.current.update(polarAngle, POLAR_ANGLE_MIN, POLAR_ANGLE_MAX)
         glassesRef.current.animateSwap()
       }
