@@ -34,6 +34,8 @@ export function useAssetLoader(
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const glassesRef = useRef<GlassesState | null>(null)
+  const onGlassesReadyRef = useRef(onGlassesReady)
+  onGlassesReadyRef.current = onGlassesReady
 
   useEffect(() => {
     if (!scene || !camera || !renderer || !sphereMaterial) return
@@ -41,82 +43,70 @@ export function useAssetLoader(
     setLoading(true)
     setError(null)
 
-    const totalModels = models?.length || 0
-    let textureLoaded = false
-    let modelsLoaded = 0
-
-    const checkLoadingComplete = () => {
-      if (textureLoaded && modelsLoaded === totalModels) setLoading(false)
-    }
-
-    const onTextureLoaded = (texture: THREE.Texture) => {
-      texture.mapping = THREE.EquirectangularReflectionMapping
-      sphereMaterial.map = texture
-      sphereMaterial.needsUpdate = true
-      textureLoaded = true
-      checkLoadingComplete()
-    }
-
-    const onTextureError = () => {
-      setError('Failed to load scene texture')
-      setLoading(false)
-    }
-
-    // Load texture based on file extension
-    if (image.endsWith('.exr'))
-      new EXRLoader().load(image, onTextureLoaded, undefined, onTextureError)
-    else if (image.endsWith('.hdr'))
-      new RGBELoader().load(image, onTextureLoaded, undefined, onTextureError)
-    else
-      new THREE.TextureLoader().load(
-        image,
-        onTextureLoaded,
-        undefined,
-        onTextureError,
-      )
-
-    // Track loaded objects for cleanup
+    let disposed = false
     const loadedObjects: THREE.Object3D[] = []
 
-    // Load scene models
-    models?.forEach((model) => {
-      gltfLoader.load(
-        model.path,
-        (gltf) => {
-          const obj = gltf.scene
-          obj.position.set(...model.position)
-          if (model.rotation) obj.rotation.set(...model.rotation)
-          if (model.scale) {
-            const s = Array.isArray(model.scale)
-              ? model.scale
-              : [model.scale, model.scale, model.scale]
-            obj.scale.set(...(s as [number, number, number]))
-          }
-          scene.add(obj)
-          loadedObjects.push(obj)
-          modelsLoaded++
-          checkLoadingComplete()
-        },
-        undefined,
-        () => {
-          setError(`Failed to load model: ${model.path}`)
-          modelsLoaded++
-          checkLoadingComplete()
-        },
-      )
+    // Load texture
+    const texturePromise = new Promise<void>((resolve, reject) => {
+      const onLoaded = (texture: THREE.Texture) => {
+        texture.mapping = THREE.EquirectangularReflectionMapping
+        sphereMaterial.map = texture
+        sphereMaterial.needsUpdate = true
+        resolve()
+      }
+      const onError = () => reject(new Error('Failed to load scene texture'))
+
+      if (image.endsWith('.exr'))
+        new EXRLoader().load(image, onLoaded, undefined, onError)
+      else if (image.endsWith('.hdr'))
+        new RGBELoader().load(image, onLoaded, undefined, onError)
+      else
+        new THREE.TextureLoader().load(image, onLoaded, undefined, onError)
     })
 
+    // Load models
+    const modelPromises = (models ?? []).map(
+      (model) =>
+        new Promise<void>((resolve, reject) => {
+          gltfLoader.load(
+            model.path,
+            (gltf) => {
+              if (disposed) return resolve()
+              const obj = gltf.scene
+              obj.position.set(...model.position)
+              if (model.rotation) obj.rotation.set(...model.rotation)
+              if (model.scale) {
+                const s = Array.isArray(model.scale)
+                  ? model.scale
+                  : [model.scale, model.scale, model.scale]
+                obj.scale.set(...(s as [number, number, number]))
+              }
+              scene.add(obj)
+              loadedObjects.push(obj)
+              resolve()
+            },
+            undefined,
+            () => reject(new Error(`Failed to load model: ${model.path}`)),
+          )
+        }),
+    )
+
     // Load glasses
-    loadGlasses(camera)
-      .then((glasses) => {
-        glassesRef.current = glasses
-        onGlassesReady?.({
-          swapLeft: glasses.swapLeft,
-          swapRight: glasses.swapRight,
-        })
+    const glassesPromise = loadGlasses(camera).then((glasses) => {
+      if (disposed) return
+      glassesRef.current = glasses
+      onGlassesReadyRef.current?.({
+        swapLeft: glasses.swapLeft,
+        swapRight: glasses.swapRight,
       })
-      .catch(() => {
-        setError('Failed to load glasses overlay')
+    })
+
+    Promise.all([texturePromise, ...modelPromises, glassesPromise])
+      .catch((err) => {
+        if (!disposed) setError(err.message)
+      })
+      .finally(() => {
+        if (!disposed) setLoading(false)
       })
 
     // Animation loop
@@ -146,6 +136,7 @@ export function useAssetLoader(
     animate()
 
     return () => {
+      disposed = true
       cancelAnimationFrame(animationId)
 
       for (const obj of loadedObjects) {
@@ -154,9 +145,7 @@ export function useAssetLoader(
           if (child instanceof THREE.Mesh) {
             child.geometry.dispose()
             if (Array.isArray(child.material))
-              child.material.forEach((m) => {
-                m.dispose()
-              })
+              child.material.forEach((m) => m.dispose())
             else child.material.dispose()
           }
         })
@@ -170,18 +159,7 @@ export function useAssetLoader(
       glassesRef.current?.dispose()
       glassesRef.current = null
     }
-  }, [
-    scene,
-    camera,
-    renderer,
-    sphereMaterial,
-    image,
-    models,
-    gyroActiveRef,
-    lonRef,
-    latRef,
-    onGlassesReady,
-  ])
+  }, [scene, camera, renderer, sphereMaterial, image, models, gyroActiveRef, lonRef, latRef])
 
   return { loading, error }
 }
