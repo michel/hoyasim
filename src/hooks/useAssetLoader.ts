@@ -49,6 +49,10 @@ export function useAssetLoader(
     // Load texture
     const texturePromise = new Promise<void>((resolve, reject) => {
       const onLoaded = (texture: THREE.Texture) => {
+        if (disposed) {
+          texture.dispose()
+          return resolve()
+        }
         texture.mapping = THREE.EquirectangularReflectionMapping
         sphereMaterial.map = texture
         sphereMaterial.needsUpdate = true
@@ -93,7 +97,7 @@ export function useAssetLoader(
 
     // Load glasses
     const glassesPromise = loadGlasses(camera).then((glasses) => {
-      if (disposed) return
+      if (disposed) return glasses.dispose()
       glassesRef.current = glasses
       onGlassesReadyRef.current?.({
         swapLeft: glasses.swapLeft,
