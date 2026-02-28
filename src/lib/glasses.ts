@@ -25,7 +25,7 @@ interface SwapAnimation {
   animating: boolean
 }
 
-const animationState = new Map<THREE.Group, SwapAnimation>()
+const animationState = new WeakMap<THREE.Group, SwapAnimation>()
 
 function getAnimation(group: THREE.Group): SwapAnimation {
   let state = animationState.get(group)
@@ -384,10 +384,6 @@ export async function loadGlasses(camera: THREE.Camera): Promise<GlassesState> {
 
   function dispose() {
     camera.remove(leftGroup, rightGroup, leftGroupAlt, rightGroupAlt)
-    animationState.delete(leftGroup)
-    animationState.delete(rightGroup)
-    animationState.delete(leftGroupAlt)
-    animationState.delete(rightGroupAlt)
     mapA.dispose()
     mapB.dispose()
     refs.gradTex?.dispose()
