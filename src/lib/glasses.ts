@@ -1,6 +1,5 @@
 import * as THREE from 'three'
-import { DRACOLoader } from 'three/addons/loaders/DRACOLoader.js'
-import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js'
+import { gltfLoader, textureLoader } from './loaders'
 
 // ── Constants ────────────────────────────────────────────────────────
 
@@ -40,18 +39,9 @@ function getAnimation(group: THREE.Group): SwapAnimation {
 
 const ASSETS_PATH = `${import.meta.env.BASE_URL}assets/glasses/`
 
-const dracoLoader = new DRACOLoader()
-dracoLoader.setDecoderPath(
-  'https://www.gstatic.com/draco/versioned/decoders/1.5.7/',
-)
-
-const loader = new GLTFLoader()
-loader.setDRACOLoader(dracoLoader)
-const textureLoader = new THREE.TextureLoader()
-
 function loadGLB(path: string): Promise<THREE.Group> {
   return new Promise((resolve, reject) => {
-    loader.load(
+    gltfLoader.load(
       ASSETS_PATH + path,
       (gltf) => resolve(gltf.scene),
       undefined,

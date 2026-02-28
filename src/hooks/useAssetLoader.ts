@@ -1,11 +1,10 @@
 import { useEffect, useRef, useState } from 'react'
 import * as THREE from 'three'
-import { DRACOLoader } from 'three/addons/loaders/DRACOLoader.js'
 import { EXRLoader } from 'three/addons/loaders/EXRLoader.js'
-import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js'
 import { RGBELoader } from 'three/addons/loaders/RGBELoader.js'
 import type { SceneModel } from '@/config/scenes'
 import { type GlassesState, loadGlasses } from '@/lib/glasses'
+import { gltfLoader } from '@/lib/loaders'
 import { LAT_MAX, LAT_MIN } from './usePointerControls'
 
 // ── Constants ────────────────────────────────────────────────────────
@@ -78,13 +77,6 @@ export function useAssetLoader(
     const loadedObjects: THREE.Object3D[] = []
 
     // Load scene models
-    const dracoLoader = new DRACOLoader()
-    dracoLoader.setDecoderPath(
-      'https://www.gstatic.com/draco/versioned/decoders/1.5.7/',
-    )
-    const gltfLoader = new GLTFLoader()
-    gltfLoader.setDRACOLoader(dracoLoader)
-
     models?.forEach((model) => {
       gltfLoader.load(
         model.path,
@@ -176,7 +168,6 @@ export function useAssetLoader(
 
       glassesRef.current?.dispose()
       glassesRef.current = null
-      dracoLoader.dispose()
     }
   }, [
     scene,
