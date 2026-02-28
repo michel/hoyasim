@@ -1,7 +1,7 @@
 {
   "name": "hoyasim",
   "private": true,
-  "version": "0.0.0",
+  "version": "0.1.0",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -36,7 +36,7 @@
     "@types/node": "^22.19.1",
     "@types/react": "^19.2.7",
     "@types/react-dom": "^19.2.3",
-    "@typescript/native-preview": "latest",
+    "@typescript/native-preview": "^7.0.0-dev.20260228.1",
     "@vitejs/plugin-react": "^5.1.1",
     "jsdom": "^28.1.0",
     "tailwindcss": "^4.1.17",
