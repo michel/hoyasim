@@ -293,6 +293,7 @@ export async function loadGlasses(camera: THREE.Camera): Promise<GlassesState> {
 
   let leftSwapped = false
   let rightSwapped = false
+  let lastGradientOffset = Number.POSITIVE_INFINITY
 
   function update(polarAngle: number, minPolar: number, maxPolar: number) {
     if (refs.gradCanvas && refs.gradTex) {
@@ -303,22 +304,25 @@ export async function loadGlasses(camera: THREE.Camera): Promise<GlassesState> {
         -GRADIENT_SIZE * 0.3,
         GRADIENT_SIZE * 0.02,
       )
-      const ctx = refs.gradCanvas.getContext('2d')
-      if (ctx) {
-        ctx.clearRect(0, 0, GRADIENT_SIZE, GRADIENT_SIZE)
-        const grd = ctx.createLinearGradient(
-          offset,
-          0,
-          GRADIENT_SIZE + offset,
-          0,
-        )
-        grd.addColorStop(0, '#fff')
-        grd.addColorStop(0.35, '#000')
-        grd.addColorStop(0.55, '#000')
-        grd.addColorStop(1, '#fff')
-        ctx.fillStyle = grd
-        ctx.fillRect(0, 0, GRADIENT_SIZE, GRADIENT_SIZE)
-        refs.gradTex.needsUpdate = true
+      if (Math.abs(lastGradientOffset - offset) >= 0.5) {
+        lastGradientOffset = offset
+        const ctx = refs.gradCanvas.getContext('2d')
+        if (ctx) {
+          ctx.clearRect(0, 0, GRADIENT_SIZE, GRADIENT_SIZE)
+          const grd = ctx.createLinearGradient(
+            offset,
+            0,
+            GRADIENT_SIZE + offset,
+            0,
+          )
+          grd.addColorStop(0, '#fff')
+          grd.addColorStop(0.35, '#000')
+          grd.addColorStop(0.55, '#000')
+          grd.addColorStop(1, '#fff')
+          ctx.fillStyle = grd
+          ctx.fillRect(0, 0, GRADIENT_SIZE, GRADIENT_SIZE)
+          refs.gradTex.needsUpdate = true
+        }
       }
     }
 
