@@ -161,7 +161,9 @@ export function useAssetLoader(
           if (child instanceof THREE.Mesh) {
             child.geometry.dispose()
             if (Array.isArray(child.material))
-              child.material.forEach((m) => m.dispose())
+              child.material.forEach((m) => {
+                m.dispose()
+              })
             else child.material.dispose()
           }
         })
