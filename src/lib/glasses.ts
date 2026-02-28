@@ -148,7 +148,7 @@ export function createRightLensMaterial(
 
 function applyMaterial(obj: THREE.Object3D, mat: THREE.Material) {
   obj.traverse((c) => {
-    if ((c as THREE.Mesh).isMesh) (c as THREE.Mesh).material = mat
+    if (c instanceof THREE.Mesh) c.material = mat
   })
 }
 
@@ -338,16 +338,12 @@ export async function loadGlasses(camera: THREE.Camera): Promise<GlassesState> {
       const t = THREE.MathUtils.smoothstep(delta, 0, Math.PI / 180)
       const eased = 1 - (1 - t) ** 3
       refs.lensAMesh.traverse((c) => {
-        if ((c as THREE.Mesh).isMesh) {
-          const mat = (c as THREE.Mesh).material as THREE.MeshPhysicalMaterial
-          mat.opacity = 1 - eased
-        }
+        if (c instanceof THREE.Mesh)
+          (c.material as THREE.MeshPhysicalMaterial).opacity = 1 - eased
       })
       refs.lensBMesh.traverse((c) => {
-        if ((c as THREE.Mesh).isMesh) {
-          const mat = (c as THREE.Mesh).material as THREE.MeshPhysicalMaterial
-          mat.opacity = eased
-        }
+        if (c instanceof THREE.Mesh)
+          (c.material as THREE.MeshPhysicalMaterial).opacity = eased
       })
     }
   }
