@@ -64,8 +64,7 @@ export function useAssetLoader(
         new EXRLoader().load(image, onLoaded, undefined, onError)
       else if (image.endsWith('.hdr'))
         new RGBELoader().load(image, onLoaded, undefined, onError)
-      else
-        new THREE.TextureLoader().load(image, onLoaded, undefined, onError)
+      else new THREE.TextureLoader().load(image, onLoaded, undefined, onError)
     })
 
     // Load models
@@ -149,7 +148,9 @@ export function useAssetLoader(
           if (child instanceof THREE.Mesh) {
             child.geometry.dispose()
             if (Array.isArray(child.material))
-              child.material.forEach((m) => m.dispose())
+              child.material.forEach((m) => {
+                m.dispose()
+              })
             else child.material.dispose()
           }
         })
@@ -163,7 +164,17 @@ export function useAssetLoader(
       glassesRef.current?.dispose()
       glassesRef.current = null
     }
-  }, [scene, camera, renderer, sphereMaterial, image, models, gyroActiveRef, lonRef, latRef])
+  }, [
+    scene,
+    camera,
+    renderer,
+    sphereMaterial,
+    image,
+    models,
+    gyroActiveRef,
+    lonRef,
+    latRef,
+  ])
 
   return { loading, error }
 }
