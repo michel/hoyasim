@@ -2,7 +2,7 @@ import { Loader2 } from 'lucide-react'
 import { useRef } from 'react'
 import type * as THREE from 'three'
 import { Button } from '@/components/ui/button'
-import type { SceneModel } from '@/config/scenes'
+import type { SceneConfig, SceneModel } from '@/config/scenes'
 import { useAssetLoader } from '@/hooks/useAssetLoader'
 import { useDeviceOrientation } from '@/hooks/useDeviceOrientation'
 import { usePointerControls } from '@/hooks/usePointerControls'
@@ -11,6 +11,7 @@ import { useThreeScene } from '@/hooks/useThreeScene'
 interface ThreeViewProps {
   image: string
   models?: SceneModel[]
+  effects?: SceneConfig['effects']
   gyroActive: boolean
   onGyroActiveChange: (active: boolean) => void
   onReady?: (ref: {
@@ -27,6 +28,7 @@ interface ThreeViewProps {
 export default function ThreeView({
   image,
   models,
+  effects,
   gyroActive,
   onGyroActiveChange,
   onGlassesReady,
@@ -56,9 +58,11 @@ export default function ThreeView({
     sceneRefs?.scene ?? null,
     sceneRefs?.camera ?? null,
     sceneRefs?.renderer ?? null,
+    sceneRefs?.sphere ?? null,
     sceneRefs?.sphereMaterial ?? null,
     image,
     models,
+    effects,
     gyroActiveRef,
     lonRef,
     latRef,

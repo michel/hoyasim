@@ -8,6 +8,7 @@ export interface SceneModel {
 export interface SceneConfig {
   image: string
   models: SceneModel[]
+  effects?: { blocks?: boolean }
 }
 
 const base = import.meta.env.BASE_URL
@@ -22,6 +23,7 @@ export const scenes: Record<string, SceneConfig> = {
         rotation: [0, 1.25, 0],
       },
     ],
+    effects: { blocks: true },
   },
   office: {
     image: `${base}assets/scenes/office_1k.hdr`,

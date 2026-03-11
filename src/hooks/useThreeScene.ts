@@ -5,10 +5,10 @@ import * as THREE from 'three'
 
 export const CAMERA_FOV = 60
 export const CAMERA_NEAR = 0.1
-export const CAMERA_FAR = 100
+export const CAMERA_FAR = 400
 export const CAMERA_Z = 0.01
 export const SPHERE_RADIUS = 50
-export const SPHERE_SEGMENTS = 64
+export const SPHERE_SEGMENTS = 32
 
 // ── Pure factory (testable) ──────────────────────────────────────────
 
@@ -46,6 +46,7 @@ export interface ThreeSceneRefs {
   scene: THREE.Scene
   camera: THREE.PerspectiveCamera
   renderer: THREE.WebGLRenderer
+  sphere: THREE.Mesh
   sphereMaterial: THREE.MeshBasicMaterial
   geometry: THREE.SphereGeometry
 }
@@ -61,17 +62,20 @@ export function useThreeScene(
     const width = window.innerWidth
     const height = window.innerHeight
 
-    const { scene, camera, sphereMaterial, geometry } = createThreeScene(
-      width,
-      height,
-    )
+    const { scene, camera, sphere, sphereMaterial, geometry } =
+      createThreeScene(width, height)
 
-    const renderer = new THREE.WebGLRenderer({ antialias: true })
+    const renderer = new THREE.WebGLRenderer({
+      antialias: false,
+      powerPreference: 'high-performance',
+    })
+    renderer.shadowMap.enabled = true
+    renderer.shadowMap.type = THREE.BasicShadowMap
     renderer.setSize(width, height)
-    renderer.setPixelRatio(window.devicePixelRatio)
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2))
     mountRef.current.appendChild(renderer.domElement)
 
-    setSceneRefs({ scene, camera, renderer, sphereMaterial, geometry })
+    setSceneRefs({ scene, camera, renderer, sphere, sphereMaterial, geometry })
 
     const onResize = () => {
       const w = window.innerWidth

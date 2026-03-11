@@ -42,6 +42,7 @@ export default function Scene() {
         <ThreeView
           image={sceneConfig.image}
           models={sceneConfig.models}
+          effects={sceneConfig.effects}
           gyroActive={gyroActive}
           onGyroActiveChange={setGyroActive}
           onGlassesReady={setGlassesControls}

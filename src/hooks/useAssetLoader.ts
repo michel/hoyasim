@@ -2,7 +2,8 @@ import { useEffect, useRef, useState } from 'react'
 import * as THREE from 'three'
 import { EXRLoader } from 'three/addons/loaders/EXRLoader.js'
 import { RGBELoader } from 'three/addons/loaders/RGBELoader.js'
-import type { SceneModel } from '@/config/scenes'
+import type { SceneConfig, SceneModel } from '@/config/scenes'
+import { type BlocksState, createBlocks } from '@/lib/blocks'
 import { type GlassesState, loadGlasses } from '@/lib/glasses'
 import { gltfLoader } from '@/lib/loaders'
 import { LAT_MAX, LAT_MIN } from './usePointerControls'
@@ -20,9 +21,11 @@ export function useAssetLoader(
   scene: THREE.Scene | null,
   camera: THREE.PerspectiveCamera | null,
   renderer: THREE.WebGLRenderer | null,
+  sphere: THREE.Mesh | null,
   sphereMaterial: THREE.MeshBasicMaterial | null,
   image: string,
   models: SceneModel[] | undefined,
+  effects: SceneConfig['effects'] | undefined,
   gyroActiveRef: React.RefObject<boolean>,
   lonRef: React.RefObject<number>,
   latRef: React.RefObject<number>,
@@ -34,11 +37,12 @@ export function useAssetLoader(
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const glassesRef = useRef<GlassesState | null>(null)
+  const blocksRef = useRef<BlocksState | null>(null)
   const onGlassesReadyRef = useRef(onGlassesReady)
   onGlassesReadyRef.current = onGlassesReady
 
   useEffect(() => {
-    if (!scene || !camera || !renderer || !sphereMaterial) return
+    if (!scene || !camera || !renderer || !sphere || !sphereMaterial) return
 
     setLoading(true)
     setError(null)
@@ -46,26 +50,37 @@ export function useAssetLoader(
     let disposed = false
     const loadedObjects: THREE.Object3D[] = []
 
-    // Load texture
-    const texturePromise = new Promise<void>((resolve, reject) => {
-      const onLoaded = (texture: THREE.Texture) => {
-        if (disposed) {
-          texture.dispose()
-          return resolve()
-        }
-        texture.mapping = THREE.EquirectangularReflectionMapping
-        sphereMaterial.map = texture
-        sphereMaterial.needsUpdate = true
-        resolve()
-      }
-      const onError = () => reject(new Error('Failed to load scene texture'))
+    // Load texture (skip for blocks mode — use dark night sky instead)
+    const hasBlocks = !!effects?.blocks
+    let texturePromise: Promise<void>
 
-      if (image.endsWith('.exr'))
-        new EXRLoader().load(image, onLoaded, undefined, onError)
-      else if (image.endsWith('.hdr'))
-        new RGBELoader().load(image, onLoaded, undefined, onError)
-      else new THREE.TextureLoader().load(image, onLoaded, undefined, onError)
-    })
+    if (hasBlocks) {
+      const skyColor = 0x5da6e6
+      scene.background = new THREE.Color(skyColor)
+      scene.fog = new THREE.FogExp2(skyColor, 0.008)
+      sphere.visible = false
+      texturePromise = Promise.resolve()
+    } else {
+      texturePromise = new Promise<void>((resolve, reject) => {
+        const onLoaded = (texture: THREE.Texture) => {
+          if (disposed) {
+            texture.dispose()
+            return resolve()
+          }
+          texture.mapping = THREE.EquirectangularReflectionMapping
+          sphereMaterial.map = texture
+          sphereMaterial.needsUpdate = true
+          resolve()
+        }
+        const onError = () => reject(new Error('Failed to load scene texture'))
+
+        if (image.endsWith('.exr'))
+          new EXRLoader().load(image, onLoaded, undefined, onError)
+        else if (image.endsWith('.hdr'))
+          new RGBELoader().load(image, onLoaded, undefined, onError)
+        else new THREE.TextureLoader().load(image, onLoaded, undefined, onError)
+      })
+    }
 
     // Load models
     const modelPromises = (models ?? []).map(
@@ -104,6 +119,10 @@ export function useAssetLoader(
       })
     })
 
+    if (effects?.blocks) {
+      blocksRef.current = createBlocks(scene)
+    }
+
     Promise.all([texturePromise, ...modelPromises, glassesPromise])
       .catch((err) => {
         if (!disposed) setError(err.message)
@@ -114,7 +133,11 @@ export function useAssetLoader(
 
     // Animation loop
     let animationId: number
+    let prevTime = performance.now()
     const animate = () => {
+      const now = performance.now()
+      const delta = (now - prevTime) / 1000
+      prevTime = now
       if (!gyroActiveRef.current) {
         latRef.current = Math.max(LAT_MIN, Math.min(LAT_MAX, latRef.current))
         const phi = THREE.MathUtils.degToRad(90 - latRef.current)
@@ -131,6 +154,12 @@ export function useAssetLoader(
         const polarAngle = Math.acos(_direction.y)
         glassesRef.current.update(polarAngle, POLAR_ANGLE_MIN, POLAR_ANGLE_MAX)
         glassesRef.current.animateSwap()
+      }
+
+      const offset = blocksRef.current?.update(delta)
+      if (offset) {
+        camera.position.x = offset.x
+        camera.position.y = offset.y
       }
 
       renderer.render(scene, camera)
@@ -163,14 +192,25 @@ export function useAssetLoader(
 
       glassesRef.current?.dispose()
       glassesRef.current = null
+
+      blocksRef.current?.dispose()
+      blocksRef.current = null
+
+      if (hasBlocks) {
+        scene.background = null
+        scene.fog = null
+        sphere.visible = true
+      }
     }
   }, [
     scene,
     camera,
     renderer,
+    sphere,
     sphereMaterial,
     image,
     models,
+    effects,
     gyroActiveRef,
     lonRef,
     latRef,

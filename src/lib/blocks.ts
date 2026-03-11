@@ -1,0 +1,534 @@
+import * as THREE from 'three'
+import * as BufferGeometryUtils from 'three/addons/utils/BufferGeometryUtils.js'
+
+// ── Constants ────────────────────────────────────────────────────────
+
+const SPAWN_Z = 100
+const CULL_Z = -60
+const GROUND_Y = -0.9
+const ROAD_ROTATION_Y = 1.25
+const ROAD_SPEED = -8.0
+const SPAWN_INTERVAL = 6
+const CYCLE_LENGTH = 300
+
+// ── Types ────────────────────────────────────────────────────────────
+
+export interface CameraOffset {
+  x: number
+  y: number
+}
+
+export interface BlocksState {
+  update: (delta: number) => CameraOffset
+  dispose: () => void
+}
+
+interface SpawnedObject {
+  group: THREE.Object3D
+  type: 'house' | 'tree' | 'windmill' | 'marking'
+  sails?: THREE.Group
+}
+
+// ── Helpers ──────────────────────────────────────────────────────────
+
+function rand(min: number, max: number): number {
+  return min + Math.random() * (max - min)
+}
+
+// ── Zone helpers ─────────────────────────────────────────────────────
+
+type Zone = 'city' | 'transition' | 'nature'
+
+function getZone(offset: number): Zone {
+  const t =
+    (((offset % CYCLE_LENGTH) + CYCLE_LENGTH) % CYCLE_LENGTH) / CYCLE_LENGTH
+  if (t < 0.4) return 'city'
+  if (t < 0.5) return 'transition'
+  if (t < 0.8) return 'nature'
+  return 'transition'
+}
+
+// ── Factory ─────────────────────────────────────────────────────────
+
+export function createBlocks(scene: THREE.Scene): BlocksState {
+  const group = new THREE.Group()
+  group.position.y = GROUND_Y
+  group.rotation.y = ROAD_ROTATION_Y
+
+  // ── Shared geometries & materials ──────────────────────────────
+
+  const boxGeo = new THREE.BoxGeometry(1, 1, 1)
+  const planeGeo = new THREE.PlaneGeometry(1, 1)
+  const trunkGeo = new THREE.CylinderGeometry(0.15, 0.2, 1, 4)
+  const canopyGeo = new THREE.SphereGeometry(1, 4, 3)
+  const towerGeo = new THREE.CylinderGeometry(0.4, 0.7, 1, 5)
+  const capGeo = new THREE.SphereGeometry(0.5, 4, 3)
+
+  const brickColors = [
+    0x4a2c2a, 0x3e2723, 0x5d4037, 0x2a2a2a, 0x1a1a1a, 0x8b4513,
+  ]
+  const brickMats = brickColors.map(
+    (c) => new THREE.MeshLambertMaterial({ color: c }),
+  )
+  const glassMat = new THREE.MeshLambertMaterial({
+    color: 0x4488aa,
+    emissive: 0x112233,
+    emissiveIntensity: 0.3,
+  })
+  const frameMat = new THREE.MeshLambertMaterial({ color: 0xffffff })
+  const doorMat = new THREE.MeshLambertMaterial({ color: 0x2a1a0a })
+  const trunkMat = new THREE.MeshLambertMaterial({ color: 0x4a3728 })
+  const leavesMat = new THREE.MeshLambertMaterial({ color: 0x2e8b57 })
+  const towerMat = new THREE.MeshLambertMaterial({ color: 0x555555 })
+  const sailMat = new THREE.MeshLambertMaterial({ color: 0xcccccc })
+  const markingMat = new THREE.MeshLambertMaterial({ color: 0xffffff })
+  const grassMat = new THREE.MeshLambertMaterial({ color: 0x6b8e23 })
+  const roadMat = new THREE.MeshLambertMaterial({ color: 0xa55145 })
+  const sidewalkMat = new THREE.MeshLambertMaterial({ color: 0x888888 })
+
+  const sharedGeos = [boxGeo, planeGeo, trunkGeo, canopyGeo, towerGeo, capGeo]
+  const sharedMats = [
+    ...brickMats,
+    glassMat,
+    frameMat,
+    doorMat,
+    trunkMat,
+    leavesMat,
+    towerMat,
+    sailMat,
+    markingMat,
+    grassMat,
+    roadMat,
+    sidewalkMat,
+  ]
+
+  // ── Object factories ──────────────────────────────────────────
+
+  function scaledBoxGeo(
+    sx: number,
+    sy: number,
+    sz: number,
+    px: number,
+    py: number,
+    pz: number,
+  ): THREE.BufferGeometry {
+    const g = boxGeo.clone()
+    g.scale(sx, sy, sz)
+    g.translate(px, py, pz)
+    return g
+  }
+
+  function createHouse(): THREE.Group {
+    const g = new THREE.Group()
+    const mat = brickMats[Math.floor(Math.random() * brickMats.length)]
+
+    const w = rand(2, 3)
+    const h = rand(2, 4)
+    const d = Math.min(SPAWN_INTERVAL - 0.2, 4)
+
+    // Collect geometries per material for merging
+    const brickGeos: THREE.BufferGeometry[] = []
+    const frameGeos: THREE.BufferGeometry[] = []
+    const glassGeos: THREE.BufferGeometry[] = []
+
+    // Body
+    brickGeos.push(scaledBoxGeo(w, h, d, 0, h / 2, 0))
+
+    // Stepped gable
+    const steps = Math.floor(rand(3, 5))
+    let gableW = w
+    for (let i = 0; i < steps; i++) {
+      gableW *= 0.75
+      const stepH = 0.35
+      brickGeos.push(
+        scaledBoxGeo(gableW, stepH, d * 0.3, 0, h + i * stepH + stepH / 2, 0),
+      )
+    }
+
+    // Windows
+    const floors = Math.floor(h / 1.2)
+    const cols = 2
+    for (let floor = 0; floor < floors; floor++) {
+      for (let col = 0; col < cols; col++) {
+        const cz = (col / (cols - 1 || 1) - 0.5) * (d * 0.5)
+        const cy = 0.8 + floor * 1.2
+        if (cy > h - 0.3) continue
+        const fx = w / 2 + 0.02
+
+        frameGeos.push(scaledBoxGeo(0.04, 0.7, 0.55, fx, cy, cz))
+        glassGeos.push(scaledBoxGeo(0.05, 0.6, 0.45, fx + 0.01, cy, cz))
+        frameGeos.push(scaledBoxGeo(0.1, 0.05, 0.35, fx + 0.03, cy - 0.375, cz))
+      }
+    }
+
+    // Door — merge into brick material group
+    brickGeos.push(scaledBoxGeo(0.05, 0.8, 0.5, w / 2 + 0.03, 0.4, 0))
+
+    // Merge and create meshes (1 mesh per material instead of ~15 individual meshes)
+    const brickMerged = BufferGeometryUtils.mergeGeometries(brickGeos)
+    g.add(new THREE.Mesh(brickMerged, mat))
+
+    if (frameGeos.length > 0) {
+      const frameMerged = BufferGeometryUtils.mergeGeometries(frameGeos)
+      g.add(new THREE.Mesh(frameMerged, frameMat))
+    }
+
+    if (glassGeos.length > 0) {
+      const glassMerged = BufferGeometryUtils.mergeGeometries(glassGeos)
+      g.add(new THREE.Mesh(glassMerged, glassMat))
+    }
+
+    return g
+  }
+
+  function createTree(): THREE.Group {
+    const g = new THREE.Group()
+    const trunkH = rand(1.5, 3)
+    const trunk = new THREE.Mesh(trunkGeo, trunkMat)
+    trunk.scale.y = trunkH
+    trunk.position.y = trunkH / 2
+    g.add(trunk)
+
+    const canopyR = rand(1, 2)
+    const canopy = new THREE.Mesh(canopyGeo, leavesMat)
+    canopy.scale.setScalar(canopyR)
+    canopy.position.y = trunkH + canopyR * 0.6
+    g.add(canopy)
+
+    return g
+  }
+
+  function createWindmill(): { group: THREE.Group; sails: THREE.Group } {
+    const g = new THREE.Group()
+    const towerH = rand(3.5, 5)
+
+    const tower = new THREE.Mesh(towerGeo, towerMat)
+    tower.scale.y = towerH
+    tower.position.y = towerH / 2
+    g.add(tower)
+
+    const cap = new THREE.Mesh(capGeo, towerMat)
+    cap.scale.set(1, 0.6, 1)
+    cap.position.y = towerH
+    g.add(cap)
+
+    const sails = new THREE.Group()
+    sails.position.y = towerH * 0.9
+    sails.position.z = 0.9
+    const sailLen = rand(2, 3)
+    for (let i = 0; i < 4; i++) {
+      const sail = new THREE.Mesh(boxGeo, sailMat)
+      sail.scale.set(0.15, sailLen, 0.05)
+      sail.position.y = sailLen / 2
+      const arm = new THREE.Group()
+      arm.rotation.z = (i * Math.PI) / 2
+      arm.add(sail)
+      sails.add(arm)
+    }
+    g.add(sails)
+
+    return { group: g, sails }
+  }
+
+  function createRoadMarking(): THREE.Mesh {
+    const marking = new THREE.Mesh(boxGeo, markingMat)
+    marking.scale.set(0.15, 0.02, 1.5)
+    marking.position.set(0, 0.01, 0)
+    return marking
+  }
+
+  // ── Static ground geometry ──────────────────────────────────────
+
+  const staticMeshes: THREE.Mesh[] = []
+  const groundLen = 400
+
+  // Grass
+  const grass = new THREE.Mesh(new THREE.PlaneGeometry(60, groundLen), grassMat)
+  grass.rotation.x = -Math.PI / 2
+  grass.position.set(0, -0.01, 30)
+  grass.receiveShadow = true
+  group.add(grass)
+  staticMeshes.push(grass)
+
+  // Road (red asphalt)
+  const road = new THREE.Mesh(new THREE.PlaneGeometry(3, groundLen), roadMat)
+  road.rotation.x = -Math.PI / 2
+  road.position.set(0, 0, 30)
+  road.receiveShadow = true
+  group.add(road)
+  staticMeshes.push(road)
+
+  // Sidewalks
+  const sidewalkL = new THREE.Mesh(
+    new THREE.PlaneGeometry(0.6, groundLen),
+    sidewalkMat,
+  )
+  sidewalkL.rotation.x = -Math.PI / 2
+  sidewalkL.position.set(-1.8, 0.001, 30)
+  group.add(sidewalkL)
+  staticMeshes.push(sidewalkL)
+
+  const sidewalkR = new THREE.Mesh(
+    new THREE.PlaneGeometry(0.6, groundLen),
+    sidewalkMat,
+  )
+  sidewalkR.rotation.x = -Math.PI / 2
+  sidewalkR.position.set(1.8, 0.001, 30)
+  group.add(sidewalkR)
+  staticMeshes.push(sidewalkR)
+
+  // Back roads
+  const backRoadR = new THREE.Mesh(
+    new THREE.PlaneGeometry(2, groundLen),
+    roadMat,
+  )
+  backRoadR.rotation.x = -Math.PI / 2
+  backRoadR.position.set(9, 0, 30)
+  group.add(backRoadR)
+  staticMeshes.push(backRoadR)
+
+  const backRoadL = new THREE.Mesh(
+    new THREE.PlaneGeometry(2, groundLen),
+    roadMat,
+  )
+  backRoadL.rotation.x = -Math.PI / 2
+  backRoadL.position.set(-9, 0, 30)
+  group.add(backRoadL)
+  staticMeshes.push(backRoadL)
+
+  // Back road sidewalks
+  const backSidewalkR = new THREE.Mesh(
+    new THREE.PlaneGeometry(0.5, groundLen),
+    sidewalkMat,
+  )
+  backSidewalkR.rotation.x = -Math.PI / 2
+  backSidewalkR.position.set(10.3, 0.001, 30)
+  group.add(backSidewalkR)
+  staticMeshes.push(backSidewalkR)
+
+  const backSidewalkL = new THREE.Mesh(
+    new THREE.PlaneGeometry(0.5, groundLen),
+    sidewalkMat,
+  )
+  backSidewalkL.rotation.x = -Math.PI / 2
+  backSidewalkL.position.set(-10.3, 0.001, 30)
+  group.add(backSidewalkL)
+  staticMeshes.push(backSidewalkL)
+
+  scene.add(group)
+
+  // ── Lighting ────────────────────────────────────────────────────
+
+  let originalAmbientIntensity = 0.5
+  let originalDirColor = new THREE.Color(0xffffff)
+  let originalDirIntensity = 1.0
+  let originalDirCastShadow = false
+
+  scene.traverse((child) => {
+    if (child instanceof THREE.AmbientLight) {
+      originalAmbientIntensity = child.intensity
+      child.intensity = 0.3
+    }
+    if (child instanceof THREE.DirectionalLight) {
+      originalDirColor = child.color.clone()
+      originalDirIntensity = child.intensity
+      originalDirCastShadow = child.castShadow
+      child.color.set(0xffddaa)
+      child.intensity = 0.8
+      child.castShadow = true
+      child.shadow.mapSize.set(256, 256)
+      child.shadow.camera.left = -20
+      child.shadow.camera.right = 20
+      child.shadow.camera.top = 20
+      child.shadow.camera.bottom = -20
+      child.shadow.camera.near = 0.5
+      child.shadow.camera.far = 40
+    }
+  })
+
+  const hemiLight = new THREE.HemisphereLight(0xffffff, 0x444444, 0.6)
+  scene.add(hemiLight)
+
+  // ── Spawned objects tracking ────────────────────────────────────
+
+  const spawned: SpawnedObject[] = []
+
+  function disposeObject(obj: SpawnedObject) {
+    group.remove(obj.group)
+  }
+
+  function spawnRow(z: number, zone: Zone) {
+    if (zone === 'city' || zone === 'transition') {
+      // Right-side houses
+      if (zone === 'city' || Math.random() < 0.5) {
+        const house = createHouse()
+        house.rotation.y = Math.PI
+        house.position.set(rand(4.0, 4.5), 0, z)
+        group.add(house)
+        spawned.push({ group: house, type: 'house' })
+      }
+
+      // Left-side houses
+      if (zone === 'city' || Math.random() < 0.5) {
+        const house = createHouse()
+        house.position.set(rand(-4.5, -4.0), 0, z)
+        group.add(house)
+        spawned.push({ group: house, type: 'house' })
+      }
+
+      // Outer houses facing back roads
+      if (zone === 'city' || Math.random() < 0.3) {
+        const house = createHouse()
+        house.rotation.y = Math.PI
+        house.position.set(rand(11.0, 11.5), 0, z + rand(1.5, 3.5))
+        group.add(house)
+        spawned.push({ group: house, type: 'house' })
+      }
+      if (zone === 'city' || Math.random() < 0.3) {
+        const house = createHouse()
+        house.rotation.y = 0
+        house.position.set(rand(-11.5, -11.0), 0, z + rand(1.5, 3.5))
+        group.add(house)
+        spawned.push({ group: house, type: 'house' })
+      }
+
+      // Street trees between houses
+      if (Math.random() < 0.4) {
+        const tree = createTree()
+        tree.position.set(rand(2.5, 3.5), 0, z + SPAWN_INTERVAL * 0.5)
+        group.add(tree)
+        spawned.push({ group: tree, type: 'tree' })
+      }
+      if (Math.random() < 0.4) {
+        const tree = createTree()
+        tree.position.set(-rand(2.5, 3.5), 0, z + SPAWN_INTERVAL * 0.5)
+        group.add(tree)
+        spawned.push({ group: tree, type: 'tree' })
+      }
+    }
+
+    // Road markings
+    const marking = createRoadMarking()
+    marking.position.set(0, 0, z)
+    group.add(marking)
+    spawned.push({ group: marking, type: 'marking' })
+
+    if (zone === 'nature' || zone === 'transition') {
+      // Trees on both sides
+      if (zone === 'nature' || Math.random() < 0.5) {
+        const tree = createTree()
+        tree.position.set(rand(2.5, 8.0), 0, z)
+        group.add(tree)
+        spawned.push({ group: tree, type: 'tree' })
+      }
+
+      if (zone === 'nature' || Math.random() < 0.5) {
+        const tree = createTree()
+        tree.position.set(-rand(2.5, 8.0), 0, z)
+        group.add(tree)
+        spawned.push({ group: tree, type: 'tree' })
+      }
+
+      // Rare windmills
+      if (zone === 'nature' && Math.random() < 0.03) {
+        const side = Math.random() < 0.5 ? 1 : -1
+        const wm = createWindmill()
+        wm.group.position.set(side * rand(6.0, 10.0), 0, z)
+        group.add(wm.group)
+        spawned.push({ group: wm.group, type: 'windmill', sails: wm.sails })
+      }
+    }
+  }
+
+  // ── Initial population ──────────────────────────────────────────
+
+  let distanceTraveled = 0
+  let spawnAccumulator = 0
+
+  for (let z = CULL_Z; z <= SPAWN_Z; z += SPAWN_INTERVAL) {
+    spawnRow(z, getZone(z))
+  }
+
+  // ── Update loop ─────────────────────────────────────────────────
+
+  let elapsed = 0
+
+  function update(delta: number): CameraOffset {
+    elapsed += delta
+    const dz = ROAD_SPEED * delta
+    const dist = Math.abs(dz)
+    distanceTraveled += dist
+    spawnAccumulator += dist
+
+    // Spawn new rows
+    while (spawnAccumulator >= SPAWN_INTERVAL) {
+      spawnAccumulator -= SPAWN_INTERVAL
+      const zone = getZone(distanceTraveled)
+      spawnRow(SPAWN_Z, zone)
+    }
+
+    // Move all spawned objects
+    for (const obj of spawned) obj.group.position.z += dz
+
+    // Cull objects past CULL_Z — swap-and-pop instead of splice
+    let i = 0
+    while (i < spawned.length) {
+      if (spawned[i].group.position.z < CULL_Z) {
+        disposeObject(spawned[i])
+        spawned[i] = spawned[spawned.length - 1]
+        spawned.pop()
+      } else {
+        i++
+      }
+    }
+
+    // Rotate windmill sails
+    for (const obj of spawned) {
+      if (obj.sails) obj.sails.rotation.z += delta * 1.0
+    }
+
+    // Camera vibration (road rumble)
+    const vibrationX =
+      Math.sin(elapsed * 47) * 0.0008 + Math.sin(elapsed * 31) * 0.0005
+    const vibrationY =
+      Math.sin(elapsed * 53) * 0.001 + Math.sin(elapsed * 37) * 0.0006
+
+    // Pedaling bob (~1.5 Hz cadence)
+    const bobY = Math.sin(elapsed * Math.PI * 3) * 0.008
+
+    return { x: vibrationX, y: vibrationY + bobY }
+  }
+
+  // ── Dispose ─────────────────────────────────────────────────────
+
+  function dispose() {
+    for (const obj of spawned) disposeObject(obj)
+    spawned.length = 0
+
+    for (const mesh of staticMeshes) {
+      group.remove(mesh)
+      mesh.geometry.dispose()
+    }
+
+    scene.remove(hemiLight)
+    hemiLight.dispose()
+
+    scene.traverse((child) => {
+      if (child instanceof THREE.AmbientLight)
+        child.intensity = originalAmbientIntensity
+      if (child instanceof THREE.DirectionalLight) {
+        child.color.copy(originalDirColor)
+        child.intensity = originalDirIntensity
+        child.castShadow = originalDirCastShadow
+      }
+    })
+
+    // Dispose shared resources
+    for (const geo of sharedGeos) geo.dispose()
+    for (const mat of sharedMats) mat.dispose()
+
+    scene.remove(group)
+  }
+
+  return { update, dispose }
+}
