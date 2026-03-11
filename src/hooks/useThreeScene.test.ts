@@ -14,13 +14,13 @@ describe('ThreeScene constants', () => {
   it('camera defaults', () => {
     expect(CAMERA_FOV).toBe(60)
     expect(CAMERA_NEAR).toBe(0.1)
-    expect(CAMERA_FAR).toBe(100)
+    expect(CAMERA_FAR).toBe(400)
     expect(CAMERA_Z).toBe(0.01)
   })
 
   it('sphere defaults', () => {
     expect(SPHERE_RADIUS).toBe(50)
-    expect(SPHERE_SEGMENTS).toBe(64)
+    expect(SPHERE_SEGMENTS).toBe(32)
   })
 })
 

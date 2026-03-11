@@ -59,8 +59,9 @@ export function createBlocks(scene: THREE.Scene): BlocksState {
 
   const boxGeo = new THREE.BoxGeometry(1, 1, 1)
   const planeGeo = new THREE.PlaneGeometry(1, 1)
-  const trunkGeo = new THREE.CylinderGeometry(0.15, 0.2, 1, 4)
-  const canopyGeo = new THREE.SphereGeometry(1, 4, 3)
+  const trunkGeo = new THREE.CylinderGeometry(0.1, 0.15, 1, 5)
+  const canopyGeo = new THREE.SphereGeometry(1, 6, 4)
+  const pineGeo = new THREE.ConeGeometry(1, 1, 6)
   const towerGeo = new THREE.CylinderGeometry(0.4, 0.7, 1, 5)
   const capGeo = new THREE.SphereGeometry(0.5, 4, 3)
 
@@ -77,8 +78,12 @@ export function createBlocks(scene: THREE.Scene): BlocksState {
   })
   const frameMat = new THREE.MeshLambertMaterial({ color: 0xffffff })
   const doorMat = new THREE.MeshLambertMaterial({ color: 0x2a1a0a })
+  const roofMat = new THREE.MeshLambertMaterial({ color: 0x222222 })
+  const redRoofMat = new THREE.MeshLambertMaterial({ color: 0x8b2500 })
+  const trimMat = new THREE.MeshLambertMaterial({ color: 0xeeeeee })
   const trunkMat = new THREE.MeshLambertMaterial({ color: 0x4a3728 })
   const leavesMat = new THREE.MeshLambertMaterial({ color: 0x2e8b57 })
+  const pineMat = new THREE.MeshLambertMaterial({ color: 0x1a5c2a })
   const towerMat = new THREE.MeshLambertMaterial({ color: 0x555555 })
   const sailMat = new THREE.MeshLambertMaterial({ color: 0xcccccc })
   const markingMat = new THREE.MeshLambertMaterial({ color: 0xffffff })
@@ -86,14 +91,26 @@ export function createBlocks(scene: THREE.Scene): BlocksState {
   const roadMat = new THREE.MeshLambertMaterial({ color: 0xa55145 })
   const sidewalkMat = new THREE.MeshLambertMaterial({ color: 0x888888 })
 
-  const sharedGeos = [boxGeo, planeGeo, trunkGeo, canopyGeo, towerGeo, capGeo]
+  const sharedGeos = [
+    boxGeo,
+    planeGeo,
+    trunkGeo,
+    canopyGeo,
+    pineGeo,
+    towerGeo,
+    capGeo,
+  ]
   const sharedMats = [
     ...brickMats,
     glassMat,
     frameMat,
     doorMat,
+    roofMat,
+    redRoofMat,
+    trimMat,
     trunkMat,
     leavesMat,
+    pineMat,
     towerMat,
     sailMat,
     markingMat,
@@ -122,51 +139,169 @@ export function createBlocks(scene: THREE.Scene): BlocksState {
     const g = new THREE.Group()
     const mat = brickMats[Math.floor(Math.random() * brickMats.length)]
 
-    const w = rand(2, 3)
-    const h = rand(2, 4)
-    const d = Math.min(SPAWN_INTERVAL - 0.2, 4)
+    // Amsterdam proportions: narrow facade (d along road), deep building (w away from road)
+    const d = rand(3.5, 4.5)
+    const w = rand(2, 3.5)
+    const h = rand(2.5, 4.5)
 
-    // Collect geometries per material for merging
     const brickGeos: THREE.BufferGeometry[] = []
+    const trimGeos: THREE.BufferGeometry[] = []
     const frameGeos: THREE.BufferGeometry[] = []
     const glassGeos: THREE.BufferGeometry[] = []
+    const doorGeos: THREE.BufferGeometry[] = []
 
-    // Body
+    // Main body
     brickGeos.push(scaledBoxGeo(w, h, d, 0, h / 2, 0))
 
-    // Stepped gable
-    const steps = Math.floor(rand(3, 5))
-    let gableW = w
-    for (let i = 0; i < steps; i++) {
-      gableW *= 0.75
+    // Mid-floor trim band (proportional to height)
+    const trimY = h * 0.45
+    trimGeos.push(scaledBoxGeo(w + 0.1, 0.08, d + 0.1, 0, trimY, 0))
+
+    // Roof style: 60% stepped gable, 40% flat cornice
+    const isSteppedGable = Math.random() < 0.6
+    const wallThick = 0.2 // facade wall thickness
+    const facadeX = w / 2 - wallThick / 2 // center of facade wall in X
+
+    let gableTopY = h
+    if (isSteppedGable) {
+      const steps = Math.floor(rand(3, 6))
       const stepH = 0.35
+      let gableD = d
+      for (let i = 0; i < steps; i++) {
+        gableD *= 0.78
+        const sy = h + i * stepH + stepH / 2
+        // Thin wall at facade face, narrowing in Z
+        brickGeos.push(scaledBoxGeo(wallThick, stepH, gableD, facadeX, sy, 0))
+        // White trim on top edge of each step
+        trimGeos.push(
+          scaledBoxGeo(
+            wallThick + 0.04,
+            0.05,
+            gableD + 0.04,
+            facadeX,
+            sy + stepH / 2,
+            0,
+          ),
+        )
+        gableTopY = h + (i + 1) * stepH
+      }
+    } else {
+      // Flat cornice: trim cap along facade face
+      trimGeos.push(
+        scaledBoxGeo(wallThick + 0.1, 0.15, d + 0.15, facadeX, h + 0.075, 0),
+      )
+      // Slight raised parapet at facade
+      brickGeos.push(scaledBoxGeo(wallThick, 0.25, d, facadeX, h + 0.125, 0))
+      gableTopY = h + 0.25
+    }
+
+    // Red pitched roof behind the facade (only on gabled houses)
+    // Triangular prism: ridge runs along X, slopes down along Z to ±d/2
+    // Ridge height matches gable top, eaves sit at building top (h)
+    if (isSteppedGable) {
+      const xFront = w / 2 - wallThick // flush behind facade wall
+      const xBack = -w / 2
+      const ridgeY = gableTopY
+      const eaveY = h
+      const halfD = d / 2
+
+      const verts = new Float32Array([
+        // back triangle
+        xBack,
+        eaveY,
+        -halfD, // v0 back left eave
+        xBack,
+        eaveY,
+        halfD, // v1 back right eave
+        xBack,
+        ridgeY,
+        0, // v2 back ridge
+        // front triangle
+        xFront,
+        eaveY,
+        -halfD, // v3 front left eave
+        xFront,
+        eaveY,
+        halfD, // v4 front right eave
+        xFront,
+        ridgeY,
+        0, // v5 front ridge
+      ])
+
+      const indices = new Uint16Array([
+        // left slope (v0, v2, v5, v3)
+        0, 2, 5, 0, 5, 3,
+        // right slope (v1, v4, v5, v2)
+        1, 4, 5, 1, 5, 2,
+        // back face
+        0, 1, 2,
+        // front face
+        3, 5, 4,
+        // bottom
+        0, 3, 4, 0, 4, 1,
+      ])
+
+      const roofGeo = new THREE.BufferGeometry()
+      roofGeo.setAttribute('position', new THREE.BufferAttribute(verts, 3))
+      roofGeo.setIndex(new THREE.BufferAttribute(indices, 1))
+      roofGeo.computeVertexNormals()
+      g.add(new THREE.Mesh(roofGeo, redRoofMat))
+    }
+
+    // Hoisting beam: only on stepped gable facades
+    if (isSteppedGable) {
+      const beamY = gableTopY - 0.15
+      const beamLen = 0.5
+      // Horizontal beam from facade surface outward
       brickGeos.push(
-        scaledBoxGeo(gableW, stepH, d * 0.3, 0, h + i * stepH + stepH / 2, 0),
+        scaledBoxGeo(beamLen, 0.07, 0.07, w / 2 + beamLen / 2, beamY, 0),
+      )
+      // Small hook hanging down at the tip
+      brickGeos.push(
+        scaledBoxGeo(0.05, 0.12, 0.05, w / 2 + beamLen - 0.025, beamY - 0.1, 0),
       )
     }
 
-    // Windows
-    const floors = Math.floor(h / 1.2)
-    const cols = 2
-    for (let floor = 0; floor < floors; floor++) {
-      for (let col = 0; col < cols; col++) {
-        const cz = (col / (cols - 1 || 1) - 0.5) * (d * 0.5)
-        const cy = 0.8 + floor * 1.2
-        if (cy > h - 0.3) continue
+    // Windows: paired on the facade face (X-face), per floor
+    const numFloors = Math.max(1, Math.floor((h - 1.0) / 1.4))
+    const windowSpacing = d * 0.28
+    for (let floor = 0; floor < numFloors; floor++) {
+      const cy = 1.2 + floor * 1.4
+      if (cy > h - 0.5) continue
+      for (const zOff of [-windowSpacing, windowSpacing]) {
         const fx = w / 2 + 0.02
-
-        frameGeos.push(scaledBoxGeo(0.04, 0.7, 0.55, fx, cy, cz))
-        glassGeos.push(scaledBoxGeo(0.05, 0.6, 0.45, fx + 0.01, cy, cz))
-        frameGeos.push(scaledBoxGeo(0.1, 0.05, 0.35, fx + 0.03, cy - 0.375, cz))
+        frameGeos.push(scaledBoxGeo(0.04, 0.9, 0.7, fx, cy, zOff))
+        glassGeos.push(scaledBoxGeo(0.05, 0.8, 0.6, fx + 0.01, cy, zOff))
+        // Sill
+        trimGeos.push(scaledBoxGeo(0.1, 0.06, 0.75, fx + 0.03, cy - 0.48, zOff))
+        // Vertical divider (mullion)
+        frameGeos.push(scaledBoxGeo(0.06, 0.85, 0.04, fx + 0.01, cy, zOff))
       }
     }
 
-    // Door — merge into brick material group
-    brickGeos.push(scaledBoxGeo(0.05, 0.8, 0.5, w / 2 + 0.03, 0.4, 0))
+    // Door with white trim surround
+    const doorH = 1.1
+    const doorW = 0.55
+    doorGeos.push(scaledBoxGeo(0.06, doorH, doorW, w / 2 + 0.03, doorH / 2, 0))
+    trimGeos.push(
+      scaledBoxGeo(
+        0.05,
+        doorH + 0.15,
+        doorW + 0.15,
+        w / 2 + 0.01,
+        doorH / 2,
+        0,
+      ),
+    )
 
-    // Merge and create meshes (1 mesh per material instead of ~15 individual meshes)
+    // Merge and create meshes
     const brickMerged = BufferGeometryUtils.mergeGeometries(brickGeos)
     g.add(new THREE.Mesh(brickMerged, mat))
+
+    if (trimGeos.length > 0) {
+      const trimMerged = BufferGeometryUtils.mergeGeometries(trimGeos)
+      g.add(new THREE.Mesh(trimMerged, trimMat))
+    }
 
     if (frameGeos.length > 0) {
       const frameMerged = BufferGeometryUtils.mergeGeometries(frameGeos)
@@ -178,24 +313,56 @@ export function createBlocks(scene: THREE.Scene): BlocksState {
       g.add(new THREE.Mesh(glassMerged, glassMat))
     }
 
+    if (doorGeos.length > 0) {
+      const doorMerged = BufferGeometryUtils.mergeGeometries(doorGeos)
+      g.add(new THREE.Mesh(doorMerged, doorMat))
+    }
+
     return g
   }
 
   function createTree(): THREE.Group {
     const g = new THREE.Group()
-    const trunkH = rand(1.5, 3)
+    const trunkH = rand(0.6, 1.2)
     const trunk = new THREE.Mesh(trunkGeo, trunkMat)
     trunk.scale.y = trunkH
     trunk.position.y = trunkH / 2
     g.add(trunk)
 
-    const canopyR = rand(1, 2)
+    const canopyR = rand(0.4, 0.8)
     const canopy = new THREE.Mesh(canopyGeo, leavesMat)
-    canopy.scale.setScalar(canopyR)
-    canopy.position.y = trunkH + canopyR * 0.6
+    canopy.scale.set(canopyR, canopyR * 1.4, canopyR)
+    canopy.position.y = trunkH + canopyR * 0.5
     g.add(canopy)
 
     return g
+  }
+
+  function createPine(): THREE.Group {
+    const g = new THREE.Group()
+    const trunkH = rand(0.8, 1.5)
+    const trunk = new THREE.Mesh(trunkGeo, trunkMat)
+    trunk.scale.y = trunkH
+    trunk.position.y = trunkH / 2
+    g.add(trunk)
+
+    // Stacked cones for layered pine look
+    const layers = Math.floor(rand(2, 4))
+    const baseR = rand(0.6, 1.2)
+    const layerH = rand(1, 1.5)
+    for (let i = 0; i < layers; i++) {
+      const r = baseR * (1 - i * 0.2)
+      const cone = new THREE.Mesh(pineGeo, pineMat)
+      cone.scale.set(r, layerH, r)
+      cone.position.y = trunkH + i * layerH * 0.6 + layerH / 2
+      g.add(cone)
+    }
+
+    return g
+  }
+
+  function createRandomTree(): THREE.Group {
+    return Math.random() < 0.4 ? createPine() : createTree()
   }
 
   function createWindmill(): { group: THREE.Group; sails: THREE.Group } {
@@ -395,13 +562,13 @@ export function createBlocks(scene: THREE.Scene): BlocksState {
       // Street trees between houses
       if (Math.random() < 0.4) {
         const tree = createTree()
-        tree.position.set(rand(2.5, 3.5), 0, z + SPAWN_INTERVAL * 0.5)
+        tree.position.set(rand(2.0, 6.0), 0, z + SPAWN_INTERVAL * 0.5)
         group.add(tree)
         spawned.push({ group: tree, type: 'tree' })
       }
       if (Math.random() < 0.4) {
         const tree = createTree()
-        tree.position.set(-rand(2.5, 3.5), 0, z + SPAWN_INTERVAL * 0.5)
+        tree.position.set(-rand(2.0, 6.0), 0, z + SPAWN_INTERVAL * 0.5)
         group.add(tree)
         spawned.push({ group: tree, type: 'tree' })
       }
@@ -416,14 +583,14 @@ export function createBlocks(scene: THREE.Scene): BlocksState {
     if (zone === 'nature' || zone === 'transition') {
       // Trees on both sides
       if (zone === 'nature' || Math.random() < 0.5) {
-        const tree = createTree()
+        const tree = createRandomTree()
         tree.position.set(rand(2.5, 8.0), 0, z)
         group.add(tree)
         spawned.push({ group: tree, type: 'tree' })
       }
 
       if (zone === 'nature' || Math.random() < 0.5) {
-        const tree = createTree()
+        const tree = createRandomTree()
         tree.position.set(-rand(2.5, 8.0), 0, z)
         group.add(tree)
         spawned.push({ group: tree, type: 'tree' })
