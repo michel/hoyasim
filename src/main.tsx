@@ -1,8 +1,20 @@
+import { registerSW } from 'virtual:pwa-register'
 import { Loader2 } from 'lucide-react'
 import { lazy, StrictMode, Suspense } from 'react'
 import { createRoot } from 'react-dom/client'
 import { BrowserRouter, Route, Routes } from 'react-router-dom'
 import './index.css'
+
+registerSW({
+  immediate: true,
+  onRegisteredSW(_url, registration) {
+    if (!registration) return
+    setInterval(() => registration.update(), 60_000)
+  },
+  onNeedRefresh() {
+    window.location.reload()
+  },
+})
 
 const Home = lazy(() => import('./pages/Home'))
 const Scene = lazy(() => import('./pages/Scene'))
