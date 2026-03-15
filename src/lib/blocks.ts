@@ -718,6 +718,9 @@ export function createBlocks(scene: THREE.Scene): BlocksState {
 
   function disposeObject(obj: SpawnedObject) {
     group.remove(obj.group)
+    obj.group.traverse((child) => {
+      if (child instanceof THREE.Mesh) child.geometry.dispose()
+    })
   }
 
   function spawnRow(z: number, zone: Zone) {
