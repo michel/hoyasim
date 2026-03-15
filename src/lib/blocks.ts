@@ -7,9 +7,12 @@ const SPAWN_Z = 100
 const CULL_Z = -60
 const GROUND_Y = -0.9
 const ROAD_ROTATION_Y = 1.25
-const ROAD_SPEED = -5.0
+const DEFAULT_ROAD_SPEED = -5.0
+const SPEED_STEP = 1.0
+const MIN_ROAD_SPEED = -10.0
+const MAX_ROAD_SPEED = -1.0
 const SPAWN_INTERVAL = 6
-const CYCLE_LENGTH = 300
+const CYCLE_LENGTH = 150
 
 // ── Types ────────────────────────────────────────────────────────────
 
@@ -25,7 +28,16 @@ export interface BlocksState {
 
 interface SpawnedObject {
   group: THREE.Object3D
-  type: 'house' | 'tree' | 'windmill' | 'marking' | 'bush' | 'flower'
+  type:
+    | 'house'
+    | 'tree'
+    | 'windmill'
+    | 'marking'
+    | 'bush'
+    | 'flower'
+    | 'tulipfield'
+    | 'lake'
+    | 'cow'
   sails?: THREE.Group
 }
 
@@ -62,6 +74,8 @@ function rand(min: number, max: number): number {
   return min + Math.random() * (max - min)
 }
 
+const randomSide = (): number => (Math.random() < 0.5 ? 1 : -1)
+
 // ── Zone helpers ─────────────────────────────────────────────────────
 
 type Zone = 'city' | 'transition' | 'nature'
@@ -93,8 +107,10 @@ export function createBlockResources(): BlockResources & {
   const towerGeo = new THREE.CylinderGeometry(0.4, 0.7, 1, 5)
   const capGeo = new THREE.SphereGeometry(0.5, 4, 3)
   const bushGeo = new THREE.SphereGeometry(1, 5, 4)
-  const flowerHeadGeo = new THREE.SphereGeometry(0.12, 4, 3)
+  const flowerHeadGeo = new THREE.SphereGeometry(0.07, 4, 3)
   const flowerStemGeo = new THREE.CylinderGeometry(0.02, 0.02, 1, 3)
+  const tulipPetalGeo = new THREE.SphereGeometry(0.06, 5, 4)
+  tulipPetalGeo.scale(0.8, 1.3, 0.8)
 
   const brickColors = [
     0x4a2c2a, 0x3e2723, 0x5d4037, 0x2a2a2a, 0x1a1a1a, 0x8b4513,
@@ -200,7 +216,7 @@ export function createBlockResources(): BlockResources & {
     roughness: 0.95,
   })
 
-  const allGeometries: THREE.BufferGeometry[] = [
+  const sharedGeos: THREE.BufferGeometry[] = [
     boxGeo,
     planeGeo,
     trunkGeo,
@@ -211,6 +227,7 @@ export function createBlockResources(): BlockResources & {
     bushGeo,
     flowerHeadGeo,
     flowerStemGeo,
+    tulipPetalGeo,
   ]
   const allMaterials: THREE.Material[] = [
     ...brickMats,
@@ -416,9 +433,160 @@ export function createHouse(res: BlockResources): THREE.Group {
     g.add(new THREE.Mesh(trimMerged, res.trimMat))
   }
 
-  if (frameGeos.length > 0) {
-    const frameMerged = BufferGeometryUtils.mergeGeometries(frameGeos)
-    g.add(new THREE.Mesh(frameMerged, res.frameMat))
+  const windmillBrickMat = new THREE.MeshStandardMaterial({
+    color: 0x8b4513,
+    flatShading: true,
+    roughness: 0.95,
+  })
+  const windmillCapMat = new THREE.MeshStandardMaterial({
+    color: 0x2a2a2a,
+    flatShading: true,
+    roughness: 0.85,
+  })
+  const windmillDoorMat = new THREE.MeshStandardMaterial({
+    color: 0x1a3a1a,
+    flatShading: true,
+    roughness: 0.9,
+  })
+  const windmillBalconyMat = new THREE.MeshStandardMaterial({
+    color: 0x3a2a1a,
+    flatShading: true,
+    roughness: 0.9,
+  })
+  sharedMats.push(
+    windmillBrickMat,
+    windmillCapMat,
+    windmillDoorMat,
+    windmillBalconyMat,
+  )
+
+  function createWindmill(): { group: THREE.Group; sails: THREE.Group } {
+    const g = new THREE.Group()
+    const towerH = rand(4, 6)
+    const baseR = 0.9
+    const topR = 0.5
+
+    // Tapered tower body (wider base, narrower top)
+    const towerBody = new THREE.Mesh(
+      new THREE.CylinderGeometry(topR, baseR, towerH, 8),
+      windmillBrickMat,
+    )
+    towerBody.position.y = towerH / 2
+    g.add(towerBody)
+
+    // Horizontal brick bands
+    for (let i = 1; i <= 3; i++) {
+      const bandY = towerH * (i / 4)
+      const r = baseR + (topR - baseR) * (i / 4) + 0.03
+      const band = new THREE.Mesh(boxGeo, trimMat)
+      band.scale.set(r * 2.1, 0.06, r * 2.1)
+      band.position.y = bandY
+      g.add(band)
+    }
+
+    // Onion-shaped cap (stretched sphere + cone)
+    const capBase = new THREE.Mesh(capGeo, windmillCapMat)
+    capBase.scale.set(topR + 0.1, 0.5, topR + 0.1)
+    capBase.position.y = towerH + 0.15
+    g.add(capBase)
+
+    const capTip = new THREE.Mesh(pineGeo, windmillCapMat)
+    capTip.scale.set(0.2, 0.6, 0.2)
+    capTip.position.y = towerH + 0.7
+    g.add(capTip)
+
+    // Balcony/gallery around the top
+    const balconyR = topR + 0.25
+    const balcony = new THREE.Mesh(
+      new THREE.CylinderGeometry(balconyR, balconyR, 0.06, 10),
+      windmillBalconyMat,
+    )
+    balcony.position.y = towerH - 0.1
+    g.add(balcony)
+
+    // Balcony railing posts
+    for (let i = 0; i < 8; i++) {
+      const angle = (i / 8) * Math.PI * 2
+      const post = new THREE.Mesh(boxGeo, windmillBalconyMat)
+      post.scale.set(0.04, 0.25, 0.04)
+      post.position.set(
+        Math.cos(angle) * balconyR,
+        towerH + 0.02,
+        Math.sin(angle) * balconyR,
+      )
+      g.add(post)
+    }
+
+    // Door at base
+    const door = new THREE.Mesh(boxGeo, windmillDoorMat)
+    door.scale.set(0.45, 0.8, 0.08)
+    door.position.set(0, 0.4, baseR + 0.01)
+    g.add(door)
+
+    // Door frame
+    const doorFrame = new THREE.Mesh(boxGeo, trimMat)
+    doorFrame.scale.set(0.55, 0.9, 0.06)
+    doorFrame.position.set(0, 0.4, baseR - 0.01)
+    g.add(doorFrame)
+
+    // Small windows
+    for (let i = 1; i <= 2; i++) {
+      const wy = towerH * (i / 3)
+      const wr = baseR + (topR - baseR) * (i / 3)
+      const win = new THREE.Mesh(boxGeo, glassMat)
+      win.scale.set(0.2, 0.3, 0.06)
+      win.position.set(0, wy, wr + 0.02)
+      g.add(win)
+      const winFrame = new THREE.Mesh(boxGeo, frameMat)
+      winFrame.scale.set(0.26, 0.36, 0.04)
+      winFrame.position.set(0, wy, wr)
+      g.add(winFrame)
+    }
+
+    // Sails — lattice-style with spine + cross-bars
+    const sails = new THREE.Group()
+    sails.position.y = towerH * 0.85
+    sails.position.z = topR + 0.15
+    const sailLen = rand(2.5, 3.5)
+
+    for (let i = 0; i < 4; i++) {
+      const arm = new THREE.Group()
+      arm.rotation.z = (i * Math.PI) / 2
+
+      // Main spine
+      const spine = new THREE.Mesh(boxGeo, windmillBalconyMat)
+      spine.scale.set(0.08, sailLen, 0.04)
+      spine.position.y = sailLen / 2
+      arm.add(spine)
+
+      // Sail cloth (offset to one side of spine, like real windmills)
+      const clothW = sailLen * 0.22
+      const cloth = new THREE.Mesh(boxGeo, sailMat)
+      cloth.scale.set(clothW, sailLen * 0.85, 0.02)
+      cloth.position.set(clothW / 2 + 0.04, sailLen * 0.5, 0)
+      arm.add(cloth)
+
+      // Cross-bars along the spine
+      const bars = 5
+      for (let b = 0; b < bars; b++) {
+        const by = sailLen * 0.15 + (b / bars) * sailLen * 0.75
+        const bar = new THREE.Mesh(boxGeo, windmillBalconyMat)
+        bar.scale.set(clothW + 0.1, 0.03, 0.03)
+        bar.position.set(clothW / 2, by, 0)
+        arm.add(bar)
+      }
+
+      sails.add(arm)
+    }
+
+    // Hub at sail center
+    const hub = new THREE.Mesh(capGeo, windmillCapMat)
+    hub.scale.setScalar(0.15)
+    sails.add(hub)
+
+    g.add(sails)
+
+    return { group: g, sails }
   }
 
   if (glassGeos.length > 0) {
@@ -431,43 +599,406 @@ export function createHouse(res: BlockResources): THREE.Group {
     g.add(new THREE.Mesh(doorMerged, res.doorMat))
   }
 
-  return g
-}
+  const tallGrassMat = new THREE.MeshStandardMaterial({
+    color: 0x7a9a3a,
+    flatShading: true,
+    roughness: 0.95,
+  })
+  sharedMats.push(tallGrassMat)
 
-export function createTree(res: BlockResources): THREE.Group {
-  const g = new THREE.Group()
-  const trunkH = rand(0.6, 1.2)
-  const trunk = new THREE.Mesh(res.trunkGeo, res.trunkMat)
-  trunk.scale.y = trunkH
-  trunk.position.y = trunkH / 2
-  g.add(trunk)
+  function createGrassTuft(): THREE.Group {
+    const g = new THREE.Group()
+    const blades = Math.floor(rand(5, 12))
+    const geos: THREE.BufferGeometry[] = []
+    for (let i = 0; i < blades; i++) {
+      const h = rand(0.15, 0.4)
+      const bg = flowerStemGeo.clone()
+      bg.scale(1.5, h, 1.5)
+      const m = new THREE.Matrix4()
+      m.makeRotationFromEuler(
+        new THREE.Euler(rand(-0.2, 0.2), 0, rand(-0.2, 0.2)),
+      )
+      m.setPosition(rand(-0.2, 0.2), h / 2, rand(-0.2, 0.2))
+      bg.applyMatrix4(m)
+      geos.push(bg)
+    }
+    if (geos.length > 0)
+      g.add(
+        new THREE.Mesh(BufferGeometryUtils.mergeGeometries(geos), tallGrassMat),
+      )
+    return g
+  }
 
-  const canopyR = rand(0.4, 0.8)
-  const canopy = new THREE.Mesh(res.canopyGeo, res.leavesMat)
-  canopy.scale.set(canopyR, canopyR * 1.4, canopyR)
-  canopy.position.y = trunkH + canopyR * 0.5
-  g.add(canopy)
+  const sunflowerYellowMat = new THREE.MeshStandardMaterial({
+    color: 0xffd700,
+    flatShading: true,
+    roughness: 0.8,
+  })
+  const sunflowerCenterMat = new THREE.MeshStandardMaterial({
+    color: 0x3a2a0a,
+    flatShading: true,
+    roughness: 0.9,
+  })
+  const sunflowerLeafMat = new THREE.MeshStandardMaterial({
+    color: 0x4a7a2a,
+    flatShading: true,
+    roughness: 0.9,
+  })
+  sharedMats.push(sunflowerYellowMat, sunflowerCenterMat, sunflowerLeafMat)
 
-  return g
-}
+  function createSunflowerPatch(): THREE.Group {
+    const g = new THREE.Group()
+    const count = Math.floor(rand(5, 12))
+    const stemGeos: THREE.BufferGeometry[] = []
+    const petalGeos: THREE.BufferGeometry[] = []
+    const centerGeos: THREE.BufferGeometry[] = []
+    const leafGeos: THREE.BufferGeometry[] = []
+    for (let i = 0; i < count; i++) {
+      const h = rand(0.8, 1.4)
+      const sx = rand(-1.5, 1.5)
+      const sz = rand(-1.5, 1.5)
 
-export function createPine(res: BlockResources): THREE.Group {
-  const g = new THREE.Group()
-  const trunkH = rand(0.8, 1.5)
-  const trunk = new THREE.Mesh(res.trunkGeo, res.trunkMat)
-  trunk.scale.y = trunkH
-  trunk.position.y = trunkH / 2
-  g.add(trunk)
+      const sg = flowerStemGeo.clone()
+      sg.scale(2, h, 2)
+      sg.translate(sx, h / 2, sz)
+      stemGeos.push(sg)
 
-  const layers = Math.floor(rand(2, 4))
-  const baseR = rand(0.6, 1.2)
-  const layerH = rand(1, 1.5)
-  for (let i = 0; i < layers; i++) {
-    const r = baseR * (1 - i * 0.2)
-    const cone = new THREE.Mesh(res.pineGeo, res.pineMat)
-    cone.scale.set(r, layerH, r)
-    cone.position.y = trunkH + i * layerH * 0.6 + layerH / 2
-    g.add(cone)
+      const pg = flowerHeadGeo.clone()
+      pg.scale(2.5, 2.5, 0.5)
+      pg.translate(sx, h + 0.05, sz)
+      petalGeos.push(pg)
+
+      const cg = flowerHeadGeo.clone()
+      cg.scale(1.4, 1.4, 0.7)
+      cg.translate(sx, h + 0.06, sz)
+      centerGeos.push(cg)
+
+      if (Math.random() < 0.6) {
+        const lg = bushGeo.clone()
+        lg.scale(0.12, 0.06, 0.15)
+        lg.translate(sx + 0.1, h * 0.5, sz)
+        leafGeos.push(lg)
+      }
+    }
+    if (stemGeos.length > 0) {
+      g.add(
+        new THREE.Mesh(
+          BufferGeometryUtils.mergeGeometries(stemGeos.concat(leafGeos)),
+          sunflowerLeafMat,
+        ),
+      )
+      g.add(
+        new THREE.Mesh(
+          BufferGeometryUtils.mergeGeometries(petalGeos),
+          sunflowerYellowMat,
+        ),
+      )
+      g.add(
+        new THREE.Mesh(
+          BufferGeometryUtils.mergeGeometries(centerGeos),
+          sunflowerCenterMat,
+        ),
+      )
+    }
+    return g
+  }
+
+  function createFlowerCluster(): THREE.Group {
+    const g = new THREE.Group()
+    const count = Math.floor(rand(6, 14))
+    const stemGeos: THREE.BufferGeometry[] = []
+    const headsByMat = new Map<THREE.Material, THREE.BufferGeometry[]>()
+    for (let i = 0; i < count; i++) {
+      const h = rand(0.2, 0.45)
+      const mat = flowerMats[Math.floor(Math.random() * flowerMats.length)]
+      const px = rand(-0.3, 0.3)
+      const pz = rand(-0.3, 0.3)
+
+      const sg = flowerStemGeo.clone()
+      sg.scale(1, h, 1)
+      sg.translate(px, h / 2, pz)
+      stemGeos.push(sg)
+
+      const hg = flowerHeadGeo.clone()
+      hg.translate(px, h + 0.06, pz)
+      if (!headsByMat.has(mat)) headsByMat.set(mat, [])
+      headsByMat.get(mat)?.push(hg)
+    }
+    if (stemGeos.length > 0)
+      g.add(
+        new THREE.Mesh(BufferGeometryUtils.mergeGeometries(stemGeos), bushMat),
+      )
+    for (const [mat, geos] of headsByMat)
+      g.add(new THREE.Mesh(BufferGeometryUtils.mergeGeometries(geos), mat))
+    return g
+  }
+
+  function createTulipField(large = false): THREE.Group {
+    const g = new THREE.Group()
+    const rows = large ? Math.floor(rand(8, 13)) : Math.floor(rand(4, 7))
+    const cols = large ? Math.floor(rand(16, 25)) : Math.floor(rand(8, 15))
+    const rowSpacing = 0.25
+    const colSpacing = 0.18
+    const numColors = large
+      ? Math.floor(rand(2, 4))
+      : Math.random() < 0.5
+        ? 1
+        : 2
+    const colorA = flowerMats[Math.floor(Math.random() * flowerMats.length)]
+    const colorB =
+      numColors >= 2
+        ? flowerMats[Math.floor(Math.random() * flowerMats.length)]
+        : colorA
+    const colorC =
+      numColors >= 3
+        ? flowerMats[Math.floor(Math.random() * flowerMats.length)]
+        : colorA
+
+    const stemGeos: THREE.BufferGeometry[] = []
+    const headsByMat = new Map<THREE.Material, THREE.BufferGeometry[]>()
+
+    for (let r = 0; r < rows; r++) {
+      const mat =
+        numColors >= 3
+          ? [colorA, colorB, colorC][r % 3]
+          : r % 2 === 0
+            ? colorA
+            : colorB
+      if (!headsByMat.has(mat)) headsByMat.set(mat, [])
+      const heads = headsByMat.get(mat) ?? []
+      for (let c = 0; c < cols; c++) {
+        const h = rand(0.3, 0.5)
+        const x = c * colSpacing - (cols * colSpacing) / 2 + rand(-0.03, 0.03)
+        const z = r * rowSpacing - (rows * rowSpacing) / 2 + rand(-0.03, 0.03)
+
+        const sg = flowerStemGeo.clone()
+        sg.scale(1, h, 1)
+        sg.translate(x, h / 2, z)
+        stemGeos.push(sg)
+
+        const hg = tulipPetalGeo.clone()
+        const m = new THREE.Matrix4()
+        m.makeRotationFromEuler(
+          new THREE.Euler(rand(-0.15, 0.15), 0, rand(-0.15, 0.15)),
+        )
+        m.setPosition(x, h + 0.08, z)
+        hg.applyMatrix4(m)
+        heads.push(hg)
+      }
+    }
+
+    if (stemGeos.length > 0)
+      g.add(
+        new THREE.Mesh(BufferGeometryUtils.mergeGeometries(stemGeos), bushMat),
+      )
+    for (const [mat, geos] of headsByMat)
+      g.add(new THREE.Mesh(BufferGeometryUtils.mergeGeometries(geos), mat))
+    return g
+  }
+
+  const duckBodyGeo = new THREE.SphereGeometry(0.1, 5, 4)
+  const duckHeadGeo = new THREE.SphereGeometry(0.05, 4, 3)
+  const duckMat = new THREE.MeshStandardMaterial({
+    color: 0xffffff,
+    flatShading: true,
+    roughness: 0.8,
+  })
+  const duckBeakMat = new THREE.MeshStandardMaterial({
+    color: 0xf5a623,
+    flatShading: true,
+    roughness: 0.7,
+  })
+  sharedGeos.push(duckBodyGeo, duckHeadGeo)
+  sharedMats.push(duckMat, duckBeakMat)
+
+  const lakeMat = new THREE.MeshStandardMaterial({
+    color: 0x3a7cbd,
+    flatShading: true,
+    roughness: 0.2,
+    metalness: 0.3,
+  })
+  const lakeEdgeMat = new THREE.MeshStandardMaterial({
+    color: 0x5a8a50,
+    flatShading: true,
+    roughness: 0.95,
+  })
+  sharedMats.push(lakeMat, lakeEdgeMat)
+
+  const lakeCircleGeo = new THREE.CircleGeometry(1, 7)
+  const lakeRingGeo = new THREE.RingGeometry(0.92, 1.08, 7)
+  sharedGeos.push(lakeCircleGeo, lakeRingGeo)
+
+  function createLake(): THREE.Group {
+    const g = new THREE.Group()
+    const w = rand(5, 10)
+    const d = rand(3, 7)
+
+    const water = new THREE.Mesh(lakeCircleGeo, lakeMat)
+    water.rotation.x = -Math.PI / 2
+    water.scale.set(w, d, 1)
+    water.position.y = 0.02
+    g.add(water)
+
+    const edge = new THREE.Mesh(lakeRingGeo, lakeEdgeMat)
+    edge.rotation.x = -Math.PI / 2
+    edge.scale.set(w, d, 1)
+    edge.position.y = 0.015
+    g.add(edge)
+
+    // Edge bushes
+    const grassCount = Math.floor(rand(3, 7))
+    for (let i = 0; i < grassCount; i++) {
+      const angle = rand(0, Math.PI * 2)
+      const bush = createBush()
+      bush.position.set(
+        Math.cos(angle) * w * 0.95,
+        0,
+        Math.sin(angle) * d * 0.95,
+      )
+      bush.scale.setScalar(rand(0.5, 0.8))
+      g.add(bush)
+    }
+
+    // Merged ducks
+    const duckCount = Math.floor(rand(2, 5))
+    const duckWhiteGeos: THREE.BufferGeometry[] = []
+    const duckBeakGeos: THREE.BufferGeometry[] = []
+    for (let i = 0; i < duckCount; i++) {
+      const dx = rand(-0.6, 0.6) * w
+      const dz = rand(-0.6, 0.6) * d
+      const dy = 0.02
+      const rot = rand(0, Math.PI * 2)
+      const cos = Math.cos(rot)
+      const sin = Math.sin(rot)
+
+      const bg = duckBodyGeo.clone()
+      bg.scale(1, 0.7, 1.3)
+      const bm = new THREE.Matrix4()
+        .makeRotationY(rot)
+        .setPosition(dx, dy + 0.05, dz)
+      bg.applyMatrix4(bm)
+      duckWhiteGeos.push(bg)
+
+      const hg = duckHeadGeo.clone()
+      const hm = new THREE.Matrix4()
+        .makeRotationY(rot)
+        .setPosition(dx + sin * 0.12, dy + 0.1, dz + cos * 0.12)
+      hg.applyMatrix4(hm)
+      duckWhiteGeos.push(hg)
+
+      const bkg = duckHeadGeo.clone()
+      bkg.scale(0.5, 0.4, 1)
+      const bkm = new THREE.Matrix4()
+        .makeRotationY(rot)
+        .setPosition(dx + sin * 0.17, dy + 0.09, dz + cos * 0.17)
+      bkg.applyMatrix4(bkm)
+      duckBeakGeos.push(bkg)
+    }
+    if (duckWhiteGeos.length > 0)
+      g.add(
+        new THREE.Mesh(
+          BufferGeometryUtils.mergeGeometries(duckWhiteGeos),
+          duckMat,
+        ),
+      )
+    if (duckBeakGeos.length > 0)
+      g.add(
+        new THREE.Mesh(
+          BufferGeometryUtils.mergeGeometries(duckBeakGeos),
+          duckBeakMat,
+        ),
+      )
+
+    return g
+  }
+
+  const cowBodyMat = new THREE.MeshStandardMaterial({
+    color: 0xf5f0e8,
+    flatShading: true,
+    roughness: 0.9,
+  })
+  const cowSpotMat = new THREE.MeshStandardMaterial({
+    color: 0x1a1a1a,
+    flatShading: true,
+    roughness: 0.9,
+  })
+  const cowPinkMat = new THREE.MeshStandardMaterial({
+    color: 0xf0a0a0,
+    flatShading: true,
+    roughness: 0.85,
+  })
+  sharedMats.push(cowBodyMat, cowSpotMat, cowPinkMat)
+
+  function createCow(): THREE.Group {
+    const g = new THREE.Group()
+
+    const bodyGeos: THREE.BufferGeometry[] = []
+    const spotGeos: THREE.BufferGeometry[] = []
+    const pinkGeos: THREE.BufferGeometry[] = []
+
+    // Body
+    bodyGeos.push(scaledBoxGeo(0.4, 0.35, 0.7, 0, 0.45, 0))
+
+    // Head
+    bodyGeos.push(scaledBoxGeo(0.22, 0.22, 0.2, 0, 0.55, 0.4))
+
+    // Ears
+    for (const side of [-1, 1])
+      bodyGeos.push(scaledBoxGeo(0.06, 0.06, 0.1, side * 0.14, 0.62, 0.38))
+
+    // Legs
+    for (const xOff of [-0.12, 0.12])
+      for (const zOff of [-0.2, 0.2])
+        bodyGeos.push(scaledBoxGeo(0.08, 0.28, 0.08, xOff, 0.14, zOff))
+
+    // Black spots — Holstein-style irregular patches on body
+    const spots = Math.floor(rand(4, 8))
+    for (let i = 0; i < spots; i++) {
+      const sg = bushGeo.clone()
+      sg.scale(rand(0.1, 0.22), rand(0.08, 0.15), rand(0.12, 0.25))
+      const spotX = rand(-0.15, 0.15)
+      const spotZ = rand(-0.28, 0.28)
+      // Place on top or sides of body (y=0.45, body half-height ~0.175)
+      const spotY = 0.45 + rand(-0.04, 0.12)
+      sg.translate(spotX, spotY, spotZ)
+      spotGeos.push(sg)
+    }
+    // Spot on head
+    if (Math.random() < 0.6) {
+      const hsg = bushGeo.clone()
+      hsg.scale(rand(0.06, 0.12), rand(0.05, 0.09), rand(0.06, 0.1))
+      hsg.translate(
+        rand(-0.06, 0.06),
+        0.55 + rand(0, 0.08),
+        0.4 + rand(-0.05, 0.05),
+      )
+      spotGeos.push(hsg)
+    }
+
+    // Tail
+    const tg = flowerStemGeo.clone()
+    tg.scale(1, 0.3, 1)
+    const tm = new THREE.Matrix4()
+    tm.makeRotationX(rand(0.2, 0.5))
+    tm.setPosition(0, 0.5, -0.38)
+    tg.applyMatrix4(tm)
+    spotGeos.push(tg)
+
+    // Snout
+    pinkGeos.push(scaledBoxGeo(0.14, 0.1, 0.08, 0, 0.5, 0.5))
+
+    g.add(
+      new THREE.Mesh(BufferGeometryUtils.mergeGeometries(bodyGeos), cowBodyMat),
+    )
+    g.add(
+      new THREE.Mesh(BufferGeometryUtils.mergeGeometries(spotGeos), cowSpotMat),
+    )
+    g.add(
+      new THREE.Mesh(BufferGeometryUtils.mergeGeometries(pinkGeos), cowPinkMat),
+    )
+
+    g.rotation.y = rand(0, Math.PI * 2)
+    return g
   }
 
   return g
@@ -675,9 +1206,9 @@ export function createBlocks(scene: THREE.Scene): BlocksState {
   const mtSegLen = groundLen * 2
 
   const layerConfigs = [
-    { z: 35, minH: 3, maxH: 8, color: 0x6878a0, speed: 0.04, peaks: 12 },
-    { z: 26, minH: 2, maxH: 5.5, color: 0x4a6050, speed: 0.08, peaks: 16 },
-    { z: 20, minH: 1, maxH: 3.5, color: 0x3a5040, speed: 0.14, peaks: 20 },
+    { z: 35, minH: 3, maxH: 7, color: 0x6878a0, speed: 0.04, peaks: 8 },
+    { z: 26, minH: 2, maxH: 5, color: 0x4a6050, speed: 0.08, peaks: 10 },
+    { z: 20, minH: 1.5, maxH: 3.5, color: 0x3a5040, speed: 0.14, peaks: 14 },
   ]
 
   for (const cfg of layerConfigs) {
@@ -741,6 +1272,22 @@ export function createBlocks(scene: THREE.Scene): BlocksState {
   const hemiLight = new THREE.HemisphereLight(0xffffff, 0x444444, 0.8)
   scene.add(hemiLight)
 
+  // ── Speed control ─────────────────────────────────────────────
+
+  let roadSpeed = DEFAULT_ROAD_SPEED
+
+  function onSpeedKey(e: KeyboardEvent) {
+    if (e.key === 'ArrowUp') {
+      roadSpeed = Math.max(MIN_ROAD_SPEED, roadSpeed - SPEED_STEP)
+      e.preventDefault()
+    } else if (e.key === 'ArrowDown') {
+      roadSpeed = Math.min(MAX_ROAD_SPEED, roadSpeed + SPEED_STEP)
+      e.preventDefault()
+    }
+  }
+
+  window.addEventListener('keydown', onSpeedKey)
+
   // ── Spawned objects tracking ────────────────────────────────────
 
   const spawned: SpawnedObject[] = []
@@ -800,12 +1347,27 @@ export function createBlocks(scene: THREE.Scene): BlocksState {
       if (Math.random() < 0.15) {
         const bush = createBush(res)
         bush.position.set(
-          rand(2.0, 3.0) * (Math.random() < 0.5 ? 1 : -1),
+          rand(2.0, 3.0) * randomSide(),
           0,
           z + rand(0, SPAWN_INTERVAL),
         )
         group.add(bush)
         spawned.push({ group: bush, type: 'bush' })
+      }
+
+      // Flower boxes / clusters near sidewalks
+      for (const side of [1, -1]) {
+        if (Math.random() < 0.4) {
+          const flowers = createFlowerCluster()
+          flowers.position.set(
+            side * rand(2.5, 3.5),
+            0,
+            z + rand(0, SPAWN_INTERVAL),
+          )
+          flowers.scale.setScalar(0.6)
+          group.add(flowers)
+          spawned.push({ group: flowers, type: 'flower' })
+        }
       }
     }
 
@@ -814,47 +1376,172 @@ export function createBlocks(scene: THREE.Scene): BlocksState {
     group.add(marking)
     spawned.push({ group: marking, type: 'marking' })
 
+    // Determine lake side early so all far-field spawns can avoid it
+    let lakeSide = 0
+    if (zone === 'nature' && Math.random() < 0.4) lakeSide = randomSide()
+
     if (zone === 'nature' || zone === 'transition') {
-      if (zone === 'nature' || Math.random() < 0.5) {
-        const tree = createRandomTree(res)
-        tree.position.set(rand(2.5, 8.0), 0, z)
-        group.add(tree)
-        spawned.push({ group: tree, type: 'tree' })
+      // Trees on both sides (1-2 per side)
+      for (const side of [1, -1]) {
+        if (zone === 'nature' || Math.random() < 0.5) {
+          const count = Math.floor(rand(1, 3))
+          for (let i = 0; i < count; i++) {
+            const tree = createRandomTree()
+            tree.position.set(
+              side * rand(2.5, 8.0),
+              0,
+              z + rand(0, SPAWN_INTERVAL) * i,
+            )
+            group.add(tree)
+            spawned.push({ group: tree, type: 'tree' })
+          }
+        }
       }
 
-      if (zone === 'nature' || Math.random() < 0.5) {
-        const tree = createRandomTree(res)
-        tree.position.set(-rand(2.5, 8.0), 0, z)
-        group.add(tree)
-        spawned.push({ group: tree, type: 'tree' })
+      // Bushes (near road)
+      for (const side of [1, -1]) {
+        if (Math.random() < 0.8) {
+          const bushCount = Math.floor(rand(1, 3))
+          for (let i = 0; i < bushCount; i++) {
+            const bush = createBush()
+            bush.position.set(
+              side * rand(2.0, 8.0),
+              0,
+              z + rand(0, SPAWN_INTERVAL),
+            )
+            group.add(bush)
+            spawned.push({ group: bush, type: 'bush' })
+          }
+        }
       }
 
-      if (Math.random() < 0.4) {
-        const bush = createBush(res)
-        bush.position.set(
-          rand(2.0, 12.0) * (Math.random() < 0.5 ? 1 : -1),
-          0,
-          z + rand(0, SPAWN_INTERVAL),
-        )
-        group.add(bush)
-        spawned.push({ group: bush, type: 'bush' })
+      // Trees and bushes beyond back roads (avoid lake side)
+      if (zone === 'nature') {
+        for (const side of [1, -1]) {
+          if (side === lakeSide) continue
+          const treeCount = Math.floor(rand(2, 5))
+          for (let i = 0; i < treeCount; i++) {
+            const tree = createRandomTree()
+            tree.position.set(
+              side * rand(11, 22),
+              0,
+              z + rand(0, SPAWN_INTERVAL),
+            )
+            group.add(tree)
+            spawned.push({ group: tree, type: 'tree' })
+          }
+          const bushCount = Math.floor(rand(2, 4))
+          for (let i = 0; i < bushCount; i++) {
+            const bush = createBush()
+            bush.position.set(
+              side * rand(11, 20),
+              0,
+              z + rand(0, SPAWN_INTERVAL),
+            )
+            group.add(bush)
+            spawned.push({ group: bush, type: 'bush' })
+          }
+        }
       }
 
+      // Sunflower patches
+      if (zone === 'nature' && Math.random() < 0.45) {
+        let side = randomSide()
+        if (side === lakeSide) side = -side
+        const patch = createSunflowerPatch()
+        patch.position.set(side * rand(5, 18), 0, z + rand(0, SPAWN_INTERVAL))
+        group.add(patch)
+        spawned.push({ group: patch, type: 'flower' })
+      }
+
+      // Grass tufts (nature — dense)
+      if (zone === 'nature') {
+        const tufts = Math.floor(rand(5, 10))
+        for (let i = 0; i < tufts; i++) {
+          let side = randomSide()
+          const x = rand(2, 22)
+          if (side === lakeSide && x > 10) side = -side
+          const grass = createGrassTuft()
+          grass.position.set(x * side, 0, z + rand(0, SPAWN_INTERVAL))
+          group.add(grass)
+          spawned.push({ group: grass, type: 'bush' })
+        }
+      }
+
+      // Flowers (nature only) — both sides independently
+      for (const side of [1, -1]) {
+        if (zone === 'nature' && Math.random() < 0.65) {
+          const flowers = createFlowerCluster()
+          flowers.position.set(
+            side * rand(2.0, 6.0),
+            0,
+            z + rand(0, SPAWN_INTERVAL),
+          )
+          group.add(flowers)
+          spawned.push({ group: flowers, type: 'flower' })
+        }
+      }
+
+      // Tulip fields
       if (zone === 'nature' && Math.random() < 0.25) {
-        const flowers = createFlowerCluster(res)
-        flowers.position.set(
-          rand(2.0, 6.0) * (Math.random() < 0.5 ? 1 : -1),
+        const side = randomSide()
+        const field = createTulipField()
+        field.position.set(side * rand(3, 8), 0, z + rand(0, SPAWN_INTERVAL))
+        field.rotation.y = rand(-0.15, 0.15)
+        group.add(field)
+        spawned.push({ group: field, type: 'tulipfield' })
+      }
+
+      // Large tulip fields beyond back roads (avoid lake side)
+      for (const side of [1, -1]) {
+        if (side === lakeSide) continue
+        if (zone === 'nature' && Math.random() < 0.35) {
+          const field = createTulipField(true)
+          field.position.set(
+            side * rand(12, 20),
+            0,
+            z + rand(0, SPAWN_INTERVAL),
+          )
+          field.rotation.y = rand(-0.15, 0.15)
+          group.add(field)
+          spawned.push({ group: field, type: 'tulipfield' })
+        }
+      }
+
+      // Lakes
+      if (lakeSide !== 0) {
+        const lake = createLake()
+        lake.position.set(
+          lakeSide * rand(14, 22),
           0,
           z + rand(0, SPAWN_INTERVAL),
         )
-        group.add(flowers)
-        spawned.push({ group: flowers, type: 'flower' })
+        lake.rotation.y = rand(0, Math.PI)
+        group.add(lake)
+        spawned.push({ group: lake, type: 'lake' })
       }
 
-      if (zone === 'nature' && Math.random() < 0.03) {
-        const side = Math.random() < 0.5 ? 1 : -1
-        const wm = createWindmill(res)
+      // Cows in small herds (avoid lake side)
+      if (zone === 'nature' && Math.random() < 0.35) {
+        let side = randomSide()
+        if (side === lakeSide) side = -side
+        const herdSize = Math.floor(rand(3, 7))
+        const baseX = side * rand(12, 19)
+        const baseZ = z + rand(0, SPAWN_INTERVAL)
+        for (let i = 0; i < herdSize; i++) {
+          const cow = createCow()
+          cow.position.set(baseX + rand(-2, 2), 0, baseZ + rand(-2, 2))
+          group.add(cow)
+          spawned.push({ group: cow, type: 'cow' })
+        }
+      }
+
+      // Rare windmills
+      if (zone === 'nature' && Math.random() < 0.15) {
+        const side = randomSide()
+        const wm = createWindmill()
         wm.group.position.set(side * rand(6.0, 10.0), 0, z)
+        wm.group.rotation.y = Math.PI
         group.add(wm.group)
         spawned.push({ group: wm.group, type: 'windmill', sails: wm.sails })
       }
@@ -876,7 +1563,7 @@ export function createBlocks(scene: THREE.Scene): BlocksState {
   function update(delta: number): CameraOffset {
     if (delta > 1) return { x: 0, y: 0 }
     elapsed += delta
-    const dz = ROAD_SPEED * delta
+    const dz = roadSpeed * delta
     const dist = Math.abs(dz)
     distanceTraveled += dist
     spawnAccumulator += dist
@@ -905,7 +1592,7 @@ export function createBlocks(scene: THREE.Scene): BlocksState {
     }
 
     for (const { meshL, meshR, speed } of mountainLayers) {
-      const mdx = ROAD_SPEED * speed * delta
+      const mdx = roadSpeed * speed * delta
       meshL.position.x += mdx
       meshR.position.x += mdx
       if (meshL.position.x < -mtSegLen) {
@@ -919,7 +1606,10 @@ export function createBlocks(scene: THREE.Scene): BlocksState {
     const vibrationY =
       Math.sin(elapsed * 53) * 0.001 + Math.sin(elapsed * 37) * 0.0006
 
-    const bobY = Math.sin(elapsed * Math.PI * 3) * 0.008
+    // Pedaling bob — cadence scales with speed
+    const speedRatio = Math.abs(roadSpeed / DEFAULT_ROAD_SPEED)
+    const bobY =
+      Math.sin(elapsed * Math.PI * 3 * speedRatio) * 0.008 * speedRatio
 
     return { x: vibrationX, y: vibrationY + bobY }
   }
@@ -934,6 +1624,8 @@ export function createBlocks(scene: THREE.Scene): BlocksState {
       group.remove(mesh)
       mesh.geometry.dispose()
     }
+
+    window.removeEventListener('keydown', onSpeedKey)
 
     scene.remove(hemiLight)
     hemiLight.dispose()
