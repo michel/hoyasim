@@ -55,7 +55,7 @@ export function useAssetLoader(
     if (hasBlocks) {
       const skyColor = 0x5da6e6
       scene.background = new THREE.Color(skyColor)
-      scene.fog = new THREE.Fog(skyColor, 20, 80)
+      scene.fog = new THREE.Fog(skyColor, 40, 120)
       texturePromise = Promise.resolve()
     } else {
       texturePromise = new Promise<void>((resolve, reject) => {
@@ -162,10 +162,8 @@ export function useAssetLoader(
       blocksRef.current?.dispose()
       blocksRef.current = null
 
-      if (hasBlocks) {
-        scene.background = null
-        scene.fog = null
-      }
+      scene.fog = null
+      if (hasBlocks) scene.background = null
     }
   }, [scene, camera, image, models, effects])
 

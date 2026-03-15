@@ -1,5 +1,5 @@
 import { Loader2 } from 'lucide-react'
-import { useRef } from 'react'
+import { useEffect, useRef } from 'react'
 import { Button } from '@/components/ui/button'
 import type { SceneConfig, SceneModel } from '@/config/scenes'
 import { useAssetLoader } from '@/hooks/useAssetLoader'
@@ -33,7 +33,9 @@ export default function ThreeView({
   const lonRef = useRef(0)
   const latRef = useRef(0)
   const gyroActiveRef = useRef(gyroActive)
-  gyroActiveRef.current = gyroActive
+  useEffect(() => {
+    gyroActiveRef.current = gyroActive
+  }, [gyroActive])
 
   const sceneRefs = useThreeScene(mountRef)
 

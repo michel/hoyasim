@@ -108,7 +108,7 @@ export function useDeviceOrientation(
     try {
       const permission = await DeviceOrientationEventiOS.requestPermission?.()
       if (permission === 'granted') {
-        onGyroActiveChange(true)
+        onGyroActiveChangeRef.current(true)
         setShowEnableButton(false)
       }
     } catch {

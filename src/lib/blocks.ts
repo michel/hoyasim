@@ -5,7 +5,7 @@ import * as BufferGeometryUtils from 'three/addons/utils/BufferGeometryUtils.js'
 
 const SPAWN_Z = 100
 const CULL_Z = -60
-const VISIBLE_Z = 70
+const VISIBLE_Z = 90
 const GROUND_Y = -0.9
 const ROAD_ROTATION_Y = 1.25
 const DEFAULT_ROAD_SPEED = -5.0
@@ -1243,8 +1243,8 @@ export function createBlocks(scene: THREE.Scene): BlocksState {
       child.shadow.camera.right = 15
       child.shadow.camera.top = 15
       child.shadow.camera.bottom = -15
-      child.shadow.camera.near = 0.5
-      child.shadow.camera.far = 25
+      child.shadow.camera.near = 0.1
+      child.shadow.camera.far = 30
     }
   })
 
@@ -1546,7 +1546,7 @@ export function createBlocks(scene: THREE.Scene): BlocksState {
     elapsed += delta
     const dz = roadSpeed * delta
     const dist = Math.abs(dz)
-    distanceTraveled += dist
+    distanceTraveled = (distanceTraveled + dist) % (CYCLE_LENGTH * 1000)
     spawnAccumulator += dist
 
     while (spawnAccumulator >= SPAWN_INTERVAL) {
@@ -1580,8 +1580,8 @@ export function createBlocks(scene: THREE.Scene): BlocksState {
       meshL.position.x += mdx
       meshR.position.x += mdx
       if (meshL.position.x < -mtSegLen) {
-        meshL.position.x += mtSegLen / 2
-        meshR.position.x += mtSegLen / 2
+        meshL.position.x += mtSegLen
+        meshR.position.x += mtSegLen
       }
     }
 
