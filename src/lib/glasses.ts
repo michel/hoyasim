@@ -1,4 +1,5 @@
 import * as THREE from 'three'
+import { subscribe, toggle } from './debug'
 import { gltfLoader, textureLoader } from './loaders'
 
 // ── Constants ────────────────────────────────────────────────────────
@@ -143,9 +144,11 @@ function setupDebugToggle() {
   window.addEventListener('keydown', (e) => {
     if (e.key === 'd' && e.ctrlKey) {
       e.preventDefault()
-      const on = progressiveUniforms[0]?.value === 0.0
-      for (const u of progressiveUniforms) u.value = on ? 1.0 : 0.0
+      toggle()
     }
+  })
+  subscribe((on) => {
+    for (const u of progressiveUniforms) u.value = on ? 1.0 : 0.0
   })
 }
 

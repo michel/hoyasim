@@ -2,6 +2,7 @@ import { useEffect } from 'react'
 import * as THREE from 'three'
 import type { BlocksState } from '@/lib/blocks'
 import type { GlassesState } from '@/lib/glasses'
+import { subscribe, isDebug } from '@/lib/debug'
 import { LAT_MAX, LAT_MIN } from './usePointerControls'
 
 // ── Constants ────────────────────────────────────────────────────────
@@ -25,6 +26,30 @@ export function useRenderLoop(
 ) {
   useEffect(() => {
     if (!scene || !camera || !renderer) return
+
+    // FPS counter overlay
+    const fpsDiv = document.createElement('div')
+    Object.assign(fpsDiv.style, {
+      position: 'fixed',
+      top: '8px',
+      right: '8px',
+      padding: '4px 8px',
+      fontFamily: 'monospace',
+      fontSize: '13px',
+      color: '#0f0',
+      background: 'rgba(0,0,0,0.5)',
+      borderRadius: '4px',
+      zIndex: '9999',
+      pointerEvents: 'none',
+      display: isDebug() ? 'block' : 'none',
+    })
+    document.body.appendChild(fpsDiv)
+    const unsubDebug = subscribe((on) => {
+      fpsDiv.style.display = on ? 'block' : 'none'
+    })
+
+    let frames = 0
+    let fpsLastTime = performance.now()
 
     let animationId: number
     let prevTime = performance.now()
@@ -64,11 +89,24 @@ export function useRenderLoop(
       }
 
       renderer.render(scene, camera)
+
+      // FPS tracking
+      frames++
+      if (now - fpsLastTime >= 500) {
+        fpsDiv.textContent = `${Math.round(frames / ((now - fpsLastTime) / 1000))} fps | ${renderer.info.render.triangles} tris | ${renderer.info.render.calls} calls`
+        frames = 0
+        fpsLastTime = now
+      }
+
       animationId = requestAnimationFrame(animate)
     }
     animate()
 
-    return () => cancelAnimationFrame(animationId)
+    return () => {
+      cancelAnimationFrame(animationId)
+      unsubDebug()
+      fpsDiv.remove()
+    }
   }, [
     scene,
     camera,
