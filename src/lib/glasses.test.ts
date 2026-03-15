@@ -42,12 +42,14 @@ describe('glasses constants', () => {
 })
 
 describe('createFrameMaterial', () => {
-  it('returns a black glossy MeshStandardMaterial', () => {
+  it('returns a black glossy transparent MeshStandardMaterial', () => {
     const mat = createFrameMaterial()
     expect(mat).toBeInstanceOf(THREE.MeshStandardMaterial)
     expect(mat.color.getHex()).toBe(0x000000)
     expect(mat.roughness).toBe(0.1)
     expect(mat.metalness).toBe(0.0)
+    expect(mat.transparent).toBe(true)
+    expect(mat.opacity).toBe(1)
     expect(mat.depthWrite).toBe(true)
   })
 })
