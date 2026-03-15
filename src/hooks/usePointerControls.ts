@@ -71,8 +71,12 @@ export function usePointerControls(
     rendererElement.addEventListener('mousedown', onPointerDown)
     rendererElement.addEventListener('mousemove', onPointerMove)
     rendererElement.addEventListener('mouseup', onPointerUp)
-    rendererElement.addEventListener('touchstart', onPointerDown)
-    rendererElement.addEventListener('touchmove', onPointerMove)
+    rendererElement.addEventListener('touchstart', onPointerDown, {
+      passive: false,
+    })
+    rendererElement.addEventListener('touchmove', onPointerMove, {
+      passive: false,
+    })
     rendererElement.addEventListener('touchend', onPointerUp)
 
     return () => {

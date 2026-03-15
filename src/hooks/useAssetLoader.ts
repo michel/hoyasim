@@ -85,7 +85,18 @@ export function useAssetLoader(
           gltfLoader.load(
             model.path,
             (gltf) => {
-              if (signal.aborted) return resolve()
+              if (signal.aborted) {
+                gltf.scene.traverse((child) => {
+                  if (child instanceof THREE.Mesh) {
+                    child.geometry.dispose()
+                    const mats = Array.isArray(child.material)
+                      ? child.material
+                      : [child.material]
+                    for (const m of mats) m.dispose()
+                  }
+                })
+                return resolve()
+              }
               const obj = gltf.scene
               obj.position.set(...model.position)
               if (model.rotation) obj.rotation.set(...model.rotation)

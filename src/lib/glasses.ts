@@ -428,7 +428,7 @@ export async function loadGlasses(camera: THREE.Camera): Promise<GlassesState> {
   )
   const rightGroup = primaryRight.group
   refs.gradCanvas = primaryRight.gradCanvas
-  refs.gradCtx = primaryRight.gradCanvas.getContext('2d')
+  refs.gradCtx = primaryRight.gradCanvas.getContext('2d') ?? null
   refs.gradTex = primaryRight.gradTex
 
   // Alternate right
