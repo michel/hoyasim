@@ -5,7 +5,7 @@ import * as BufferGeometryUtils from 'three/addons/utils/BufferGeometryUtils.js'
 
 const SPAWN_Z = 100
 const CULL_Z = -60
-const VISIBLE_Z = 50
+const VISIBLE_Z = 70
 const GROUND_Y = -0.9
 const ROAD_ROTATION_Y = 1.25
 const DEFAULT_ROAD_SPEED = -5.0
