@@ -497,7 +497,18 @@ export async function loadGlasses(camera: THREE.Camera): Promise<GlassesState> {
   }
 
   function dispose() {
-    camera.remove(leftGroup, rightGroup, leftGroupAlt, rightGroupAlt)
+    const allGroups = [leftGroup, rightGroup, leftGroupAlt, rightGroupAlt]
+    for (const g of allGroups) {
+      camera.remove(g)
+      g.traverse((child) => {
+        if (child instanceof THREE.Mesh) {
+          child.geometry.dispose()
+          if (Array.isArray(child.material))
+            for (const m of child.material) m.dispose()
+          else child.material.dispose()
+        }
+      })
+    }
     mapA.dispose()
     mapB.dispose()
     refs.gradTex?.dispose()
