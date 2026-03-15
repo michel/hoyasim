@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
+import { ErrorBoundary } from '@/components/ErrorBoundary'
 import { GlassesControls } from '@/components/GlassesControls'
 import { LandscapeGuard } from '@/components/LandscapeGuard'
 import ThreeView from '@/components/ThreeView'
@@ -37,6 +38,7 @@ export default function Scene() {
   }
 
   return (
+    <ErrorBoundary>
     <LandscapeGuard>
       <div className="fixed inset-0">
         <ThreeView
@@ -72,5 +74,6 @@ export default function Scene() {
         )}
       </div>
     </LandscapeGuard>
+    </ErrorBoundary>
   )
 }
