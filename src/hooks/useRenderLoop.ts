@@ -81,7 +81,7 @@ export function useRenderLoop(
       const glasses = r.glasses.current
       if (glasses) {
         _direction.set(0, 0, -1).applyQuaternion(camera.quaternion)
-        const polarAngle = Math.acos(_direction.y)
+        const polarAngle = Math.acos(THREE.MathUtils.clamp(_direction.y, -1, 1))
         glasses.update(polarAngle, POLAR_ANGLE_MIN, POLAR_ANGLE_MAX)
         glasses.animateSwap()
         glasses.resetDepthClear()

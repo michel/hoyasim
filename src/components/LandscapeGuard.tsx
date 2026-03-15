@@ -9,6 +9,8 @@ function RotatePhoneIcon() {
       fill="none"
       xmlns="http://www.w3.org/2000/svg"
       className="mb-2"
+      role="img"
+      aria-label="Rotate phone to landscape"
     >
       <title>Rotate phone to landscape</title>
       {/* Phone in portrait position */}
@@ -57,21 +59,20 @@ function PortraitWarning() {
   )
 }
 
+const IS_TOUCH_DEVICE = 'ontouchstart' in window || navigator.maxTouchPoints > 0
+
 export function LandscapeGuard({ children }: { children: React.ReactNode }) {
-  const [isPortrait, setIsPortrait] = useState(
-    () => window.innerWidth < window.innerHeight,
-  )
+  const [isPortrait, setIsPortrait] = useState(() => {
+    if (!IS_TOUCH_DEVICE) return false
+    return window.matchMedia('(orientation: portrait)').matches
+  })
 
   useEffect(() => {
-    const checkOrientation = () =>
-      setIsPortrait(window.innerWidth < window.innerHeight)
-
-    window.addEventListener('resize', checkOrientation)
-    window.addEventListener('orientationchange', checkOrientation)
-    return () => {
-      window.removeEventListener('resize', checkOrientation)
-      window.removeEventListener('orientationchange', checkOrientation)
-    }
+    if (!IS_TOUCH_DEVICE) return
+    const mql = window.matchMedia('(orientation: portrait)')
+    const onChange = (e: MediaQueryListEvent) => setIsPortrait(e.matches)
+    mql.addEventListener('change', onChange)
+    return () => mql.removeEventListener('change', onChange)
   }, [])
 
   if (isPortrait) return <PortraitWarning />

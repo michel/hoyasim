@@ -346,33 +346,7 @@ export async function loadGlasses(camera: THREE.Camera): Promise<GlassesState> {
     gradTex: null,
   }
 
-  const [mapA, mapB] = await Promise.all([
-    loadTexture('lens_left_map.png'),
-    loadTexture('lens_left_map_invert.png'),
-  ])
-  mapA.colorSpace = THREE.SRGBColorSpace
-  mapB.colorSpace = THREE.SRGBColorSpace
-
-  const [
-    lensLeft,
-    lensLeftFar,
-    lensRight,
-    lensRight02,
-    frameLeft,
-    frameRight,
-    blankL,
-    blankR,
-  ] = await Promise.all([
-    loadGLB('lens_left.glb'),
-    loadGLB('lens_left_far.glb'),
-    loadGLB('lens_right.glb'),
-    loadGLB('lens_right_02.glb'),
-    loadGLB('lens_frame_left.glb'),
-    loadGLB('lens_frame_right.glb'),
-    loadGLB('blank_l.glb'),
-    loadGLB('blank_r.glb'),
-  ])
-
+  // Register listeners before async work so we can clean up on throw
   const progressiveUniforms: { value: number }[] = []
 
   const onKeyDown = (e: KeyboardEvent) => {
@@ -386,6 +360,52 @@ export async function loadGlasses(camera: THREE.Camera): Promise<GlassesState> {
   const unsubDebug = subscribe((on) => {
     for (const u of progressiveUniforms) u.value = on ? 1.0 : 0.0
   })
+
+  const cleanupListeners = () => {
+    window.removeEventListener('keydown', onKeyDown)
+    unsubDebug()
+  }
+
+  let assets: {
+    mapA: THREE.Texture
+    mapB: THREE.Texture
+    models: THREE.Group[]
+  }
+  try {
+    const [mapA, mapB] = await Promise.all([
+      loadTexture('lens_left_map.png'),
+      loadTexture('lens_left_map_invert.png'),
+    ])
+    mapA.colorSpace = THREE.SRGBColorSpace
+    mapB.colorSpace = THREE.SRGBColorSpace
+
+    const models = await Promise.all([
+      loadGLB('lens_left.glb'),
+      loadGLB('lens_left_far.glb'),
+      loadGLB('lens_right.glb'),
+      loadGLB('lens_right_02.glb'),
+      loadGLB('lens_frame_left.glb'),
+      loadGLB('lens_frame_right.glb'),
+      loadGLB('blank_l.glb'),
+      loadGLB('blank_r.glb'),
+    ])
+    assets = { mapA, mapB, models }
+  } catch (err) {
+    cleanupListeners()
+    throw err
+  }
+
+  const { mapA, mapB, models } = assets
+  const [
+    lensLeft,
+    lensLeftFar,
+    lensRight,
+    lensRight02,
+    frameLeft,
+    frameRight,
+    blankL,
+    blankR,
+  ] = models
 
   // Primary left
   const primary = buildLeftLensGroup(lensLeft, frameLeft, blankL, mapA, mapB)
@@ -456,7 +476,7 @@ export async function loadGlasses(camera: THREE.Camera): Promise<GlassesState> {
         -GRADIENT_SIZE * 0.3,
         GRADIENT_SIZE * 0.02,
       )
-      const quantized = Math.round(offset * 2) / 2
+      const quantized = Math.round(offset)
       if (lastGradientOffset !== quantized) {
         lastGradientOffset = quantized
         const ctx = refs.gradCanvas.getContext('2d')
@@ -543,8 +563,7 @@ export async function loadGlasses(camera: THREE.Camera): Promise<GlassesState> {
     mapA.dispose()
     mapB.dispose()
     refs.gradTex?.dispose()
-    window.removeEventListener('keydown', onKeyDown)
-    unsubDebug()
+    cleanupListeners()
   }
 
   return {

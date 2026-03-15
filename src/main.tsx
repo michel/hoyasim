@@ -9,7 +9,9 @@ registerSW({
   immediate: true,
   onRegisteredSW(_url, registration) {
     if (!registration) return
-    setInterval(() => registration.update(), 60_000)
+    setInterval(() => {
+      if (!document.hidden) registration.update()
+    }, 5 * 60_000)
   },
   onNeedRefresh() {
     window.location.reload()

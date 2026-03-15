@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import * as THREE from 'three'
 
 // ── Constants ────────────────────────────────────────────────────────
@@ -30,6 +30,8 @@ export function useDeviceOrientation(
   onGyroActiveChange: (active: boolean) => void,
 ) {
   const [showEnableButton, setShowEnableButton] = useState(false)
+  const onGyroActiveChangeRef = useRef(onGyroActiveChange)
+  onGyroActiveChangeRef.current = onGyroActiveChange
 
   // Check if iOS permission prompt is needed
   useEffect(() => {
@@ -93,14 +95,14 @@ export function useDeviceOrientation(
     if (isIOS) return
 
     const testOrientation = (event: DeviceOrientationEvent) => {
-      if (event.alpha !== null) onGyroActiveChange(true)
+      if (event.alpha !== null) onGyroActiveChangeRef.current(true)
       window.removeEventListener('deviceorientation', testOrientation)
     }
     window.addEventListener('deviceorientation', testOrientation)
 
     return () =>
       window.removeEventListener('deviceorientation', testOrientation)
-  }, [onGyroActiveChange])
+  }, [])
 
   const enableMotionControls = async () => {
     try {

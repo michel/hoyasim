@@ -68,6 +68,7 @@ export interface BlockResources {
   flowerMats: THREE.MeshStandardMaterial[]
   tulipPetalGeo: THREE.SphereGeometry
   allMaterials: THREE.Material[]
+  allGeometries: THREE.BufferGeometry[]
 }
 
 // ── Helpers ──────────────────────────────────────────────────────────
@@ -931,6 +932,7 @@ export function createLake(res: BlockResources): THREE.Group {
   const lakeRingGeo = new THREE.RingGeometry(0.92, 1.08, 7)
   const duckBodyGeo = new THREE.SphereGeometry(0.1, 5, 4)
   const duckHeadGeo = new THREE.SphereGeometry(0.05, 4, 3)
+  res.allGeometries.push(lakeCircleGeo, lakeRingGeo, duckBodyGeo, duckHeadGeo)
 
   const g = new THREE.Group()
   const w = rand(5, 10)
@@ -1252,6 +1254,8 @@ export function createBlocks(scene: THREE.Scene): BlocksState {
     )
     meshL.position.set(-mtSegLen / 2, GROUND_Y - 0.5, -cfg.z)
     meshR.position.set(-mtSegLen / 2, GROUND_Y - 0.5, cfg.z)
+    meshL.renderOrder = -cfg.z
+    meshR.renderOrder = -cfg.z
     scene.add(meshL, meshR)
 
     mountainLayers.push({ meshL, meshR, speed: cfg.speed })
