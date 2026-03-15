@@ -67,6 +67,26 @@ export interface BlockResources {
   bushMat: THREE.MeshStandardMaterial
   flowerMats: THREE.MeshStandardMaterial[]
   tulipPetalGeo: THREE.SphereGeometry
+  // Shared factory materials (avoid per-instance creation)
+  windmillBrickMat: THREE.MeshStandardMaterial
+  windmillCapMat: THREE.MeshStandardMaterial
+  windmillDoorMat: THREE.MeshStandardMaterial
+  windmillBalconyMat: THREE.MeshStandardMaterial
+  tallGrassMat: THREE.MeshStandardMaterial
+  sunflowerYellowMat: THREE.MeshStandardMaterial
+  sunflowerCenterMat: THREE.MeshStandardMaterial
+  sunflowerLeafMat: THREE.MeshStandardMaterial
+  lakeMat: THREE.MeshStandardMaterial
+  lakeEdgeMat: THREE.MeshStandardMaterial
+  duckMat: THREE.MeshStandardMaterial
+  duckBeakMat: THREE.MeshStandardMaterial
+  cowBodyMat: THREE.MeshStandardMaterial
+  cowSpotMat: THREE.MeshStandardMaterial
+  cowPinkMat: THREE.MeshStandardMaterial
+  lakeCircleGeo: THREE.CircleGeometry
+  lakeRingGeo: THREE.RingGeometry
+  duckBodyGeo: THREE.SphereGeometry
+  duckHeadGeo: THREE.SphereGeometry
   allMaterials: THREE.Material[]
   allGeometries: THREE.BufferGeometry[]
 }
@@ -232,6 +252,90 @@ export function createBlockResources(): BlockResources & {
     flowerStemGeo,
     tulipPetalGeo,
   ]
+  // Factory materials — shared across all instances
+  const windmillBrickMat = new THREE.MeshStandardMaterial({
+    color: 0x8b4513,
+    flatShading: true,
+    roughness: 0.95,
+  })
+  const windmillCapMat = new THREE.MeshStandardMaterial({
+    color: 0x2a2a2a,
+    flatShading: true,
+    roughness: 0.85,
+  })
+  const windmillDoorMat = new THREE.MeshStandardMaterial({
+    color: 0x1a3a1a,
+    flatShading: true,
+    roughness: 0.9,
+  })
+  const windmillBalconyMat = new THREE.MeshStandardMaterial({
+    color: 0x3a2a1a,
+    flatShading: true,
+    roughness: 0.9,
+  })
+  const tallGrassMat = new THREE.MeshStandardMaterial({
+    color: 0x7a9a3a,
+    flatShading: true,
+    roughness: 0.95,
+  })
+  const sunflowerYellowMat = new THREE.MeshStandardMaterial({
+    color: 0xffd700,
+    flatShading: true,
+    roughness: 0.8,
+  })
+  const sunflowerCenterMat = new THREE.MeshStandardMaterial({
+    color: 0x3a2a0a,
+    flatShading: true,
+    roughness: 0.9,
+  })
+  const sunflowerLeafMat = new THREE.MeshStandardMaterial({
+    color: 0x4a7a2a,
+    flatShading: true,
+    roughness: 0.9,
+  })
+  const lakeMat = new THREE.MeshStandardMaterial({
+    color: 0x3a7cbd,
+    flatShading: true,
+    roughness: 0.2,
+    metalness: 0.3,
+  })
+  const lakeEdgeMat = new THREE.MeshStandardMaterial({
+    color: 0x5a8a50,
+    flatShading: true,
+    roughness: 0.95,
+  })
+  const duckMat = new THREE.MeshStandardMaterial({
+    color: 0xffffff,
+    flatShading: true,
+    roughness: 0.8,
+  })
+  const duckBeakMat = new THREE.MeshStandardMaterial({
+    color: 0xf5a623,
+    flatShading: true,
+    roughness: 0.7,
+  })
+  const cowBodyMat = new THREE.MeshStandardMaterial({
+    color: 0xf5f0e8,
+    flatShading: true,
+    roughness: 0.9,
+  })
+  const cowSpotMat = new THREE.MeshStandardMaterial({
+    color: 0x1a1a1a,
+    flatShading: true,
+    roughness: 0.9,
+  })
+  const cowPinkMat = new THREE.MeshStandardMaterial({
+    color: 0xf0a0a0,
+    flatShading: true,
+    roughness: 0.85,
+  })
+
+  // Lake geometries — shared across all lake instances
+  const lakeCircleGeo = new THREE.CircleGeometry(1, 7)
+  const lakeRingGeo = new THREE.RingGeometry(0.92, 1.08, 7)
+  const duckBodyGeo = new THREE.SphereGeometry(0.1, 5, 4)
+  const duckHeadGeo = new THREE.SphereGeometry(0.05, 4, 3)
+
   const allMaterials: THREE.Material[] = [
     ...brickMats,
     glassMat,
@@ -251,6 +355,21 @@ export function createBlockResources(): BlockResources & {
     grassMat,
     roadMat,
     sidewalkMat,
+    windmillBrickMat,
+    windmillCapMat,
+    windmillDoorMat,
+    windmillBalconyMat,
+    tallGrassMat,
+    sunflowerYellowMat,
+    sunflowerCenterMat,
+    sunflowerLeafMat,
+    lakeMat,
+    lakeEdgeMat,
+    duckMat,
+    duckBeakMat,
+    cowBodyMat,
+    cowSpotMat,
+    cowPinkMat,
   ]
 
   return {
@@ -280,10 +399,35 @@ export function createBlockResources(): BlockResources & {
     bushMat,
     flowerMats,
     tulipPetalGeo,
+    windmillBrickMat,
+    windmillCapMat,
+    windmillDoorMat,
+    windmillBalconyMat,
+    tallGrassMat,
+    sunflowerYellowMat,
+    sunflowerCenterMat,
+    sunflowerLeafMat,
+    lakeMat,
+    lakeEdgeMat,
+    duckMat,
+    duckBeakMat,
+    cowBodyMat,
+    cowSpotMat,
+    cowPinkMat,
+    lakeCircleGeo,
+    lakeRingGeo,
+    duckBodyGeo,
+    duckHeadGeo,
     grassMat,
     roadMat,
     sidewalkMat,
-    allGeometries: sharedGeos,
+    allGeometries: [
+      ...sharedGeos,
+      lakeCircleGeo,
+      lakeRingGeo,
+      duckBodyGeo,
+      duckHeadGeo,
+    ],
     allMaterials,
   }
 }
@@ -541,32 +685,12 @@ export function createWindmill(res: BlockResources): {
   group: THREE.Group
   sails: THREE.Group
 } {
-  const windmillBrickMat = new THREE.MeshStandardMaterial({
-    color: 0x8b4513,
-    flatShading: true,
-    roughness: 0.95,
-  })
-  const windmillCapMat = new THREE.MeshStandardMaterial({
-    color: 0x2a2a2a,
-    flatShading: true,
-    roughness: 0.85,
-  })
-  const windmillDoorMat = new THREE.MeshStandardMaterial({
-    color: 0x1a3a1a,
-    flatShading: true,
-    roughness: 0.9,
-  })
-  const windmillBalconyMat = new THREE.MeshStandardMaterial({
-    color: 0x3a2a1a,
-    flatShading: true,
-    roughness: 0.9,
-  })
-  res.allMaterials.push(
+  const {
     windmillBrickMat,
     windmillCapMat,
     windmillDoorMat,
     windmillBalconyMat,
-  )
+  } = res
   const g = new THREE.Group()
   const towerH = rand(4, 6)
   const baseR = 0.9
@@ -800,12 +924,6 @@ export function createTulipField(
 }
 
 export function createGrassTuft(res: BlockResources): THREE.Group {
-  const tallGrassMat = new THREE.MeshStandardMaterial({
-    color: 0x7a9a3a,
-    flatShading: true,
-    roughness: 0.95,
-  })
-  res.allMaterials.push(tallGrassMat)
   const g = new THREE.Group()
   const blades = Math.floor(rand(5, 12))
   const geos: THREE.BufferGeometry[] = []
@@ -823,32 +941,16 @@ export function createGrassTuft(res: BlockResources): THREE.Group {
   }
   if (geos.length > 0)
     g.add(
-      new THREE.Mesh(BufferGeometryUtils.mergeGeometries(geos), tallGrassMat),
+      new THREE.Mesh(
+        BufferGeometryUtils.mergeGeometries(geos),
+        res.tallGrassMat,
+      ),
     )
   return g
 }
 
 export function createSunflowerPatch(res: BlockResources): THREE.Group {
-  const sunflowerYellowMat = new THREE.MeshStandardMaterial({
-    color: 0xffd700,
-    flatShading: true,
-    roughness: 0.8,
-  })
-  const sunflowerCenterMat = new THREE.MeshStandardMaterial({
-    color: 0x3a2a0a,
-    flatShading: true,
-    roughness: 0.9,
-  })
-  const sunflowerLeafMat = new THREE.MeshStandardMaterial({
-    color: 0x4a7a2a,
-    flatShading: true,
-    roughness: 0.9,
-  })
-  res.allMaterials.push(
-    sunflowerYellowMat,
-    sunflowerCenterMat,
-    sunflowerLeafMat,
-  )
+  const { sunflowerYellowMat, sunflowerCenterMat, sunflowerLeafMat } = res
   const g = new THREE.Group()
   const count = Math.floor(rand(5, 12))
   const stemGeos: THREE.BufferGeometry[] = []
@@ -906,33 +1008,16 @@ export function createSunflowerPatch(res: BlockResources): THREE.Group {
 }
 
 export function createLake(res: BlockResources): THREE.Group {
-  const lakeMat = new THREE.MeshStandardMaterial({
-    color: 0x3a7cbd,
-    flatShading: true,
-    roughness: 0.2,
-    metalness: 0.3,
-  })
-  const lakeEdgeMat = new THREE.MeshStandardMaterial({
-    color: 0x5a8a50,
-    flatShading: true,
-    roughness: 0.95,
-  })
-  const duckMat = new THREE.MeshStandardMaterial({
-    color: 0xffffff,
-    flatShading: true,
-    roughness: 0.8,
-  })
-  const duckBeakMat = new THREE.MeshStandardMaterial({
-    color: 0xf5a623,
-    flatShading: true,
-    roughness: 0.7,
-  })
-  res.allMaterials.push(lakeMat, lakeEdgeMat, duckMat, duckBeakMat)
-  const lakeCircleGeo = new THREE.CircleGeometry(1, 7)
-  const lakeRingGeo = new THREE.RingGeometry(0.92, 1.08, 7)
-  const duckBodyGeo = new THREE.SphereGeometry(0.1, 5, 4)
-  const duckHeadGeo = new THREE.SphereGeometry(0.05, 4, 3)
-  res.allGeometries.push(lakeCircleGeo, lakeRingGeo, duckBodyGeo, duckHeadGeo)
+  const {
+    lakeMat,
+    lakeEdgeMat,
+    duckMat,
+    duckBeakMat,
+    lakeCircleGeo,
+    lakeRingGeo,
+    duckBodyGeo,
+    duckHeadGeo,
+  } = res
 
   const g = new THREE.Group()
   const w = rand(5, 10)
@@ -1012,22 +1097,7 @@ export function createLake(res: BlockResources): THREE.Group {
 }
 
 export function createCow(res: BlockResources): THREE.Group {
-  const cowBodyMat = new THREE.MeshStandardMaterial({
-    color: 0xf5f0e8,
-    flatShading: true,
-    roughness: 0.9,
-  })
-  const cowSpotMat = new THREE.MeshStandardMaterial({
-    color: 0x1a1a1a,
-    flatShading: true,
-    roughness: 0.9,
-  })
-  const cowPinkMat = new THREE.MeshStandardMaterial({
-    color: 0xf0a0a0,
-    flatShading: true,
-    roughness: 0.85,
-  })
-  res.allMaterials.push(cowBodyMat, cowSpotMat, cowPinkMat)
+  const { cowBodyMat, cowSpotMat, cowPinkMat } = res
   const g = new THREE.Group()
 
   const bodyGeos: THREE.BufferGeometry[] = []
