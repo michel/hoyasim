@@ -29,6 +29,7 @@ export default function ThreeView({
   onGlassesReady,
 }: ThreeViewProps) {
   const mountRef = useRef<HTMLDivElement>(null)
+  const fpsRef = useRef<HTMLDivElement>(null)
   const lonRef = useRef(0)
   const latRef = useRef(0)
   const gyroActiveRef = useRef(gyroActive)
@@ -64,6 +65,7 @@ export default function ThreeView({
     sceneRefs?.renderer ?? null,
     glassesRef,
     blocksRef,
+    fpsRef,
     gyroActiveRef,
     lonRef,
     latRef,
@@ -104,6 +106,11 @@ export default function ThreeView({
           </Button>
         </div>
       )}
+      <div
+        ref={fpsRef}
+        className="fixed top-2 right-2 px-2 py-1 font-mono text-[13px] text-green-400 bg-black/50 rounded z-[9999] pointer-events-none"
+        style={{ display: 'none' }}
+      />
     </div>
   )
 }

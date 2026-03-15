@@ -1,7 +1,7 @@
 import { useEffect } from 'react'
 import * as THREE from 'three'
 import type { BlocksState } from '@/lib/blocks'
-import { isDebug, subscribe } from '@/lib/debug'
+import { subscribe } from '@/lib/debug'
 import type { GlassesState } from '@/lib/glasses'
 import { LAT_MAX, LAT_MIN } from './usePointerControls'
 
@@ -20,6 +20,7 @@ export function useRenderLoop(
   renderer: THREE.WebGLRenderer | null,
   glassesRef: React.RefObject<GlassesState | null>,
   blocksRef: React.RefObject<BlocksState | null>,
+  fpsRef: React.RefObject<HTMLDivElement | null>,
   gyroActiveRef: React.RefObject<boolean>,
   lonRef: React.RefObject<number>,
   latRef: React.RefObject<number>,
@@ -27,25 +28,8 @@ export function useRenderLoop(
   useEffect(() => {
     if (!scene || !camera || !renderer) return
 
-    // FPS counter overlay
-    const fpsDiv = document.createElement('div')
-    Object.assign(fpsDiv.style, {
-      position: 'fixed',
-      top: '8px',
-      right: '8px',
-      padding: '4px 8px',
-      fontFamily: 'monospace',
-      fontSize: '13px',
-      color: '#0f0',
-      background: 'rgba(0,0,0,0.5)',
-      borderRadius: '4px',
-      zIndex: '9999',
-      pointerEvents: 'none',
-      display: isDebug() ? 'block' : 'none',
-    })
-    document.body.appendChild(fpsDiv)
     const unsubDebug = subscribe((on) => {
-      fpsDiv.style.display = on ? 'block' : 'none'
+      if (fpsRef.current) fpsRef.current.style.display = on ? 'block' : 'none'
     })
 
     let frames = 0
@@ -93,7 +77,7 @@ export function useRenderLoop(
       // FPS tracking
       frames++
       if (now - fpsLastTime >= 500) {
-        fpsDiv.textContent = `${Math.round(frames / ((now - fpsLastTime) / 1000))} fps | ${renderer.info.render.triangles} tris | ${renderer.info.render.calls} calls`
+        if (fpsRef.current) fpsRef.current.textContent = `${Math.round(frames / ((now - fpsLastTime) / 1000))} fps | ${renderer.info.render.triangles} tris | ${renderer.info.render.calls} calls`
         frames = 0
         fpsLastTime = now
       }
@@ -105,7 +89,6 @@ export function useRenderLoop(
     return () => {
       cancelAnimationFrame(animationId)
       unsubDebug()
-      fpsDiv.remove()
     }
   }, [
     scene,
@@ -113,6 +96,7 @@ export function useRenderLoop(
     renderer,
     glassesRef,
     blocksRef,
+    fpsRef,
     gyroActiveRef,
     lonRef,
     latRef,
