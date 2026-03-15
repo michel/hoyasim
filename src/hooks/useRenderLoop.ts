@@ -69,5 +69,14 @@ export function useRenderLoop(
     animate()
 
     return () => cancelAnimationFrame(animationId)
-  }, [scene, camera, renderer, glassesRef, blocksRef, gyroActiveRef, lonRef, latRef])
+  }, [
+    scene,
+    camera,
+    renderer,
+    glassesRef,
+    blocksRef,
+    gyroActiveRef,
+    lonRef,
+    latRef,
+  ])
 }

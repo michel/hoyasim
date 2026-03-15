@@ -16,7 +16,7 @@ export const SWAP_SHOWN_Y = 0
 
 // Gradient canvas
 export const GRADIENT_SIZE = 256
-export const PROGRESSIVE_POWER = 0.15
+export const PROGRESSIVE_POWER = 0.35
 
 // ── Type-safe animation state ────────────────────────────────────────
 
@@ -158,7 +158,7 @@ export function createRightLensMaterial(
     transmission: 1,
     thickness: 0.5,
     ior: 1.15,
-    roughness: 0,
+    roughness: 0.2,
     thicknessMap: gradTex,
     depthWrite: true,
   })
