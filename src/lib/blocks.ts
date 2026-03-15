@@ -315,7 +315,9 @@ export function createHouse(res: BlockResources): THREE.Group {
     for (let i = 0; i < steps; i++) {
       gableD *= 0.78
       const sy = h + i * stepH + stepH / 2
-      brickGeos.push(scaledBoxGeo(res.boxGeo, wallThick, stepH, gableD, facadeX, sy, 0))
+      brickGeos.push(
+        scaledBoxGeo(res.boxGeo, wallThick, stepH, gableD, facadeX, sy, 0),
+      )
       trimGeos.push(
         scaledBoxGeo(
           res.boxGeo,
@@ -331,9 +333,19 @@ export function createHouse(res: BlockResources): THREE.Group {
     }
   } else {
     trimGeos.push(
-      scaledBoxGeo(res.boxGeo, wallThick + 0.1, 0.15, d + 0.15, facadeX, h + 0.075, 0),
+      scaledBoxGeo(
+        res.boxGeo,
+        wallThick + 0.1,
+        0.15,
+        d + 0.15,
+        facadeX,
+        h + 0.075,
+        0,
+      ),
     )
-    brickGeos.push(scaledBoxGeo(res.boxGeo, wallThick, 0.25, d, facadeX, h + 0.125, 0))
+    brickGeos.push(
+      scaledBoxGeo(res.boxGeo, wallThick, 0.25, d, facadeX, h + 0.125, 0),
+    )
     gableTopY = h + 0.25
   }
 
@@ -345,20 +357,28 @@ export function createHouse(res: BlockResources): THREE.Group {
     const halfD = d / 2
 
     const verts = new Float32Array([
-      xBack, eaveY, -halfD,
-      xBack, eaveY, halfD,
-      xBack, ridgeY, 0,
-      xFront, eaveY, -halfD,
-      xFront, eaveY, halfD,
-      xFront, ridgeY, 0,
+      xBack,
+      eaveY,
+      -halfD,
+      xBack,
+      eaveY,
+      halfD,
+      xBack,
+      ridgeY,
+      0,
+      xFront,
+      eaveY,
+      -halfD,
+      xFront,
+      eaveY,
+      halfD,
+      xFront,
+      ridgeY,
+      0,
     ])
 
     const indices = new Uint16Array([
-      0, 2, 5, 0, 5, 3,
-      1, 4, 5, 1, 5, 2,
-      0, 1, 2,
-      3, 5, 4,
-      0, 3, 4, 0, 4, 1,
+      0, 2, 5, 0, 5, 3, 1, 4, 5, 1, 5, 2, 0, 1, 2, 3, 5, 4, 0, 3, 4, 0, 4, 1,
     ])
 
     const roofGeo = new THREE.BufferGeometry()
@@ -372,10 +392,26 @@ export function createHouse(res: BlockResources): THREE.Group {
     const beamY = gableTopY - 0.15
     const beamLen = 0.5
     brickGeos.push(
-      scaledBoxGeo(res.boxGeo, beamLen, 0.07, 0.07, w / 2 + beamLen / 2, beamY, 0),
+      scaledBoxGeo(
+        res.boxGeo,
+        beamLen,
+        0.07,
+        0.07,
+        w / 2 + beamLen / 2,
+        beamY,
+        0,
+      ),
     )
     brickGeos.push(
-      scaledBoxGeo(res.boxGeo, 0.05, 0.12, 0.05, w / 2 + beamLen - 0.025, beamY - 0.1, 0),
+      scaledBoxGeo(
+        res.boxGeo,
+        0.05,
+        0.12,
+        0.05,
+        w / 2 + beamLen - 0.025,
+        beamY - 0.1,
+        0,
+      ),
     )
   }
 
@@ -387,15 +423,23 @@ export function createHouse(res: BlockResources): THREE.Group {
     for (const zOff of [-windowSpacing, windowSpacing]) {
       const fx = w / 2 + 0.02
       frameGeos.push(scaledBoxGeo(res.boxGeo, 0.04, 0.9, 0.7, fx, cy, zOff))
-      glassGeos.push(scaledBoxGeo(res.boxGeo, 0.05, 0.8, 0.6, fx + 0.01, cy, zOff))
-      trimGeos.push(scaledBoxGeo(res.boxGeo, 0.1, 0.06, 0.75, fx + 0.03, cy - 0.48, zOff))
-      frameGeos.push(scaledBoxGeo(res.boxGeo, 0.06, 0.85, 0.04, fx + 0.01, cy, zOff))
+      glassGeos.push(
+        scaledBoxGeo(res.boxGeo, 0.05, 0.8, 0.6, fx + 0.01, cy, zOff),
+      )
+      trimGeos.push(
+        scaledBoxGeo(res.boxGeo, 0.1, 0.06, 0.75, fx + 0.03, cy - 0.48, zOff),
+      )
+      frameGeos.push(
+        scaledBoxGeo(res.boxGeo, 0.06, 0.85, 0.04, fx + 0.01, cy, zOff),
+      )
     }
   }
 
   const doorH = 1.1
   const doorW = 0.55
-  doorGeos.push(scaledBoxGeo(res.boxGeo, 0.06, doorH, doorW, w / 2 + 0.03, doorH / 2, 0))
+  doorGeos.push(
+    scaledBoxGeo(res.boxGeo, 0.06, doorH, doorW, w / 2 + 0.03, doorH / 2, 0),
+  )
   trimGeos.push(
     scaledBoxGeo(
       res.boxGeo,
@@ -477,7 +521,10 @@ export function createRandomTree(res: BlockResources): THREE.Group {
   return Math.random() < 0.4 ? createPine(res) : createTree(res)
 }
 
-export function createWindmill(res: BlockResources): { group: THREE.Group; sails: THREE.Group } {
+export function createWindmill(res: BlockResources): {
+  group: THREE.Group
+  sails: THREE.Group
+} {
   const g = new THREE.Group()
   const towerH = rand(3.5, 5)
 
@@ -534,7 +581,8 @@ export function createFlowerCluster(res: BlockResources): THREE.Group {
   const count = Math.floor(rand(3, 7))
   for (let i = 0; i < count; i++) {
     const h = rand(0.2, 0.45)
-    const mat = res.flowerMats[Math.floor(Math.random() * res.flowerMats.length)]
+    const mat =
+      res.flowerMats[Math.floor(Math.random() * res.flowerMats.length)]
     const stem = new THREE.Mesh(res.flowerStemGeo, res.bushMat)
     stem.scale.y = h
     stem.position.set(rand(-0.3, 0.3), h / 2, rand(-0.3, 0.3))
@@ -566,10 +614,7 @@ export function createMountainProfile(
 
     shape.lineTo(midX, midH)
     shape.lineTo(peakX, peakH)
-    shape.lineTo(
-      x0 + segWidth * rand(0.75, 0.9),
-      rand(minH * 0.2, peakH * 0.4),
-    )
+    shape.lineTo(x0 + segWidth * rand(0.75, 0.9), rand(minH * 0.2, peakH * 0.4))
   }
 
   shape.lineTo(segLen, 0)
@@ -593,14 +638,20 @@ export function createBlocks(scene: THREE.Scene): BlocksState {
   const staticMeshes: THREE.Mesh[] = []
   const groundLen = 400
 
-  const grass = new THREE.Mesh(new THREE.PlaneGeometry(60, groundLen), res.grassMat)
+  const grass = new THREE.Mesh(
+    new THREE.PlaneGeometry(60, groundLen),
+    res.grassMat,
+  )
   grass.rotation.x = -Math.PI / 2
   grass.position.set(0, -0.01, 30)
   grass.receiveShadow = true
   group.add(grass)
   staticMeshes.push(grass)
 
-  const road = new THREE.Mesh(new THREE.PlaneGeometry(3, groundLen), res.roadMat)
+  const road = new THREE.Mesh(
+    new THREE.PlaneGeometry(3, groundLen),
+    res.roadMat,
+  )
   road.rotation.x = -Math.PI / 2
   road.position.set(0, 0, 30)
   road.receiveShadow = true
