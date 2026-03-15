@@ -55,7 +55,7 @@ export function useAssetLoader(
     if (hasBlocks) {
       const skyColor = 0x5da6e6
       scene.background = new THREE.Color(skyColor)
-      scene.fog = new THREE.FogExp2(skyColor, 0.008)
+      scene.fog = new THREE.Fog(skyColor, 20, 80)
       texturePromise = Promise.resolve()
     } else {
       texturePromise = new Promise<void>((resolve, reject) => {
