@@ -135,27 +135,10 @@ export function createGradientCanvas(): {
   return { canvas, texture }
 }
 
-const progressiveUniforms: { value: number }[] = []
-let debugListenerAdded = false
-
-function setupDebugToggle() {
-  if (debugListenerAdded) return
-  debugListenerAdded = true
-  window.addEventListener('keydown', (e) => {
-    if (e.key === 'd' && e.ctrlKey) {
-      e.preventDefault()
-      toggle()
-    }
-  })
-  subscribe((on) => {
-    for (const u of progressiveUniforms) u.value = on ? 1.0 : 0.0
-  })
-}
-
 export function createRightLensMaterial(
   gradTex: THREE.CanvasTexture,
+  progressiveUniforms: { value: number }[],
 ): THREE.MeshPhysicalMaterial {
-  setupDebugToggle()
   const mat = new THREE.MeshPhysicalMaterial({
     color: new THREE.Color('#ffffff'),
     transmission: 1,
@@ -218,6 +201,9 @@ export function createRightLensMaterial(
       }
       #endif`,
     )
+
+    if (patchedChunk === chunk)
+      console.warn('[RIGHT LENS] transmission_pars_fragment replacement FAILED — Three.js version may have changed')
 
     // Force alpha=1.0 to prevent transmissionAlpha from causing ghost bleed-through
     const beforeOpaque = shader.fragmentShader
@@ -290,10 +276,11 @@ function buildRightLensGroup(
   lensGeometry: THREE.Group,
   frameGeometry: THREE.Group,
   blankGeometry: THREE.Group,
+  progressiveUniforms: { value: number }[],
 ): RightLensGroupResult {
   const { canvas: gradCanvas, texture: gradTex } = createGradientCanvas()
 
-  const rightMat = createRightLensMaterial(gradTex)
+  const rightMat = createRightLensMaterial(gradTex, progressiveUniforms)
   applyMaterial(lensGeometry, rightMat)
 
   const frame = frameGeometry.clone(true)
@@ -367,6 +354,20 @@ export async function loadGlasses(camera: THREE.Camera): Promise<GlassesState> {
     loadGLB('blank_r.glb'),
   ])
 
+  const progressiveUniforms: { value: number }[] = []
+
+  const onKeyDown = (e: KeyboardEvent) => {
+    if (e.key === 'd' && e.ctrlKey) {
+      e.preventDefault()
+      toggle()
+    }
+  }
+  window.addEventListener('keydown', onKeyDown)
+
+  const unsubDebug = subscribe((on) => {
+    for (const u of progressiveUniforms) u.value = on ? 1.0 : 0.0
+  })
+
   // Primary left
   const primary = buildLeftLensGroup(lensLeft, frameLeft, blankL, mapA, mapB)
   const leftGroup = primary.group
@@ -379,13 +380,13 @@ export async function loadGlasses(camera: THREE.Camera): Promise<GlassesState> {
   leftGroupAlt.position.y = SWAP_HIDDEN_Y
 
   // Primary right
-  const primaryRight = buildRightLensGroup(lensRight, frameRight, blankR)
+  const primaryRight = buildRightLensGroup(lensRight, frameRight, blankR, progressiveUniforms)
   const rightGroup = primaryRight.group
   refs.gradCanvas = primaryRight.gradCanvas
   refs.gradTex = primaryRight.gradTex
 
   // Alternate right
-  const altRight = buildRightLensGroup(lensRight02, frameRight, blankR)
+  const altRight = buildRightLensGroup(lensRight02, frameRight, blankR, progressiveUniforms)
   const rightGroupAlt = altRight.group
   rightGroupAlt.position.y = SWAP_HIDDEN_Y
 
@@ -512,6 +513,8 @@ export async function loadGlasses(camera: THREE.Camera): Promise<GlassesState> {
     mapA.dispose()
     mapB.dispose()
     refs.gradTex?.dispose()
+    window.removeEventListener('keydown', onKeyDown)
+    unsubDebug()
   }
 
   return {
