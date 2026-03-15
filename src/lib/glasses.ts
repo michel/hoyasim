@@ -76,13 +76,11 @@ function safeShaderReplace(
 
 // ── Material factories ───────────────────────────────────────────────
 
-export function createFrameMaterial(): THREE.MeshPhysicalMaterial {
-  return new THREE.MeshPhysicalMaterial({
+export function createFrameMaterial(): THREE.MeshStandardMaterial {
+  return new THREE.MeshStandardMaterial({
     color: 0x000000,
     roughness: 0.1,
     metalness: 0.0,
-    transparent: true,
-    opacity: 1,
     depthWrite: true,
   })
 }
