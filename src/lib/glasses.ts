@@ -16,6 +16,7 @@ export const SWAP_SHOWN_Y = 0
 
 // Gradient canvas
 export const GRADIENT_SIZE = 256
+export const PROGRESSIVE_POWER = 0.15
 
 // ── Type-safe animation state ────────────────────────────────────────
 
@@ -63,33 +64,54 @@ export function createFrameMaterial(): THREE.MeshPhysicalMaterial {
     color: 0x000000,
     roughness: 0.1,
     metalness: 0.0,
+    transparent: true,
+    opacity: 1,
+    depthWrite: true,
   })
 }
 
 export function createMaskMaterial(): THREE.MeshPhysicalMaterial {
-  return new THREE.MeshPhysicalMaterial({
+  const mat = new THREE.MeshPhysicalMaterial({
     color: new THREE.Color('#a7a7a7'),
     transmission: 0.95,
     thickness: 0.0,
     roughness: 0.4,
     ior: 1.3,
-    transparent: true,
+    depthWrite: true,
   })
+  mat.onBeforeCompile = (shader) => {
+    const before = shader.fragmentShader
+    shader.fragmentShader = shader.fragmentShader.replace(
+      '#include <opaque_fragment>',
+      'gl_FragColor = vec4( outgoingLight, 1.0 );',
+    )
+    if (before === shader.fragmentShader)
+      console.warn('[MASK] opaque_fragment replacement FAILED')
+  }
+  mat.customProgramCacheKey = () => 'mask-opaque-transmission'
+  return mat
 }
 
 export function createLeftLensMaterial(
   map: THREE.Texture,
 ): THREE.MeshPhysicalMaterial {
-  return new THREE.MeshPhysicalMaterial({
+  const mat = new THREE.MeshPhysicalMaterial({
     transmission: 1,
     thickness: 0,
     ior: 1.11,
     roughness: 1,
     thicknessMap: map,
     roughnessMap: map,
-    transparent: true,
-    opacity: 1,
+    depthWrite: true,
   })
+  mat.onBeforeCompile = (shader) => {
+    shader.fragmentShader = shader.fragmentShader.replace(
+      '#include <opaque_fragment>',
+      'gl_FragColor = vec4( outgoingLight, 1.0 );',
+    )
+  }
+  mat.customProgramCacheKey = () => 'left-lens-opaque-transmission'
+  return mat
 }
 
 export function createGradientCanvas(): {
@@ -102,13 +124,7 @@ export function createGradientCanvas(): {
 
   const ctx = canvas.getContext('2d')
   if (ctx) {
-    const offset = -GRADIENT_SIZE * 0.2
-    const g = ctx.createLinearGradient(offset, 0, GRADIENT_SIZE + offset, 0)
-    g.addColorStop(0, '#fff')
-    g.addColorStop(0.45, '#000')
-    g.addColorStop(0.55, '#000')
-    g.addColorStop(1, '#fff')
-    ctx.fillStyle = g
+    ctx.fillStyle = '#000'
     ctx.fillRect(0, 0, GRADIENT_SIZE, GRADIENT_SIZE)
   }
 
@@ -118,20 +134,101 @@ export function createGradientCanvas(): {
   return { canvas, texture }
 }
 
+const progressiveUniforms: { value: number }[] = []
+let debugListenerAdded = false
+
+function setupDebugToggle() {
+  if (debugListenerAdded) return
+  debugListenerAdded = true
+  window.addEventListener('keydown', (e) => {
+    if (e.key === 'd' && e.ctrlKey) {
+      e.preventDefault()
+      const on = progressiveUniforms[0]?.value === 0.0
+      for (const u of progressiveUniforms) u.value = on ? 1.0 : 0.0
+    }
+  })
+}
+
 export function createRightLensMaterial(
   gradTex: THREE.CanvasTexture,
 ): THREE.MeshPhysicalMaterial {
-  return new THREE.MeshPhysicalMaterial({
+  setupDebugToggle()
+  const mat = new THREE.MeshPhysicalMaterial({
     color: new THREE.Color('#ffffff'),
     transmission: 1,
     thickness: 0.5,
     ior: 1.15,
-    roughness: 2,
+    roughness: 0,
     thicknessMap: gradTex,
-    roughnessMap: gradTex,
-    transparent: true,
-    opacity: 1,
+    depthWrite: true,
   })
+
+  // Inline the full transmission_pars_fragment chunk with progressive distortion
+  // injected into getIBLVolumeRefraction, scoped to this material only.
+  const chunk = THREE.ShaderChunk.transmission_pars_fragment
+  const target =
+    'transmittedLight = getTransmissionSample( refractionCoords, roughness, ior );'
+  const patchedChunk = chunk.replace(
+    target,
+    `{
+      float lensY = clamp(vThicknessMapUv.x * 1.7, 0.0, 1.0);
+      float progressiveFactor = (0.5 - lensY) * 2.0 * uProgressivePower;
+
+      // Project lens optical center from view space to screen UV
+      vec4 lensCenterClip = projectionMatrix * vec4(uLensCenterView, 1.0);
+      vec2 lensCenterScreen = (lensCenterClip.xy / lensCenterClip.w) * 0.5 + 0.5;
+
+      // Magnify/minify from lens optical center
+      refractionCoords = clamp(
+        lensCenterScreen + (refractionCoords - lensCenterScreen) * (1.0 + progressiveFactor),
+        vec2(0.001), vec2(0.999)
+      );
+    }
+    transmittedLight = getTransmissionSample( refractionCoords, roughness, ior );`,
+  )
+
+  mat.onBeforeCompile = (shader) => {
+    shader.uniforms.uProgressivePower = { value: PROGRESSIVE_POWER }
+    shader.uniforms.uLensCenterView = {
+      value: new THREE.Vector3(LENS_POSITION.rightX, 0.0, LENS_POSITION.z),
+    }
+    shader.uniforms.uDebugZones = { value: 0.0 }
+    progressiveUniforms.push(shader.uniforms.uDebugZones)
+
+    // Replace the #include with uniform declaration + patched chunk
+    shader.fragmentShader = shader.fragmentShader.replace(
+      '#include <transmission_pars_fragment>',
+      `uniform float uProgressivePower;\nuniform vec3 uLensCenterView;\nuniform float uDebugZones;\n${patchedChunk}`,
+    )
+
+    // Debug: transparent color overlay for zones, controlled by uDebugZones
+    shader.fragmentShader = shader.fragmentShader.replace(
+      '#include <transmission_fragment>',
+      `#include <transmission_fragment>
+      #ifdef USE_TRANSMISSION
+      if (uDebugZones > 0.5) {
+        float lensY = clamp(vThicknessMapUv.x * 1.7, 0.0, 1.0);
+        vec3 zoneColor = vec3(0.0, 0.0, 1.0); // blue = magnification (bottom)
+        if (lensY < 0.33) zoneColor = vec3(1.0, 0.0, 0.0); // red = minification (top)
+        else if (lensY < 0.66) zoneColor = vec3(0.0, 1.0, 0.0); // green = no distortion (middle)
+        totalDiffuse = mix(totalDiffuse, zoneColor, 0.25);
+      }
+      #endif`,
+    )
+
+    // Force alpha=1.0 to prevent transmissionAlpha from causing ghost bleed-through
+    const beforeOpaque = shader.fragmentShader
+    shader.fragmentShader = shader.fragmentShader.replace(
+      '#include <opaque_fragment>',
+      'gl_FragColor = vec4( outgoingLight, 1.0 );',
+    )
+    if (beforeOpaque === shader.fragmentShader)
+      console.warn('[RIGHT LENS] opaque_fragment replacement FAILED')
+  }
+
+  mat.customProgramCacheKey = () => 'progressive-lens'
+
+  return mat
 }
 
 // ── Mesh helpers ─────────────────────────────────────────────────────
@@ -159,10 +256,9 @@ function buildLeftLensGroup(
 ): LeftLensGroupResult {
   const matA = createLeftLensMaterial(mapA)
   const matB = createLeftLensMaterial(mapB)
-  matB.opacity = 0
-
   const lensAMesh = lensGeometry.clone()
   const lensBMesh = lensGeometry.clone()
+  lensBMesh.visible = false
   applyMaterial(lensAMesh, matA)
   applyMaterial(lensBMesh, matB)
 
@@ -222,6 +318,7 @@ export interface GlassesState {
   swapLeft: () => void
   swapRight: () => void
   animateSwap: () => void
+  resetDepthClear: () => void
   dispose: () => void
 }
 
@@ -289,6 +386,28 @@ export async function loadGlasses(camera: THREE.Camera): Promise<GlassesState> {
   const rightGroupAlt = altRight.group
   rightGroupAlt.position.y = SWAP_HIDDEN_Y
 
+  // Render glasses on top of scene: high renderOrder + depth clear before first glasses mesh
+  const allGroups = [leftGroup, rightGroup, leftGroupAlt, rightGroupAlt]
+  let needsDepthClear = true
+  for (const g of allGroups) {
+    g.renderOrder = 999
+    g.traverse((child) => {
+      if (child instanceof THREE.Mesh) child.renderOrder = 999
+    })
+  }
+  // Attach depth-clear to the first visible glasses mesh each frame
+  leftGroup.traverse((child) => {
+    if (child instanceof THREE.Mesh && !child.userData._depthClearAttached) {
+      child.userData._depthClearAttached = true
+      child.onBeforeRender = (renderer) => {
+        if (needsDepthClear) {
+          renderer.clearDepth()
+          needsDepthClear = false
+        }
+      }
+    }
+  })
+
   camera.add(leftGroup, rightGroup, leftGroupAlt, rightGroupAlt)
 
   let leftSwapped = false
@@ -330,15 +449,9 @@ export async function loadGlasses(camera: THREE.Camera): Promise<GlassesState> {
       const neutral = Math.PI / 2
       const delta = neutral - polarAngle
       const t = THREE.MathUtils.smoothstep(delta, 0, Math.PI / 180)
-      const eased = 1 - (1 - t) ** 3
-      refs.lensAMesh.traverse((c) => {
-        if (c instanceof THREE.Mesh)
-          (c.material as THREE.MeshPhysicalMaterial).opacity = 1 - eased
-      })
-      refs.lensBMesh.traverse((c) => {
-        if (c instanceof THREE.Mesh)
-          (c.material as THREE.MeshPhysicalMaterial).opacity = eased
-      })
+      const useFar = t > 0.5
+      refs.lensAMesh.visible = !useFar
+      refs.lensBMesh.visible = useFar
     }
   }
 
@@ -360,6 +473,10 @@ export async function loadGlasses(camera: THREE.Camera): Promise<GlassesState> {
     const altAnim = getAnimation(rightGroupAlt)
     altAnim.targetY = rightSwapped ? SWAP_SHOWN_Y : SWAP_HIDDEN_Y
     altAnim.animating = true
+  }
+
+  function resetDepthClear() {
+    needsDepthClear = true
   }
 
   function animateSwap() {
@@ -392,6 +509,7 @@ export async function loadGlasses(camera: THREE.Camera): Promise<GlassesState> {
     swapLeft,
     swapRight,
     animateSwap,
+    resetDepthClear,
     dispose,
   }
 }

@@ -1,0 +1,73 @@
+import { useEffect } from 'react'
+import * as THREE from 'three'
+import type { BlocksState } from '@/lib/blocks'
+import type { GlassesState } from '@/lib/glasses'
+import { LAT_MAX, LAT_MIN } from './usePointerControls'
+
+// ── Constants ────────────────────────────────────────────────────────
+
+export const POLAR_ANGLE_MIN = Math.PI / 2.5
+export const POLAR_ANGLE_MAX = Math.PI / 1.6
+
+const _direction = new THREE.Vector3()
+
+// ── Hook ─────────────────────────────────────────────────────────────
+
+export function useRenderLoop(
+  scene: THREE.Scene | null,
+  camera: THREE.PerspectiveCamera | null,
+  renderer: THREE.WebGLRenderer | null,
+  glassesRef: React.RefObject<GlassesState | null>,
+  blocksRef: React.RefObject<BlocksState | null>,
+  gyroActiveRef: React.RefObject<boolean>,
+  lonRef: React.RefObject<number>,
+  latRef: React.RefObject<number>,
+) {
+  useEffect(() => {
+    if (!scene || !camera || !renderer) return
+
+    let animationId: number
+    let prevTime = performance.now()
+
+    const animate = () => {
+      const now = performance.now()
+      const delta = (now - prevTime) / 1000
+      prevTime = now
+
+      // Camera orientation from pointer controls
+      if (!gyroActiveRef.current) {
+        latRef.current = Math.max(LAT_MIN, Math.min(LAT_MAX, latRef.current))
+        const phi = THREE.MathUtils.degToRad(90 - latRef.current)
+        const theta = THREE.MathUtils.degToRad(lonRef.current)
+        camera.lookAt(
+          Math.sin(phi) * Math.cos(theta),
+          Math.cos(phi),
+          Math.sin(phi) * Math.sin(theta),
+        )
+      }
+
+      // Glasses update
+      const glasses = glassesRef.current
+      if (glasses) {
+        _direction.set(0, 0, -1).applyQuaternion(camera.quaternion)
+        const polarAngle = Math.acos(_direction.y)
+        glasses.update(polarAngle, POLAR_ANGLE_MIN, POLAR_ANGLE_MAX)
+        glasses.animateSwap()
+        glasses.resetDepthClear()
+      }
+
+      // Blocks update
+      const offset = blocksRef.current?.update(delta)
+      if (offset) {
+        camera.position.x = offset.x
+        camera.position.y = offset.y
+      }
+
+      renderer.render(scene, camera)
+      animationId = requestAnimationFrame(animate)
+    }
+    animate()
+
+    return () => cancelAnimationFrame(animationId)
+  }, [scene, camera, renderer, glassesRef, blocksRef, gyroActiveRef, lonRef, latRef])
+}

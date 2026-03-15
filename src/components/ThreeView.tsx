@@ -1,11 +1,11 @@
 import { Loader2 } from 'lucide-react'
 import { useRef } from 'react'
-import type * as THREE from 'three'
 import { Button } from '@/components/ui/button'
 import type { SceneConfig, SceneModel } from '@/config/scenes'
 import { useAssetLoader } from '@/hooks/useAssetLoader'
 import { useDeviceOrientation } from '@/hooks/useDeviceOrientation'
 import { usePointerControls } from '@/hooks/usePointerControls'
+import { useRenderLoop } from '@/hooks/useRenderLoop'
 import { useThreeScene } from '@/hooks/useThreeScene'
 
 interface ThreeViewProps {
@@ -14,11 +14,6 @@ interface ThreeViewProps {
   effects?: SceneConfig['effects']
   gyroActive: boolean
   onGyroActiveChange: (active: boolean) => void
-  onReady?: (ref: {
-    scene: THREE.Scene
-    camera: THREE.PerspectiveCamera
-    renderer: THREE.WebGLRenderer
-  }) => void
   onGlassesReady?: (controls: {
     swapLeft: () => void
     swapRight: () => void
@@ -54,19 +49,24 @@ export default function ThreeView({
     onGyroActiveChange,
   )
 
-  const { loading, error } = useAssetLoader(
+  const { loading, error, glassesRef, blocksRef } = useAssetLoader(
     sceneRefs?.scene ?? null,
     sceneRefs?.camera ?? null,
-    sceneRefs?.renderer ?? null,
-    sceneRefs?.sphere ?? null,
-    sceneRefs?.sphereMaterial ?? null,
     image,
     models,
     effects,
+    onGlassesReady,
+  )
+
+  useRenderLoop(
+    sceneRefs?.scene ?? null,
+    sceneRefs?.camera ?? null,
+    sceneRefs?.renderer ?? null,
+    glassesRef,
+    blocksRef,
     gyroActiveRef,
     lonRef,
     latRef,
-    onGlassesReady,
   )
 
   return (

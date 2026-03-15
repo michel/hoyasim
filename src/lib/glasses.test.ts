@@ -9,6 +9,7 @@ import {
   GRADIENT_SIZE,
   LENS_POSITION,
   LENS_SCALE,
+  PROGRESSIVE_POWER,
   SWAP_HIDDEN_Y,
   SWAP_LERP_SPEED,
   SWAP_SHOWN_Y,
@@ -41,12 +42,15 @@ describe('glasses constants', () => {
 })
 
 describe('createFrameMaterial', () => {
-  it('returns a black glossy MeshPhysicalMaterial', () => {
+  it('returns a black glossy MeshPhysicalMaterial in transparent list', () => {
     const mat = createFrameMaterial()
     expect(mat).toBeInstanceOf(THREE.MeshPhysicalMaterial)
     expect(mat.color.getHex()).toBe(0x000000)
     expect(mat.roughness).toBe(0.1)
     expect(mat.metalness).toBe(0.0)
+    expect(mat.transparent).toBe(true)
+    expect(mat.opacity).toBe(1)
+    expect(mat.depthWrite).toBe(true)
   })
 })
 
@@ -55,7 +59,8 @@ describe('createMaskMaterial', () => {
     const mat = createMaskMaterial()
     expect(mat).toBeInstanceOf(THREE.MeshPhysicalMaterial)
     expect(mat.transmission).toBe(0.95)
-    expect(mat.transparent).toBe(true)
+    expect(mat.onBeforeCompile).toBeTypeOf('function')
+    expect(mat.customProgramCacheKey()).toBe('mask-opaque-transmission')
   })
 })
 
@@ -84,5 +89,18 @@ describe('createRightLensMaterial', () => {
     const mat = createRightLensMaterial(texture)
     expect(mat.transmission).toBe(1)
     expect(mat.thicknessMap).toBe(texture)
+  })
+
+  it('has onBeforeCompile for progressive lens effect', () => {
+    const { texture } = createGradientCanvas()
+    const mat = createRightLensMaterial(texture)
+    expect(mat.onBeforeCompile).toBeTypeOf('function')
+    expect(mat.customProgramCacheKey()).toBe('progressive-lens')
+  })
+})
+
+describe('PROGRESSIVE_POWER', () => {
+  it('is exported with expected value', () => {
+    expect(PROGRESSIVE_POWER).toBe(0.15)
   })
 })

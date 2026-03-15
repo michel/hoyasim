@@ -6,8 +6,6 @@ import {
   CAMERA_NEAR,
   CAMERA_Z,
   createThreeScene,
-  SPHERE_RADIUS,
-  SPHERE_SEGMENTS,
 } from './useThreeScene'
 
 describe('ThreeScene constants', () => {
@@ -17,20 +15,13 @@ describe('ThreeScene constants', () => {
     expect(CAMERA_FAR).toBe(400)
     expect(CAMERA_Z).toBe(0.01)
   })
-
-  it('sphere defaults', () => {
-    expect(SPHERE_RADIUS).toBe(50)
-    expect(SPHERE_SEGMENTS).toBe(32)
-  })
 })
 
 describe('createThreeScene', () => {
-  it('returns scene, camera, sphere, and material', () => {
+  it('returns scene and camera', () => {
     const result = createThreeScene(800, 600)
     expect(result.scene).toBeInstanceOf(THREE.Scene)
     expect(result.camera).toBeInstanceOf(THREE.PerspectiveCamera)
-    expect(result.sphere).toBeInstanceOf(THREE.Mesh)
-    expect(result.sphereMaterial).toBeInstanceOf(THREE.MeshBasicMaterial)
   })
 
   it('camera has correct FOV and aspect ratio', () => {
@@ -44,11 +35,6 @@ describe('createThreeScene', () => {
   it('camera is added to scene', () => {
     const { scene, camera } = createThreeScene(800, 600)
     expect(scene.children).toContain(camera)
-  })
-
-  it('sphere uses BackSide material', () => {
-    const { sphereMaterial } = createThreeScene(800, 600)
-    expect(sphereMaterial.side).toBe(THREE.BackSide)
   })
 
   it('scene includes ambient and directional lights', () => {
