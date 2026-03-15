@@ -29,6 +29,33 @@ interface SpawnedObject {
   sails?: THREE.Group
 }
 
+export interface BlockResources {
+  boxGeo: THREE.BoxGeometry
+  trunkGeo: THREE.CylinderGeometry
+  canopyGeo: THREE.SphereGeometry
+  pineGeo: THREE.ConeGeometry
+  towerGeo: THREE.CylinderGeometry
+  capGeo: THREE.SphereGeometry
+  bushGeo: THREE.SphereGeometry
+  flowerHeadGeo: THREE.SphereGeometry
+  flowerStemGeo: THREE.CylinderGeometry
+  brickMats: THREE.MeshStandardMaterial[]
+  glassMat: THREE.MeshStandardMaterial
+  frameMat: THREE.MeshStandardMaterial
+  doorMat: THREE.MeshStandardMaterial
+  roofMat: THREE.MeshStandardMaterial
+  redRoofMat: THREE.MeshStandardMaterial
+  trimMat: THREE.MeshStandardMaterial
+  trunkMat: THREE.MeshStandardMaterial
+  leavesMat: THREE.MeshStandardMaterial
+  pineMat: THREE.MeshStandardMaterial
+  towerMat: THREE.MeshStandardMaterial
+  sailMat: THREE.MeshStandardMaterial
+  markingMat: THREE.MeshStandardMaterial
+  bushMat: THREE.MeshStandardMaterial
+  flowerMats: THREE.MeshStandardMaterial[]
+}
+
 // ── Helpers ──────────────────────────────────────────────────────────
 
 function rand(min: number, max: number): number {
@@ -48,15 +75,16 @@ function getZone(offset: number): Zone {
   return 'transition'
 }
 
-// ── Factory ─────────────────────────────────────────────────────────
+// ── Resource factory ─────────────────────────────────────────────────
 
-export function createBlocks(scene: THREE.Scene): BlocksState {
-  const group = new THREE.Group()
-  group.position.y = GROUND_Y
-  group.rotation.y = ROAD_ROTATION_Y
-
-  // ── Shared geometries & materials ──────────────────────────────
-
+export function createBlockResources(): BlockResources & {
+  allGeometries: THREE.BufferGeometry[]
+  allMaterials: THREE.Material[]
+  grassMat: THREE.MeshStandardMaterial
+  roadMat: THREE.MeshStandardMaterial
+  sidewalkMat: THREE.MeshStandardMaterial
+  planeGeo: THREE.PlaneGeometry
+} {
   const boxGeo = new THREE.BoxGeometry(1, 1, 1)
   const planeGeo = new THREE.PlaneGeometry(1, 1)
   const trunkGeo = new THREE.CylinderGeometry(0.1, 0.15, 1, 5)
@@ -172,7 +200,7 @@ export function createBlocks(scene: THREE.Scene): BlocksState {
     roughness: 0.95,
   })
 
-  const sharedGeos = [
+  const allGeometries: THREE.BufferGeometry[] = [
     boxGeo,
     planeGeo,
     trunkGeo,
@@ -184,7 +212,7 @@ export function createBlocks(scene: THREE.Scene): BlocksState {
     flowerHeadGeo,
     flowerStemGeo,
   ]
-  const sharedMats = [
+  const allMaterials: THREE.Material[] = [
     ...brickMats,
     glassMat,
     frameMat,
@@ -205,346 +233,383 @@ export function createBlocks(scene: THREE.Scene): BlocksState {
     sidewalkMat,
   ]
 
-  // ── Object factories ──────────────────────────────────────────
-
-  function scaledBoxGeo(
-    sx: number,
-    sy: number,
-    sz: number,
-    px: number,
-    py: number,
-    pz: number,
-  ): THREE.BufferGeometry {
-    const g = boxGeo.clone()
-    g.scale(sx, sy, sz)
-    g.translate(px, py, pz)
-    return g
+  return {
+    boxGeo,
+    planeGeo,
+    trunkGeo,
+    canopyGeo,
+    pineGeo,
+    towerGeo,
+    capGeo,
+    bushGeo,
+    flowerHeadGeo,
+    flowerStemGeo,
+    brickMats,
+    glassMat,
+    frameMat,
+    doorMat,
+    roofMat,
+    redRoofMat,
+    trimMat,
+    trunkMat,
+    leavesMat,
+    pineMat,
+    towerMat,
+    sailMat,
+    markingMat,
+    bushMat,
+    flowerMats,
+    grassMat,
+    roadMat,
+    sidewalkMat,
+    allGeometries,
+    allMaterials,
   }
+}
 
-  function createHouse(): THREE.Group {
-    const g = new THREE.Group()
-    const mat = brickMats[Math.floor(Math.random() * brickMats.length)]
+// ── Extracted factory functions ──────────────────────────────────────
 
-    // Amsterdam proportions: narrow facade (d along road), deep building (w away from road)
-    const d = rand(3.5, 4.5)
-    const w = rand(2, 3.5)
-    const h = rand(2.5, 4.5)
+export function scaledBoxGeo(
+  boxGeo: THREE.BoxGeometry,
+  sx: number,
+  sy: number,
+  sz: number,
+  px: number,
+  py: number,
+  pz: number,
+): THREE.BufferGeometry {
+  const g = boxGeo.clone()
+  g.scale(sx, sy, sz)
+  g.translate(px, py, pz)
+  return g
+}
 
-    const brickGeos: THREE.BufferGeometry[] = []
-    const trimGeos: THREE.BufferGeometry[] = []
-    const frameGeos: THREE.BufferGeometry[] = []
-    const glassGeos: THREE.BufferGeometry[] = []
-    const doorGeos: THREE.BufferGeometry[] = []
+export function createHouse(res: BlockResources): THREE.Group {
+  const g = new THREE.Group()
+  const mat = res.brickMats[Math.floor(Math.random() * res.brickMats.length)]
 
-    // Main body
-    brickGeos.push(scaledBoxGeo(w, h, d, 0, h / 2, 0))
+  const d = rand(3.5, 4.5)
+  const w = rand(2, 3.5)
+  const h = rand(2.5, 4.5)
 
-    // Mid-floor trim band (proportional to height)
-    const trimY = h * 0.45
-    trimGeos.push(scaledBoxGeo(w + 0.1, 0.08, d + 0.1, 0, trimY, 0))
+  const brickGeos: THREE.BufferGeometry[] = []
+  const trimGeos: THREE.BufferGeometry[] = []
+  const frameGeos: THREE.BufferGeometry[] = []
+  const glassGeos: THREE.BufferGeometry[] = []
+  const doorGeos: THREE.BufferGeometry[] = []
 
-    // Roof style: 60% stepped gable, 40% flat cornice
-    const isSteppedGable = Math.random() < 0.6
-    const wallThick = 0.2 // facade wall thickness
-    const facadeX = w / 2 - wallThick / 2 // center of facade wall in X
+  brickGeos.push(scaledBoxGeo(res.boxGeo, w, h, d, 0, h / 2, 0))
 
-    let gableTopY = h
-    if (isSteppedGable) {
-      const steps = Math.floor(rand(3, 6))
-      const stepH = 0.35
-      let gableD = d
-      for (let i = 0; i < steps; i++) {
-        gableD *= 0.78
-        const sy = h + i * stepH + stepH / 2
-        // Thin wall at facade face, narrowing in Z
-        brickGeos.push(scaledBoxGeo(wallThick, stepH, gableD, facadeX, sy, 0))
-        // White trim on top edge of each step
-        trimGeos.push(
-          scaledBoxGeo(
-            wallThick + 0.04,
-            0.05,
-            gableD + 0.04,
-            facadeX,
-            sy + stepH / 2,
-            0,
-          ),
-        )
-        gableTopY = h + (i + 1) * stepH
-      }
-    } else {
-      // Flat cornice: trim cap along facade face
+  const trimY = h * 0.45
+  trimGeos.push(scaledBoxGeo(res.boxGeo, w + 0.1, 0.08, d + 0.1, 0, trimY, 0))
+
+  const isSteppedGable = Math.random() < 0.6
+  const wallThick = 0.2
+  const facadeX = w / 2 - wallThick / 2
+
+  let gableTopY = h
+  if (isSteppedGable) {
+    const steps = Math.floor(rand(3, 6))
+    const stepH = 0.35
+    let gableD = d
+    for (let i = 0; i < steps; i++) {
+      gableD *= 0.78
+      const sy = h + i * stepH + stepH / 2
+      brickGeos.push(scaledBoxGeo(res.boxGeo, wallThick, stepH, gableD, facadeX, sy, 0))
       trimGeos.push(
-        scaledBoxGeo(wallThick + 0.1, 0.15, d + 0.15, facadeX, h + 0.075, 0),
+        scaledBoxGeo(
+          res.boxGeo,
+          wallThick + 0.04,
+          0.05,
+          gableD + 0.04,
+          facadeX,
+          sy + stepH / 2,
+          0,
+        ),
       )
-      // Slight raised parapet at facade
-      brickGeos.push(scaledBoxGeo(wallThick, 0.25, d, facadeX, h + 0.125, 0))
-      gableTopY = h + 0.25
+      gableTopY = h + (i + 1) * stepH
     }
-
-    // Red pitched roof behind the facade (only on gabled houses)
-    // Triangular prism: ridge runs along X, slopes down along Z to ±d/2
-    // Ridge height matches gable top, eaves sit at building top (h)
-    if (isSteppedGable) {
-      const xFront = w / 2 - wallThick // flush behind facade wall
-      const xBack = -w / 2
-      const ridgeY = gableTopY
-      const eaveY = h
-      const halfD = d / 2
-
-      const verts = new Float32Array([
-        // back triangle
-        xBack,
-        eaveY,
-        -halfD, // v0 back left eave
-        xBack,
-        eaveY,
-        halfD, // v1 back right eave
-        xBack,
-        ridgeY,
-        0, // v2 back ridge
-        // front triangle
-        xFront,
-        eaveY,
-        -halfD, // v3 front left eave
-        xFront,
-        eaveY,
-        halfD, // v4 front right eave
-        xFront,
-        ridgeY,
-        0, // v5 front ridge
-      ])
-
-      const indices = new Uint16Array([
-        // left slope (v0, v2, v5, v3)
-        0, 2, 5, 0, 5, 3,
-        // right slope (v1, v4, v5, v2)
-        1, 4, 5, 1, 5, 2,
-        // back face
-        0, 1, 2,
-        // front face
-        3, 5, 4,
-        // bottom
-        0, 3, 4, 0, 4, 1,
-      ])
-
-      const roofGeo = new THREE.BufferGeometry()
-      roofGeo.setAttribute('position', new THREE.BufferAttribute(verts, 3))
-      roofGeo.setIndex(new THREE.BufferAttribute(indices, 1))
-      roofGeo.computeVertexNormals()
-      g.add(new THREE.Mesh(roofGeo, redRoofMat))
-    }
-
-    // Hoisting beam: only on stepped gable facades
-    if (isSteppedGable) {
-      const beamY = gableTopY - 0.15
-      const beamLen = 0.5
-      // Horizontal beam from facade surface outward
-      brickGeos.push(
-        scaledBoxGeo(beamLen, 0.07, 0.07, w / 2 + beamLen / 2, beamY, 0),
-      )
-      // Small hook hanging down at the tip
-      brickGeos.push(
-        scaledBoxGeo(0.05, 0.12, 0.05, w / 2 + beamLen - 0.025, beamY - 0.1, 0),
-      )
-    }
-
-    // Windows: paired on the facade face (X-face), per floor
-    const numFloors = Math.max(1, Math.floor((h - 1.0) / 1.4))
-    const windowSpacing = d * 0.28
-    for (let floor = 0; floor < numFloors; floor++) {
-      const cy = 1.2 + floor * 1.4
-      if (cy > h - 0.5) continue
-      for (const zOff of [-windowSpacing, windowSpacing]) {
-        const fx = w / 2 + 0.02
-        frameGeos.push(scaledBoxGeo(0.04, 0.9, 0.7, fx, cy, zOff))
-        glassGeos.push(scaledBoxGeo(0.05, 0.8, 0.6, fx + 0.01, cy, zOff))
-        // Sill
-        trimGeos.push(scaledBoxGeo(0.1, 0.06, 0.75, fx + 0.03, cy - 0.48, zOff))
-        // Vertical divider (mullion)
-        frameGeos.push(scaledBoxGeo(0.06, 0.85, 0.04, fx + 0.01, cy, zOff))
-      }
-    }
-
-    // Door with white trim surround
-    const doorH = 1.1
-    const doorW = 0.55
-    doorGeos.push(scaledBoxGeo(0.06, doorH, doorW, w / 2 + 0.03, doorH / 2, 0))
+  } else {
     trimGeos.push(
-      scaledBoxGeo(
-        0.05,
-        doorH + 0.15,
-        doorW + 0.15,
-        w / 2 + 0.01,
-        doorH / 2,
-        0,
-      ),
+      scaledBoxGeo(res.boxGeo, wallThick + 0.1, 0.15, d + 0.15, facadeX, h + 0.075, 0),
     )
-
-    // Merge and create meshes
-    const brickMerged = BufferGeometryUtils.mergeGeometries(brickGeos)
-    g.add(new THREE.Mesh(brickMerged, mat))
-
-    if (trimGeos.length > 0) {
-      const trimMerged = BufferGeometryUtils.mergeGeometries(trimGeos)
-      g.add(new THREE.Mesh(trimMerged, trimMat))
-    }
-
-    if (frameGeos.length > 0) {
-      const frameMerged = BufferGeometryUtils.mergeGeometries(frameGeos)
-      g.add(new THREE.Mesh(frameMerged, frameMat))
-    }
-
-    if (glassGeos.length > 0) {
-      const glassMerged = BufferGeometryUtils.mergeGeometries(glassGeos)
-      g.add(new THREE.Mesh(glassMerged, glassMat))
-    }
-
-    if (doorGeos.length > 0) {
-      const doorMerged = BufferGeometryUtils.mergeGeometries(doorGeos)
-      g.add(new THREE.Mesh(doorMerged, doorMat))
-    }
-
-    return g
+    brickGeos.push(scaledBoxGeo(res.boxGeo, wallThick, 0.25, d, facadeX, h + 0.125, 0))
+    gableTopY = h + 0.25
   }
 
-  function createTree(): THREE.Group {
-    const g = new THREE.Group()
-    const trunkH = rand(0.6, 1.2)
-    const trunk = new THREE.Mesh(trunkGeo, trunkMat)
-    trunk.scale.y = trunkH
-    trunk.position.y = trunkH / 2
-    g.add(trunk)
+  if (isSteppedGable) {
+    const xFront = w / 2 - wallThick
+    const xBack = -w / 2
+    const ridgeY = gableTopY
+    const eaveY = h
+    const halfD = d / 2
 
-    const canopyR = rand(0.4, 0.8)
-    const canopy = new THREE.Mesh(canopyGeo, leavesMat)
-    canopy.scale.set(canopyR, canopyR * 1.4, canopyR)
-    canopy.position.y = trunkH + canopyR * 0.5
-    g.add(canopy)
+    const verts = new Float32Array([
+      xBack, eaveY, -halfD,
+      xBack, eaveY, halfD,
+      xBack, ridgeY, 0,
+      xFront, eaveY, -halfD,
+      xFront, eaveY, halfD,
+      xFront, ridgeY, 0,
+    ])
 
-    return g
+    const indices = new Uint16Array([
+      0, 2, 5, 0, 5, 3,
+      1, 4, 5, 1, 5, 2,
+      0, 1, 2,
+      3, 5, 4,
+      0, 3, 4, 0, 4, 1,
+    ])
+
+    const roofGeo = new THREE.BufferGeometry()
+    roofGeo.setAttribute('position', new THREE.BufferAttribute(verts, 3))
+    roofGeo.setIndex(new THREE.BufferAttribute(indices, 1))
+    roofGeo.computeVertexNormals()
+    g.add(new THREE.Mesh(roofGeo, res.redRoofMat))
   }
 
-  function createPine(): THREE.Group {
-    const g = new THREE.Group()
-    const trunkH = rand(0.8, 1.5)
-    const trunk = new THREE.Mesh(trunkGeo, trunkMat)
-    trunk.scale.y = trunkH
-    trunk.position.y = trunkH / 2
-    g.add(trunk)
+  if (isSteppedGable) {
+    const beamY = gableTopY - 0.15
+    const beamLen = 0.5
+    brickGeos.push(
+      scaledBoxGeo(res.boxGeo, beamLen, 0.07, 0.07, w / 2 + beamLen / 2, beamY, 0),
+    )
+    brickGeos.push(
+      scaledBoxGeo(res.boxGeo, 0.05, 0.12, 0.05, w / 2 + beamLen - 0.025, beamY - 0.1, 0),
+    )
+  }
 
-    // Stacked cones for layered pine look
-    const layers = Math.floor(rand(2, 4))
-    const baseR = rand(0.6, 1.2)
-    const layerH = rand(1, 1.5)
-    for (let i = 0; i < layers; i++) {
-      const r = baseR * (1 - i * 0.2)
-      const cone = new THREE.Mesh(pineGeo, pineMat)
-      cone.scale.set(r, layerH, r)
-      cone.position.y = trunkH + i * layerH * 0.6 + layerH / 2
-      g.add(cone)
+  const numFloors = Math.max(1, Math.floor((h - 1.0) / 1.4))
+  const windowSpacing = d * 0.28
+  for (let floor = 0; floor < numFloors; floor++) {
+    const cy = 1.2 + floor * 1.4
+    if (cy > h - 0.5) continue
+    for (const zOff of [-windowSpacing, windowSpacing]) {
+      const fx = w / 2 + 0.02
+      frameGeos.push(scaledBoxGeo(res.boxGeo, 0.04, 0.9, 0.7, fx, cy, zOff))
+      glassGeos.push(scaledBoxGeo(res.boxGeo, 0.05, 0.8, 0.6, fx + 0.01, cy, zOff))
+      trimGeos.push(scaledBoxGeo(res.boxGeo, 0.1, 0.06, 0.75, fx + 0.03, cy - 0.48, zOff))
+      frameGeos.push(scaledBoxGeo(res.boxGeo, 0.06, 0.85, 0.04, fx + 0.01, cy, zOff))
     }
-
-    return g
   }
 
-  function createRandomTree(): THREE.Group {
-    return Math.random() < 0.4 ? createPine() : createTree()
+  const doorH = 1.1
+  const doorW = 0.55
+  doorGeos.push(scaledBoxGeo(res.boxGeo, 0.06, doorH, doorW, w / 2 + 0.03, doorH / 2, 0))
+  trimGeos.push(
+    scaledBoxGeo(
+      res.boxGeo,
+      0.05,
+      doorH + 0.15,
+      doorW + 0.15,
+      w / 2 + 0.01,
+      doorH / 2,
+      0,
+    ),
+  )
+
+  const brickMerged = BufferGeometryUtils.mergeGeometries(brickGeos)
+  g.add(new THREE.Mesh(brickMerged, mat))
+
+  if (trimGeos.length > 0) {
+    const trimMerged = BufferGeometryUtils.mergeGeometries(trimGeos)
+    g.add(new THREE.Mesh(trimMerged, res.trimMat))
   }
 
-  function createWindmill(): { group: THREE.Group; sails: THREE.Group } {
-    const g = new THREE.Group()
-    const towerH = rand(3.5, 5)
-
-    const tower = new THREE.Mesh(towerGeo, towerMat)
-    tower.scale.y = towerH
-    tower.position.y = towerH / 2
-    g.add(tower)
-
-    const cap = new THREE.Mesh(capGeo, towerMat)
-    cap.scale.set(1, 0.6, 1)
-    cap.position.y = towerH
-    g.add(cap)
-
-    const sails = new THREE.Group()
-    sails.position.y = towerH * 0.9
-    sails.position.z = 0.9
-    const sailLen = rand(2, 3)
-    for (let i = 0; i < 4; i++) {
-      const sail = new THREE.Mesh(boxGeo, sailMat)
-      sail.scale.set(0.15, sailLen, 0.05)
-      sail.position.y = sailLen / 2
-      const arm = new THREE.Group()
-      arm.rotation.z = (i * Math.PI) / 2
-      arm.add(sail)
-      sails.add(arm)
-    }
-    g.add(sails)
-
-    return { group: g, sails }
+  if (frameGeos.length > 0) {
+    const frameMerged = BufferGeometryUtils.mergeGeometries(frameGeos)
+    g.add(new THREE.Mesh(frameMerged, res.frameMat))
   }
 
-  function createRoadMarking(): THREE.Mesh {
-    const marking = new THREE.Mesh(boxGeo, markingMat)
-    marking.scale.set(0.15, 0.02, 1.5)
-    marking.position.set(0, 0.01, 0)
-    return marking
+  if (glassGeos.length > 0) {
+    const glassMerged = BufferGeometryUtils.mergeGeometries(glassGeos)
+    g.add(new THREE.Mesh(glassMerged, res.glassMat))
   }
 
-  function createBush(): THREE.Group {
-    const g = new THREE.Group()
-    const count = Math.floor(rand(2, 4))
-    for (let i = 0; i < count; i++) {
-      const s = rand(0.25, 0.5)
-      const mesh = new THREE.Mesh(bushGeo, bushMat)
-      mesh.scale.set(s * rand(0.8, 1.2), s * 0.7, s * rand(0.8, 1.2))
-      mesh.position.set(rand(-0.2, 0.2), s * 0.3, rand(-0.2, 0.2))
-      g.add(mesh)
-    }
-    return g
+  if (doorGeos.length > 0) {
+    const doorMerged = BufferGeometryUtils.mergeGeometries(doorGeos)
+    g.add(new THREE.Mesh(doorMerged, res.doorMat))
   }
 
-  function createFlowerCluster(): THREE.Group {
-    const g = new THREE.Group()
-    const count = Math.floor(rand(3, 7))
-    for (let i = 0; i < count; i++) {
-      const h = rand(0.2, 0.45)
-      const mat = flowerMats[Math.floor(Math.random() * flowerMats.length)]
-      const stem = new THREE.Mesh(flowerStemGeo, bushMat)
-      stem.scale.y = h
-      stem.position.set(rand(-0.3, 0.3), h / 2, rand(-0.3, 0.3))
-      g.add(stem)
-      const head = new THREE.Mesh(flowerHeadGeo, mat)
-      head.position.set(stem.position.x, h + 0.06, stem.position.z)
-      g.add(head)
-    }
-    return g
+  return g
+}
+
+export function createTree(res: BlockResources): THREE.Group {
+  const g = new THREE.Group()
+  const trunkH = rand(0.6, 1.2)
+  const trunk = new THREE.Mesh(res.trunkGeo, res.trunkMat)
+  trunk.scale.y = trunkH
+  trunk.position.y = trunkH / 2
+  g.add(trunk)
+
+  const canopyR = rand(0.4, 0.8)
+  const canopy = new THREE.Mesh(res.canopyGeo, res.leavesMat)
+  canopy.scale.set(canopyR, canopyR * 1.4, canopyR)
+  canopy.position.y = trunkH + canopyR * 0.5
+  g.add(canopy)
+
+  return g
+}
+
+export function createPine(res: BlockResources): THREE.Group {
+  const g = new THREE.Group()
+  const trunkH = rand(0.8, 1.5)
+  const trunk = new THREE.Mesh(res.trunkGeo, res.trunkMat)
+  trunk.scale.y = trunkH
+  trunk.position.y = trunkH / 2
+  g.add(trunk)
+
+  const layers = Math.floor(rand(2, 4))
+  const baseR = rand(0.6, 1.2)
+  const layerH = rand(1, 1.5)
+  for (let i = 0; i < layers; i++) {
+    const r = baseR * (1 - i * 0.2)
+    const cone = new THREE.Mesh(res.pineGeo, res.pineMat)
+    cone.scale.set(r, layerH, r)
+    cone.position.y = trunkH + i * layerH * 0.6 + layerH / 2
+    g.add(cone)
   }
+
+  return g
+}
+
+export function createRandomTree(res: BlockResources): THREE.Group {
+  return Math.random() < 0.4 ? createPine(res) : createTree(res)
+}
+
+export function createWindmill(res: BlockResources): { group: THREE.Group; sails: THREE.Group } {
+  const g = new THREE.Group()
+  const towerH = rand(3.5, 5)
+
+  const tower = new THREE.Mesh(res.towerGeo, res.towerMat)
+  tower.scale.y = towerH
+  tower.position.y = towerH / 2
+  g.add(tower)
+
+  const cap = new THREE.Mesh(res.capGeo, res.towerMat)
+  cap.scale.set(1, 0.6, 1)
+  cap.position.y = towerH
+  g.add(cap)
+
+  const sails = new THREE.Group()
+  sails.position.y = towerH * 0.9
+  sails.position.z = 0.9
+  const sailLen = rand(2, 3)
+  for (let i = 0; i < 4; i++) {
+    const sail = new THREE.Mesh(res.boxGeo, res.sailMat)
+    sail.scale.set(0.15, sailLen, 0.05)
+    sail.position.y = sailLen / 2
+    const arm = new THREE.Group()
+    arm.rotation.z = (i * Math.PI) / 2
+    arm.add(sail)
+    sails.add(arm)
+  }
+  g.add(sails)
+
+  return { group: g, sails }
+}
+
+export function createRoadMarking(res: BlockResources): THREE.Mesh {
+  const marking = new THREE.Mesh(res.boxGeo, res.markingMat)
+  marking.scale.set(0.15, 0.02, 1.5)
+  marking.position.set(0, 0.01, 0)
+  return marking
+}
+
+export function createBush(res: BlockResources): THREE.Group {
+  const g = new THREE.Group()
+  const count = Math.floor(rand(2, 4))
+  for (let i = 0; i < count; i++) {
+    const s = rand(0.25, 0.5)
+    const mesh = new THREE.Mesh(res.bushGeo, res.bushMat)
+    mesh.scale.set(s * rand(0.8, 1.2), s * 0.7, s * rand(0.8, 1.2))
+    mesh.position.set(rand(-0.2, 0.2), s * 0.3, rand(-0.2, 0.2))
+    g.add(mesh)
+  }
+  return g
+}
+
+export function createFlowerCluster(res: BlockResources): THREE.Group {
+  const g = new THREE.Group()
+  const count = Math.floor(rand(3, 7))
+  for (let i = 0; i < count; i++) {
+    const h = rand(0.2, 0.45)
+    const mat = res.flowerMats[Math.floor(Math.random() * res.flowerMats.length)]
+    const stem = new THREE.Mesh(res.flowerStemGeo, res.bushMat)
+    stem.scale.y = h
+    stem.position.set(rand(-0.3, 0.3), h / 2, rand(-0.3, 0.3))
+    g.add(stem)
+    const head = new THREE.Mesh(res.flowerHeadGeo, mat)
+    head.position.set(stem.position.x, h + 0.06, stem.position.z)
+    g.add(head)
+  }
+  return g
+}
+
+export function createMountainProfile(
+  segLen: number,
+  peaks: number,
+  minH: number,
+  maxH: number,
+): THREE.Shape {
+  const shape = new THREE.Shape()
+  shape.moveTo(0, -0.5)
+  shape.lineTo(0, 0)
+
+  const segWidth = segLen / peaks
+  for (let i = 0; i < peaks; i++) {
+    const x0 = i * segWidth
+    const peakX = x0 + segWidth * rand(0.3, 0.7)
+    const peakH = rand(minH, maxH)
+    const midX = x0 + segWidth * rand(0.1, 0.3)
+    const midH = rand(minH * 0.3, peakH * 0.5)
+
+    shape.lineTo(midX, midH)
+    shape.lineTo(peakX, peakH)
+    shape.lineTo(
+      x0 + segWidth * rand(0.75, 0.9),
+      rand(minH * 0.2, peakH * 0.4),
+    )
+  }
+
+  shape.lineTo(segLen, 0)
+  shape.lineTo(segLen, -0.5)
+  shape.lineTo(0, -0.5)
+
+  return shape
+}
+
+// ── Factory ─────────────────────────────────────────────────────────
+
+export function createBlocks(scene: THREE.Scene): BlocksState {
+  const group = new THREE.Group()
+  group.position.y = GROUND_Y
+  group.rotation.y = ROAD_ROTATION_Y
+
+  const res = createBlockResources()
 
   // ── Static ground geometry ──────────────────────────────────────
 
   const staticMeshes: THREE.Mesh[] = []
   const groundLen = 400
 
-  // Grass
-  const grass = new THREE.Mesh(new THREE.PlaneGeometry(60, groundLen), grassMat)
+  const grass = new THREE.Mesh(new THREE.PlaneGeometry(60, groundLen), res.grassMat)
   grass.rotation.x = -Math.PI / 2
   grass.position.set(0, -0.01, 30)
   grass.receiveShadow = true
   group.add(grass)
   staticMeshes.push(grass)
 
-  // Road (red asphalt)
-  const road = new THREE.Mesh(new THREE.PlaneGeometry(3, groundLen), roadMat)
+  const road = new THREE.Mesh(new THREE.PlaneGeometry(3, groundLen), res.roadMat)
   road.rotation.x = -Math.PI / 2
   road.position.set(0, 0, 30)
   road.receiveShadow = true
   group.add(road)
   staticMeshes.push(road)
 
-  // Sidewalks
   const sidewalkL = new THREE.Mesh(
     new THREE.PlaneGeometry(0.6, groundLen),
-    sidewalkMat,
+    res.sidewalkMat,
   )
   sidewalkL.rotation.x = -Math.PI / 2
   sidewalkL.position.set(-1.8, 0.001, 30)
@@ -553,17 +618,16 @@ export function createBlocks(scene: THREE.Scene): BlocksState {
 
   const sidewalkR = new THREE.Mesh(
     new THREE.PlaneGeometry(0.6, groundLen),
-    sidewalkMat,
+    res.sidewalkMat,
   )
   sidewalkR.rotation.x = -Math.PI / 2
   sidewalkR.position.set(1.8, 0.001, 30)
   group.add(sidewalkR)
   staticMeshes.push(sidewalkR)
 
-  // Back roads
   const backRoadR = new THREE.Mesh(
     new THREE.PlaneGeometry(2, groundLen),
-    roadMat,
+    res.roadMat,
   )
   backRoadR.rotation.x = -Math.PI / 2
   backRoadR.position.set(9, 0, 30)
@@ -572,17 +636,16 @@ export function createBlocks(scene: THREE.Scene): BlocksState {
 
   const backRoadL = new THREE.Mesh(
     new THREE.PlaneGeometry(2, groundLen),
-    roadMat,
+    res.roadMat,
   )
   backRoadL.rotation.x = -Math.PI / 2
   backRoadL.position.set(-9, 0, 30)
   group.add(backRoadL)
   staticMeshes.push(backRoadL)
 
-  // Back road sidewalks
   const backSidewalkR = new THREE.Mesh(
     new THREE.PlaneGeometry(0.5, groundLen),
-    sidewalkMat,
+    res.sidewalkMat,
   )
   backSidewalkR.rotation.x = -Math.PI / 2
   backSidewalkR.position.set(10.3, 0.001, 30)
@@ -591,7 +654,7 @@ export function createBlocks(scene: THREE.Scene): BlocksState {
 
   const backSidewalkL = new THREE.Mesh(
     new THREE.PlaneGeometry(0.5, groundLen),
-    sidewalkMat,
+    res.sidewalkMat,
   )
   backSidewalkL.rotation.x = -Math.PI / 2
   backSidewalkL.position.set(-10.3, 0.001, 30)
@@ -608,43 +671,9 @@ export function createBlocks(scene: THREE.Scene): BlocksState {
     speed: number
   }
 
-  function createMountainProfile(
-    segLen: number,
-    peaks: number,
-    minH: number,
-    maxH: number,
-  ): THREE.Shape {
-    const shape = new THREE.Shape()
-    shape.moveTo(0, -0.5)
-    shape.lineTo(0, 0)
-
-    const segWidth = segLen / peaks
-    for (let i = 0; i < peaks; i++) {
-      const x0 = i * segWidth
-      const peakX = x0 + segWidth * rand(0.3, 0.7)
-      const peakH = rand(minH, maxH)
-      const midX = x0 + segWidth * rand(0.1, 0.3)
-      const midH = rand(minH * 0.3, peakH * 0.5)
-
-      shape.lineTo(midX, midH)
-      shape.lineTo(peakX, peakH)
-      shape.lineTo(
-        x0 + segWidth * rand(0.75, 0.9),
-        rand(minH * 0.2, peakH * 0.4),
-      )
-    }
-
-    shape.lineTo(segLen, 0)
-    shape.lineTo(segLen, -0.5)
-    shape.lineTo(0, -0.5)
-
-    return shape
-  }
-
   const mountainLayers: MountainLayer[] = []
   const mtSegLen = groundLen * 2
 
-  // Mountains sit in world space (not the rotated group), extending along X with height in Y
   const layerConfigs = [
     { z: 35, minH: 3, maxH: 8, color: 0x6878a0, speed: 0.04, peaks: 12 },
     { z: 26, minH: 2, maxH: 5.5, color: 0x4a6050, speed: 0.08, peaks: 16 },
@@ -659,7 +688,7 @@ export function createBlocks(scene: THREE.Scene): BlocksState {
       side: THREE.DoubleSide,
       fog: false,
     })
-    sharedMats.push(mat)
+    res.allMaterials.push(mat)
 
     const meshL = new THREE.Mesh(
       new THREE.ShapeGeometry(
@@ -725,56 +754,51 @@ export function createBlocks(scene: THREE.Scene): BlocksState {
 
   function spawnRow(z: number, zone: Zone) {
     if (zone === 'city' || zone === 'transition') {
-      // Right-side houses
       if (zone === 'city' || Math.random() < 0.5) {
-        const house = createHouse()
+        const house = createHouse(res)
         house.rotation.y = Math.PI
         house.position.set(rand(4.0, 4.5), 0, z)
         group.add(house)
         spawned.push({ group: house, type: 'house' })
       }
 
-      // Left-side houses
       if (zone === 'city' || Math.random() < 0.5) {
-        const house = createHouse()
+        const house = createHouse(res)
         house.position.set(rand(-4.5, -4.0), 0, z)
         group.add(house)
         spawned.push({ group: house, type: 'house' })
       }
 
-      // Outer houses facing back roads
       if (zone === 'city' || Math.random() < 0.3) {
-        const house = createHouse()
+        const house = createHouse(res)
         house.rotation.y = Math.PI
         house.position.set(rand(11.0, 11.5), 0, z + rand(1.5, 3.5))
         group.add(house)
         spawned.push({ group: house, type: 'house' })
       }
       if (zone === 'city' || Math.random() < 0.3) {
-        const house = createHouse()
+        const house = createHouse(res)
         house.rotation.y = 0
         house.position.set(rand(-11.5, -11.0), 0, z + rand(1.5, 3.5))
         group.add(house)
         spawned.push({ group: house, type: 'house' })
       }
 
-      // Street trees between houses
       if (Math.random() < 0.4) {
-        const tree = createTree()
+        const tree = createTree(res)
         tree.position.set(rand(2.0, 6.0), 0, z + SPAWN_INTERVAL * 0.5)
         group.add(tree)
         spawned.push({ group: tree, type: 'tree' })
       }
       if (Math.random() < 0.4) {
-        const tree = createTree()
+        const tree = createTree(res)
         tree.position.set(-rand(2.0, 6.0), 0, z + SPAWN_INTERVAL * 0.5)
         group.add(tree)
         spawned.push({ group: tree, type: 'tree' })
       }
 
-      // Urban bushes near sidewalks
       if (Math.random() < 0.15) {
-        const bush = createBush()
+        const bush = createBush(res)
         bush.position.set(
           rand(2.0, 3.0) * (Math.random() < 0.5 ? 1 : -1),
           0,
@@ -785,31 +809,28 @@ export function createBlocks(scene: THREE.Scene): BlocksState {
       }
     }
 
-    // Road markings
-    const marking = createRoadMarking()
+    const marking = createRoadMarking(res)
     marking.position.set(0, 0, z)
     group.add(marking)
     spawned.push({ group: marking, type: 'marking' })
 
     if (zone === 'nature' || zone === 'transition') {
-      // Trees on both sides
       if (zone === 'nature' || Math.random() < 0.5) {
-        const tree = createRandomTree()
+        const tree = createRandomTree(res)
         tree.position.set(rand(2.5, 8.0), 0, z)
         group.add(tree)
         spawned.push({ group: tree, type: 'tree' })
       }
 
       if (zone === 'nature' || Math.random() < 0.5) {
-        const tree = createRandomTree()
+        const tree = createRandomTree(res)
         tree.position.set(-rand(2.5, 8.0), 0, z)
         group.add(tree)
         spawned.push({ group: tree, type: 'tree' })
       }
 
-      // Bushes
       if (Math.random() < 0.4) {
-        const bush = createBush()
+        const bush = createBush(res)
         bush.position.set(
           rand(2.0, 12.0) * (Math.random() < 0.5 ? 1 : -1),
           0,
@@ -819,9 +840,8 @@ export function createBlocks(scene: THREE.Scene): BlocksState {
         spawned.push({ group: bush, type: 'bush' })
       }
 
-      // Flowers (nature only)
       if (zone === 'nature' && Math.random() < 0.25) {
-        const flowers = createFlowerCluster()
+        const flowers = createFlowerCluster(res)
         flowers.position.set(
           rand(2.0, 6.0) * (Math.random() < 0.5 ? 1 : -1),
           0,
@@ -831,10 +851,9 @@ export function createBlocks(scene: THREE.Scene): BlocksState {
         spawned.push({ group: flowers, type: 'flower' })
       }
 
-      // Rare windmills
       if (zone === 'nature' && Math.random() < 0.03) {
         const side = Math.random() < 0.5 ? 1 : -1
-        const wm = createWindmill()
+        const wm = createWindmill(res)
         wm.group.position.set(side * rand(6.0, 10.0), 0, z)
         group.add(wm.group)
         spawned.push({ group: wm.group, type: 'windmill', sails: wm.sails })
@@ -847,9 +866,8 @@ export function createBlocks(scene: THREE.Scene): BlocksState {
   let distanceTraveled = 0
   let spawnAccumulator = 0
 
-  for (let z = CULL_Z; z <= SPAWN_Z; z += SPAWN_INTERVAL) {
+  for (let z = CULL_Z; z <= SPAWN_Z; z += SPAWN_INTERVAL)
     spawnRow(z, getZone(z))
-  }
 
   // ── Update loop ─────────────────────────────────────────────────
 
@@ -863,17 +881,14 @@ export function createBlocks(scene: THREE.Scene): BlocksState {
     distanceTraveled += dist
     spawnAccumulator += dist
 
-    // Spawn new rows
     while (spawnAccumulator >= SPAWN_INTERVAL) {
       spawnAccumulator -= SPAWN_INTERVAL
       const zone = getZone(distanceTraveled)
       spawnRow(SPAWN_Z, zone)
     }
 
-    // Move all spawned objects
     for (const obj of spawned) obj.group.position.z += dz
 
-    // Cull objects past CULL_Z — swap-and-pop instead of splice
     let i = 0
     while (i < spawned.length) {
       if (spawned[i].group.position.z < CULL_Z) {
@@ -885,12 +900,10 @@ export function createBlocks(scene: THREE.Scene): BlocksState {
       }
     }
 
-    // Rotate windmill sails
     for (const obj of spawned) {
       if (obj.sails) obj.sails.rotation.z += delta * 1.0
     }
 
-    // Parallax mountain scrolling
     for (const { meshL, meshR, speed } of mountainLayers) {
       const mdx = ROAD_SPEED * speed * delta
       meshL.position.x += mdx
@@ -901,13 +914,11 @@ export function createBlocks(scene: THREE.Scene): BlocksState {
       }
     }
 
-    // Camera vibration (road rumble)
     const vibrationX =
       Math.sin(elapsed * 47) * 0.0008 + Math.sin(elapsed * 31) * 0.0005
     const vibrationY =
       Math.sin(elapsed * 53) * 0.001 + Math.sin(elapsed * 37) * 0.0006
 
-    // Pedaling bob (~1.5 Hz cadence)
     const bobY = Math.sin(elapsed * Math.PI * 3) * 0.008
 
     return { x: vibrationX, y: vibrationY + bobY }
@@ -943,9 +954,8 @@ export function createBlocks(scene: THREE.Scene): BlocksState {
       meshR.geometry.dispose()
     }
 
-    // Dispose shared resources
-    for (const geo of sharedGeos) geo.dispose()
-    for (const mat of sharedMats) mat.dispose()
+    for (const geo of res.allGeometries) geo.dispose()
+    for (const mat of res.allMaterials) mat.dispose()
 
     scene.remove(group)
   }
