@@ -7,6 +7,18 @@ import { type BlocksState, createBlocks } from '@/lib/blocks'
 import { type GlassesState, loadGlasses } from '@/lib/glasses'
 import { gltfLoader } from '@/lib/loaders'
 
+const LOAD_TIMEOUT_MS = 30_000
+
+function withTimeout<T>(promise: Promise<T>, label: string): Promise<T> {
+  const timeout = new Promise<never>((_, reject) =>
+    setTimeout(
+      () => reject(new Error(`Timed out loading ${label}`)),
+      LOAD_TIMEOUT_MS,
+    ),
+  )
+  return Promise.race([promise, timeout])
+}
+
 // ── Hook ─────────────────────────────────────────────────────────────
 
 export function useAssetLoader(
@@ -33,7 +45,8 @@ export function useAssetLoader(
     setLoading(true)
     setError(null)
 
-    let disposed = false
+    const controller = new AbortController()
+    const { signal } = controller
     const loadedObjects: THREE.Object3D[] = []
 
     const hasBlocks = !!effects?.blocks
@@ -47,7 +60,7 @@ export function useAssetLoader(
     } else {
       texturePromise = new Promise<void>((resolve, reject) => {
         const onLoaded = (texture: THREE.Texture) => {
-          if (disposed) {
+          if (signal.aborted) {
             texture.dispose()
             return resolve()
           }
@@ -72,7 +85,7 @@ export function useAssetLoader(
           gltfLoader.load(
             model.path,
             (gltf) => {
-              if (disposed) return resolve()
+              if (signal.aborted) return resolve()
               const obj = gltf.scene
               obj.position.set(...model.position)
               if (model.rotation) obj.rotation.set(...model.rotation)
@@ -102,7 +115,7 @@ export function useAssetLoader(
 
     // Load glasses
     const glassesPromise = loadGlasses(camera).then((glasses) => {
-      if (disposed) return glasses.dispose()
+      if (signal.aborted) return glasses.dispose()
       glassesRef.current = glasses
       onGlassesReadyRef.current?.({
         swapLeft: glasses.swapLeft,
@@ -112,16 +125,19 @@ export function useAssetLoader(
 
     if (effects?.blocks) blocksRef.current = createBlocks(scene)
 
-    Promise.all([texturePromise, ...modelPromises, glassesPromise])
+    withTimeout(
+      Promise.all([texturePromise, ...modelPromises, glassesPromise]),
+      'scene assets',
+    )
       .catch((err) => {
-        if (!disposed) setError(err.message)
+        if (!signal.aborted) setError(err.message)
       })
       .finally(() => {
-        if (!disposed) setLoading(false)
+        if (!signal.aborted) setLoading(false)
       })
 
     return () => {
-      disposed = true
+      controller.abort()
 
       for (const obj of loadedObjects) {
         scene.remove(obj)

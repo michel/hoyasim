@@ -67,7 +67,11 @@ export function LandscapeGuard({ children }: { children: React.ReactNode }) {
       setIsPortrait(window.innerWidth < window.innerHeight)
 
     window.addEventListener('resize', checkOrientation)
-    return () => window.removeEventListener('resize', checkOrientation)
+    window.addEventListener('orientationchange', checkOrientation)
+    return () => {
+      window.removeEventListener('resize', checkOrientation)
+      window.removeEventListener('orientationchange', checkOrientation)
+    }
   }, [])
 
   if (isPortrait) return <PortraitWarning />

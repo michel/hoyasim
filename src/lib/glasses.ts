@@ -58,6 +58,22 @@ function loadTexture(path: string): Promise<THREE.Texture> {
   })
 }
 
+// ── Shader helpers ──────────────────────────────────────────────────
+
+function safeShaderReplace(
+  shader: { fragmentShader: string },
+  target: string,
+  replacement: string,
+  label: string,
+): void {
+  const before = shader.fragmentShader
+  shader.fragmentShader = shader.fragmentShader.replace(target, replacement)
+  if (before === shader.fragmentShader)
+    throw new Error(
+      `[${label}] shader replacement FAILED for "${target.slice(0, 40)}…" — Three.js version may have changed`,
+    )
+}
+
 // ── Material factories ───────────────────────────────────────────────
 
 export function createFrameMaterial(): THREE.MeshPhysicalMaterial {
@@ -81,13 +97,12 @@ export function createMaskMaterial(): THREE.MeshPhysicalMaterial {
     depthWrite: true,
   })
   mat.onBeforeCompile = (shader) => {
-    const before = shader.fragmentShader
-    shader.fragmentShader = shader.fragmentShader.replace(
+    safeShaderReplace(
+      shader,
       '#include <opaque_fragment>',
       'gl_FragColor = vec4( outgoingLight, 1.0 );',
+      'MASK',
     )
-    if (before === shader.fragmentShader)
-      console.warn('[MASK] opaque_fragment replacement FAILED')
   }
   mat.customProgramCacheKey = () => 'mask-opaque-transmission'
   return mat
@@ -106,9 +121,11 @@ export function createLeftLensMaterial(
     depthWrite: true,
   })
   mat.onBeforeCompile = (shader) => {
-    shader.fragmentShader = shader.fragmentShader.replace(
+    safeShaderReplace(
+      shader,
       '#include <opaque_fragment>',
       'gl_FragColor = vec4( outgoingLight, 1.0 );',
+      'LEFT LENS',
     )
   }
   mat.customProgramCacheKey = () => 'left-lens-opaque-transmission'
@@ -181,14 +198,20 @@ export function createRightLensMaterial(
     shader.uniforms.uDebugZones = { value: 0.0 }
     progressiveUniforms.push(shader.uniforms.uDebugZones)
 
-    // Replace the #include with uniform declaration + patched chunk
-    shader.fragmentShader = shader.fragmentShader.replace(
+    if (patchedChunk === chunk)
+      throw new Error(
+        '[RIGHT LENS] transmission_pars_fragment replacement FAILED — Three.js version may have changed',
+      )
+
+    safeShaderReplace(
+      shader,
       '#include <transmission_pars_fragment>',
       `uniform float uProgressivePower;\nuniform vec3 uLensCenterView;\nuniform float uDebugZones;\n${patchedChunk}`,
+      'RIGHT LENS transmission_pars',
     )
 
-    // Debug: transparent color overlay for zones, controlled by uDebugZones
-    shader.fragmentShader = shader.fragmentShader.replace(
+    safeShaderReplace(
+      shader,
       '#include <transmission_fragment>',
       `#include <transmission_fragment>
       #ifdef USE_TRANSMISSION
@@ -200,21 +223,15 @@ export function createRightLensMaterial(
         totalDiffuse = mix(totalDiffuse, zoneColor, 0.25);
       }
       #endif`,
+      'RIGHT LENS transmission_fragment',
     )
 
-    if (patchedChunk === chunk)
-      console.warn(
-        '[RIGHT LENS] transmission_pars_fragment replacement FAILED — Three.js version may have changed',
-      )
-
-    // Force alpha=1.0 to prevent transmissionAlpha from causing ghost bleed-through
-    const beforeOpaque = shader.fragmentShader
-    shader.fragmentShader = shader.fragmentShader.replace(
+    safeShaderReplace(
+      shader,
       '#include <opaque_fragment>',
       'gl_FragColor = vec4( outgoingLight, 1.0 );',
+      'RIGHT LENS opaque',
     )
-    if (beforeOpaque === shader.fragmentShader)
-      console.warn('[RIGHT LENS] opaque_fragment replacement FAILED')
   }
 
   mat.customProgramCacheKey = () => 'progressive-lens'
@@ -439,8 +456,9 @@ export async function loadGlasses(camera: THREE.Camera): Promise<GlassesState> {
         -GRADIENT_SIZE * 0.3,
         GRADIENT_SIZE * 0.02,
       )
-      if (Math.abs(lastGradientOffset - offset) >= 0.5) {
-        lastGradientOffset = offset
+      const quantized = Math.round(offset * 2) / 2
+      if (lastGradientOffset !== quantized) {
+        lastGradientOffset = quantized
         const ctx = refs.gradCanvas.getContext('2d')
         if (ctx) {
           ctx.clearRect(0, 0, GRADIENT_SIZE, GRADIENT_SIZE)

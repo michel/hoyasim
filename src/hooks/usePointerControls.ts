@@ -1,4 +1,4 @@
-import { useEffect } from 'react'
+import { useEffect, useRef } from 'react'
 
 // ── Constants ────────────────────────────────────────────────────────
 
@@ -8,39 +8,64 @@ export const LAT_MAX = 85
 
 // ── Hook ─────────────────────────────────────────────────────────────
 
+interface PointerState {
+  active: boolean
+  startX: number
+  startY: number
+  startLon: number
+  startLat: number
+}
+
 export function usePointerControls(
   rendererElement: HTMLCanvasElement | null,
   lonRef: React.RefObject<number>,
   latRef: React.RefObject<number>,
   gyroActive: boolean,
 ) {
+  const stateRef = useRef<PointerState>({
+    active: false,
+    startX: 0,
+    startY: 0,
+    startLon: 0,
+    startLat: 0,
+  })
+
   useEffect(() => {
     if (!rendererElement || gyroActive) return
 
-    let isUserInteracting = false
-    let onPointerDownLon = 0
-    let onPointerDownLat = 0
-    let startX = 0
-    let startY = 0
+    function getXY(
+      e: MouseEvent | TouchEvent,
+    ): { x: number; y: number } | null {
+      if ('touches' in e) {
+        if (e.touches.length === 0) return null
+        return { x: e.touches[0].clientX, y: e.touches[0].clientY }
+      }
+      return { x: e.clientX, y: e.clientY }
+    }
 
     const onPointerDown = (e: MouseEvent | TouchEvent) => {
-      isUserInteracting = true
-      startX = 'touches' in e ? e.touches[0].clientX : e.clientX
-      startY = 'touches' in e ? e.touches[0].clientY : e.clientY
-      onPointerDownLon = lonRef.current
-      onPointerDownLat = latRef.current
+      const pos = getXY(e)
+      if (!pos) return
+      const s = stateRef.current
+      s.active = true
+      s.startX = pos.x
+      s.startY = pos.y
+      s.startLon = lonRef.current
+      s.startLat = latRef.current
     }
 
     const onPointerMove = (e: MouseEvent | TouchEvent) => {
-      if (!isUserInteracting) return
-      const x = 'touches' in e ? e.touches[0].clientX : e.clientX
-      const y = 'touches' in e ? e.touches[0].clientY : e.clientY
-      lonRef.current = (startX - x) * DRAG_SENSITIVITY + onPointerDownLon
-      latRef.current = (y - startY) * DRAG_SENSITIVITY + onPointerDownLat
+      const s = stateRef.current
+      if (!s.active) return
+      const pos = getXY(e)
+      if (!pos) return
+      const { x, y } = pos
+      lonRef.current = (s.startX - x) * DRAG_SENSITIVITY + s.startLon
+      latRef.current = (y - s.startY) * DRAG_SENSITIVITY + s.startLat
     }
 
     const onPointerUp = () => {
-      isUserInteracting = false
+      stateRef.current.active = false
     }
 
     rendererElement.addEventListener('mousedown', onPointerDown)

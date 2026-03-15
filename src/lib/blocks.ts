@@ -67,6 +67,7 @@ export interface BlockResources {
   bushMat: THREE.MeshStandardMaterial
   flowerMats: THREE.MeshStandardMaterial[]
   tulipPetalGeo: THREE.SphereGeometry
+  allMaterials: THREE.Material[]
 }
 
 // ── Helpers ──────────────────────────────────────────────────────────
@@ -559,6 +560,12 @@ export function createWindmill(res: BlockResources): {
     flatShading: true,
     roughness: 0.9,
   })
+  res.allMaterials.push(
+    windmillBrickMat,
+    windmillCapMat,
+    windmillDoorMat,
+    windmillBalconyMat,
+  )
   const g = new THREE.Group()
   const towerH = rand(4, 6)
   const baseR = 0.9
@@ -797,6 +804,7 @@ export function createGrassTuft(res: BlockResources): THREE.Group {
     flatShading: true,
     roughness: 0.95,
   })
+  res.allMaterials.push(tallGrassMat)
   const g = new THREE.Group()
   const blades = Math.floor(rand(5, 12))
   const geos: THREE.BufferGeometry[] = []
@@ -835,6 +843,11 @@ export function createSunflowerPatch(res: BlockResources): THREE.Group {
     flatShading: true,
     roughness: 0.9,
   })
+  res.allMaterials.push(
+    sunflowerYellowMat,
+    sunflowerCenterMat,
+    sunflowerLeafMat,
+  )
   const g = new THREE.Group()
   const count = Math.floor(rand(5, 12))
   const stemGeos: THREE.BufferGeometry[] = []
@@ -913,6 +926,7 @@ export function createLake(res: BlockResources): THREE.Group {
     flatShading: true,
     roughness: 0.7,
   })
+  res.allMaterials.push(lakeMat, lakeEdgeMat, duckMat, duckBeakMat)
   const lakeCircleGeo = new THREE.CircleGeometry(1, 7)
   const lakeRingGeo = new THREE.RingGeometry(0.92, 1.08, 7)
   const duckBodyGeo = new THREE.SphereGeometry(0.1, 5, 4)
@@ -1011,6 +1025,7 @@ export function createCow(res: BlockResources): THREE.Group {
     flatShading: true,
     roughness: 0.85,
   })
+  res.allMaterials.push(cowBodyMat, cowSpotMat, cowPinkMat)
   const g = new THREE.Group()
 
   const bodyGeos: THREE.BufferGeometry[] = []
@@ -1244,20 +1259,32 @@ export function createBlocks(scene: THREE.Scene): BlocksState {
 
   // ── Lighting ────────────────────────────────────────────────────
 
-  let originalAmbientIntensity = 0.5
-  let originalDirColor = new THREE.Color(0xffffff)
-  let originalDirIntensity = 1.0
-  let originalDirCastShadow = false
+  interface LightSnapshot {
+    ambient: { light: THREE.AmbientLight; intensity: number }[]
+    directional: {
+      light: THREE.DirectionalLight
+      color: THREE.Color
+      intensity: number
+      castShadow: boolean
+    }[]
+  }
+  const lightSnapshot: LightSnapshot = { ambient: [], directional: [] }
 
   scene.traverse((child) => {
     if (child instanceof THREE.AmbientLight) {
-      originalAmbientIntensity = child.intensity
+      lightSnapshot.ambient.push({
+        light: child,
+        intensity: child.intensity,
+      })
       child.intensity = 0.4
     }
     if (child instanceof THREE.DirectionalLight) {
-      originalDirColor = child.color.clone()
-      originalDirIntensity = child.intensity
-      originalDirCastShadow = child.castShadow
+      lightSnapshot.directional.push({
+        light: child,
+        color: child.color.clone(),
+        intensity: child.intensity,
+        castShadow: child.castShadow,
+      })
       child.color.set(0xffddaa)
       child.intensity = 0.8
       child.castShadow = true
@@ -1562,6 +1589,8 @@ export function createBlocks(scene: THREE.Scene): BlocksState {
 
   let elapsed = 0
 
+  const cameraOffset: CameraOffset = { x: 0, y: 0 }
+
   function update(delta: number): CameraOffset {
     if (delta > 1) return { x: 0, y: 0 }
     elapsed += delta
@@ -1613,7 +1642,9 @@ export function createBlocks(scene: THREE.Scene): BlocksState {
     const bobY =
       Math.sin(elapsed * Math.PI * 3 * speedRatio) * 0.008 * speedRatio
 
-    return { x: vibrationX, y: vibrationY + bobY }
+    cameraOffset.x = vibrationX
+    cameraOffset.y = vibrationY + bobY
+    return cameraOffset
   }
 
   // ── Dispose ─────────────────────────────────────────────────────
@@ -1632,15 +1663,12 @@ export function createBlocks(scene: THREE.Scene): BlocksState {
     scene.remove(hemiLight)
     hemiLight.dispose()
 
-    scene.traverse((child) => {
-      if (child instanceof THREE.AmbientLight)
-        child.intensity = originalAmbientIntensity
-      if (child instanceof THREE.DirectionalLight) {
-        child.color.copy(originalDirColor)
-        child.intensity = originalDirIntensity
-        child.castShadow = originalDirCastShadow
-      }
-    })
+    for (const s of lightSnapshot.ambient) s.light.intensity = s.intensity
+    for (const s of lightSnapshot.directional) {
+      s.light.color.copy(s.color)
+      s.light.intensity = s.intensity
+      s.light.castShadow = s.castShadow
+    }
 
     for (const { meshL, meshR } of mountainLayers) {
       scene.remove(meshL, meshR)

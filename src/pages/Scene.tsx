@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { ErrorBoundary } from '@/components/ErrorBoundary'
 import { GlassesControls } from '@/components/GlassesControls'
@@ -17,7 +17,12 @@ import { sceneNames, scenes } from '@/config/scenes'
 export default function Scene() {
   const { scene } = useParams<{ scene: string }>()
   const navigate = useNavigate()
-  const sceneConfig = scene ? scenes[scene] : null
+  const isValidScene = scene !== undefined && scene in scenes
+  const sceneConfig = isValidScene ? scenes[scene as keyof typeof scenes] : null
+
+  useEffect(() => {
+    if (!isValidScene) navigate('/scenes/biking', { replace: true })
+  }, [isValidScene, navigate])
   const [glassesControls, setGlassesControls] = useState<{
     swapLeft: () => void
     swapRight: () => void
