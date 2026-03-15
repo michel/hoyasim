@@ -7,7 +7,7 @@ const SPAWN_Z = 100
 const CULL_Z = -60
 const GROUND_Y = -0.9
 const ROAD_ROTATION_Y = 1.25
-const ROAD_SPEED = -8.0
+const ROAD_SPEED = -5.0
 const SPAWN_INTERVAL = 6
 const CYCLE_LENGTH = 300
 
@@ -25,7 +25,7 @@ export interface BlocksState {
 
 interface SpawnedObject {
   group: THREE.Object3D
-  type: 'house' | 'tree' | 'windmill' | 'marking'
+  type: 'house' | 'tree' | 'windmill' | 'marking' | 'bush' | 'flower'
   sails?: THREE.Group
 }
 
@@ -64,32 +64,43 @@ export function createBlocks(scene: THREE.Scene): BlocksState {
   const pineGeo = new THREE.ConeGeometry(1, 1, 6)
   const towerGeo = new THREE.CylinderGeometry(0.4, 0.7, 1, 5)
   const capGeo = new THREE.SphereGeometry(0.5, 4, 3)
+  const bushGeo = new THREE.SphereGeometry(1, 5, 4)
+  const flowerHeadGeo = new THREE.SphereGeometry(0.12, 4, 3)
+  const flowerStemGeo = new THREE.CylinderGeometry(0.02, 0.02, 1, 3)
 
   const brickColors = [
     0x4a2c2a, 0x3e2723, 0x5d4037, 0x2a2a2a, 0x1a1a1a, 0x8b4513,
   ]
   const brickMats = brickColors.map(
-    (c) => new THREE.MeshLambertMaterial({ color: c }),
+    (c) => new THREE.MeshStandardMaterial({ color: c, flatShading: true, roughness: 0.9 }),
   )
-  const glassMat = new THREE.MeshLambertMaterial({
+  const glassMat = new THREE.MeshStandardMaterial({
     color: 0x4488aa,
     emissive: 0x112233,
     emissiveIntensity: 0.3,
+    flatShading: true,
+    roughness: 0.3,
+    metalness: 0.1,
   })
-  const frameMat = new THREE.MeshLambertMaterial({ color: 0xffffff })
-  const doorMat = new THREE.MeshLambertMaterial({ color: 0x2a1a0a })
-  const roofMat = new THREE.MeshLambertMaterial({ color: 0x222222 })
-  const redRoofMat = new THREE.MeshLambertMaterial({ color: 0x8b2500 })
-  const trimMat = new THREE.MeshLambertMaterial({ color: 0xeeeeee })
-  const trunkMat = new THREE.MeshLambertMaterial({ color: 0x4a3728 })
-  const leavesMat = new THREE.MeshLambertMaterial({ color: 0x2e8b57 })
-  const pineMat = new THREE.MeshLambertMaterial({ color: 0x1a5c2a })
-  const towerMat = new THREE.MeshLambertMaterial({ color: 0x555555 })
-  const sailMat = new THREE.MeshLambertMaterial({ color: 0xcccccc })
-  const markingMat = new THREE.MeshLambertMaterial({ color: 0xffffff })
-  const grassMat = new THREE.MeshLambertMaterial({ color: 0x6b8e23 })
-  const roadMat = new THREE.MeshLambertMaterial({ color: 0xa55145 })
-  const sidewalkMat = new THREE.MeshLambertMaterial({ color: 0x888888 })
+  const frameMat = new THREE.MeshStandardMaterial({ color: 0xffffff, flatShading: true, roughness: 0.7 })
+  const doorMat = new THREE.MeshStandardMaterial({ color: 0x2a1a0a, flatShading: true, roughness: 0.9 })
+  const roofMat = new THREE.MeshStandardMaterial({ color: 0x222222, flatShading: true, roughness: 0.9 })
+  const redRoofMat = new THREE.MeshStandardMaterial({ color: 0x8b2500, flatShading: true, roughness: 0.85 })
+  const trimMat = new THREE.MeshStandardMaterial({ color: 0xeeeeee, flatShading: true, roughness: 0.7 })
+  const trunkMat = new THREE.MeshStandardMaterial({ color: 0x4a3728, flatShading: true, roughness: 0.9 })
+  const leavesMat = new THREE.MeshStandardMaterial({ color: 0x2e8b57, flatShading: true, roughness: 0.95 })
+  const pineMat = new THREE.MeshStandardMaterial({ color: 0x1a5c2a, flatShading: true, roughness: 0.95 })
+  const towerMat = new THREE.MeshStandardMaterial({ color: 0x555555, flatShading: true, roughness: 0.9 })
+  const sailMat = new THREE.MeshStandardMaterial({ color: 0xcccccc, flatShading: true, roughness: 0.7 })
+  const markingMat = new THREE.MeshStandardMaterial({ color: 0xffffff, flatShading: true, roughness: 0.7 })
+  const bushMat = new THREE.MeshStandardMaterial({ color: 0x3a7d44, flatShading: true, roughness: 0.95 })
+  const flowerColors = [0xe84393, 0xfdcb6e, 0x6c5ce7, 0xff7675, 0xffffff]
+  const flowerMats = flowerColors.map(
+    (c) => new THREE.MeshStandardMaterial({ color: c, flatShading: true, roughness: 0.8 }),
+  )
+  const grassMat = new THREE.MeshStandardMaterial({ color: 0x6b8e23, flatShading: true, roughness: 0.95 })
+  const roadMat = new THREE.MeshStandardMaterial({ color: 0xa55145, flatShading: true, roughness: 0.9 })
+  const sidewalkMat = new THREE.MeshStandardMaterial({ color: 0x888888, flatShading: true, roughness: 0.95 })
 
   const sharedGeos = [
     boxGeo,
@@ -99,6 +110,9 @@ export function createBlocks(scene: THREE.Scene): BlocksState {
     pineGeo,
     towerGeo,
     capGeo,
+    bushGeo,
+    flowerHeadGeo,
+    flowerStemGeo,
   ]
   const sharedMats = [
     ...brickMats,
@@ -114,6 +128,8 @@ export function createBlocks(scene: THREE.Scene): BlocksState {
     towerMat,
     sailMat,
     markingMat,
+    bushMat,
+    ...flowerMats,
     grassMat,
     roadMat,
     sidewalkMat,
@@ -404,6 +420,36 @@ export function createBlocks(scene: THREE.Scene): BlocksState {
     return marking
   }
 
+  function createBush(): THREE.Group {
+    const g = new THREE.Group()
+    const count = Math.floor(rand(2, 4))
+    for (let i = 0; i < count; i++) {
+      const s = rand(0.25, 0.5)
+      const mesh = new THREE.Mesh(bushGeo, bushMat)
+      mesh.scale.set(s * rand(0.8, 1.2), s * 0.7, s * rand(0.8, 1.2))
+      mesh.position.set(rand(-0.2, 0.2), s * 0.3, rand(-0.2, 0.2))
+      g.add(mesh)
+    }
+    return g
+  }
+
+  function createFlowerCluster(): THREE.Group {
+    const g = new THREE.Group()
+    const count = Math.floor(rand(3, 7))
+    for (let i = 0; i < count; i++) {
+      const h = rand(0.2, 0.45)
+      const mat = flowerMats[Math.floor(Math.random() * flowerMats.length)]
+      const stem = new THREE.Mesh(flowerStemGeo, bushMat)
+      stem.scale.y = h
+      stem.position.set(rand(-0.3, 0.3), h / 2, rand(-0.3, 0.3))
+      g.add(stem)
+      const head = new THREE.Mesh(flowerHeadGeo, mat)
+      head.position.set(stem.position.x, h + 0.06, stem.position.z)
+      g.add(head)
+    }
+    return g
+  }
+
   // ── Static ground geometry ──────────────────────────────────────
 
   const staticMeshes: THREE.Mesh[] = []
@@ -484,6 +530,62 @@ export function createBlocks(scene: THREE.Scene): BlocksState {
 
   scene.add(group)
 
+  // ── Parallax mountains ────────────────────────────────────────
+
+  interface MountainLayer {
+    meshL: THREE.Mesh
+    meshR: THREE.Mesh
+    speed: number
+  }
+
+  function createMountainProfile(segLen: number, peaks: number, minH: number, maxH: number): THREE.Shape {
+    const shape = new THREE.Shape()
+    shape.moveTo(0, -0.5)
+    shape.lineTo(0, 0)
+
+    const segWidth = segLen / peaks
+    for (let i = 0; i < peaks; i++) {
+      const x0 = i * segWidth
+      const peakX = x0 + segWidth * rand(0.3, 0.7)
+      const peakH = rand(minH, maxH)
+      const midX = x0 + segWidth * rand(0.1, 0.3)
+      const midH = rand(minH * 0.3, peakH * 0.5)
+
+      shape.lineTo(midX, midH)
+      shape.lineTo(peakX, peakH)
+      shape.lineTo(x0 + segWidth * rand(0.75, 0.9), rand(minH * 0.2, peakH * 0.4))
+    }
+
+    shape.lineTo(segLen, 0)
+    shape.lineTo(segLen, -0.5)
+    shape.lineTo(0, -0.5)
+
+    return shape
+  }
+
+  const mountainLayers: MountainLayer[] = []
+  const mtSegLen = groundLen * 2
+
+  // Mountains sit in world space (not the rotated group), extending along X with height in Y
+  const layerConfigs = [
+    { z: 35, minH: 3, maxH: 8, color: 0x6878a0, speed: 0.04, peaks: 12 },
+    { z: 26, minH: 2, maxH: 5.5, color: 0x4a6050, speed: 0.08, peaks: 16 },
+    { z: 20, minH: 1, maxH: 3.5, color: 0x3a5040, speed: 0.14, peaks: 20 },
+  ]
+
+  for (const cfg of layerConfigs) {
+    const mat = new THREE.MeshStandardMaterial({ color: cfg.color, flatShading: true, roughness: 0.95, side: THREE.DoubleSide, fog: false })
+    sharedMats.push(mat)
+
+    const meshL = new THREE.Mesh(new THREE.ShapeGeometry(createMountainProfile(mtSegLen, cfg.peaks, cfg.minH, cfg.maxH)), mat)
+    const meshR = new THREE.Mesh(new THREE.ShapeGeometry(createMountainProfile(mtSegLen, cfg.peaks, cfg.minH, cfg.maxH)), mat)
+    meshL.position.set(-mtSegLen / 2, GROUND_Y - 0.5, -cfg.z)
+    meshR.position.set(-mtSegLen / 2, GROUND_Y - 0.5, cfg.z)
+    scene.add(meshL, meshR)
+
+    mountainLayers.push({ meshL, meshR, speed: cfg.speed })
+  }
+
   // ── Lighting ────────────────────────────────────────────────────
 
   let originalAmbientIntensity = 0.5
@@ -494,7 +596,7 @@ export function createBlocks(scene: THREE.Scene): BlocksState {
   scene.traverse((child) => {
     if (child instanceof THREE.AmbientLight) {
       originalAmbientIntensity = child.intensity
-      child.intensity = 0.3
+      child.intensity = 0.4
     }
     if (child instanceof THREE.DirectionalLight) {
       originalDirColor = child.color.clone()
@@ -513,7 +615,7 @@ export function createBlocks(scene: THREE.Scene): BlocksState {
     }
   })
 
-  const hemiLight = new THREE.HemisphereLight(0xffffff, 0x444444, 0.6)
+  const hemiLight = new THREE.HemisphereLight(0xffffff, 0x444444, 0.8)
   scene.add(hemiLight)
 
   // ── Spawned objects tracking ────────────────────────────────────
@@ -572,6 +674,14 @@ export function createBlocks(scene: THREE.Scene): BlocksState {
         group.add(tree)
         spawned.push({ group: tree, type: 'tree' })
       }
+
+      // Urban bushes near sidewalks
+      if (Math.random() < 0.15) {
+        const bush = createBush()
+        bush.position.set(rand(2.0, 3.0) * (Math.random() < 0.5 ? 1 : -1), 0, z + rand(0, SPAWN_INTERVAL))
+        group.add(bush)
+        spawned.push({ group: bush, type: 'bush' })
+      }
     }
 
     // Road markings
@@ -594,6 +704,22 @@ export function createBlocks(scene: THREE.Scene): BlocksState {
         tree.position.set(-rand(2.5, 8.0), 0, z)
         group.add(tree)
         spawned.push({ group: tree, type: 'tree' })
+      }
+
+      // Bushes
+      if (Math.random() < 0.4) {
+        const bush = createBush()
+        bush.position.set(rand(2.0, 12.0) * (Math.random() < 0.5 ? 1 : -1), 0, z + rand(0, SPAWN_INTERVAL))
+        group.add(bush)
+        spawned.push({ group: bush, type: 'bush' })
+      }
+
+      // Flowers (nature only)
+      if (zone === 'nature' && Math.random() < 0.25) {
+        const flowers = createFlowerCluster()
+        flowers.position.set(rand(2.0, 6.0) * (Math.random() < 0.5 ? 1 : -1), 0, z + rand(0, SPAWN_INTERVAL))
+        group.add(flowers)
+        spawned.push({ group: flowers, type: 'flower' })
       }
 
       // Rare windmills
@@ -621,6 +747,7 @@ export function createBlocks(scene: THREE.Scene): BlocksState {
   let elapsed = 0
 
   function update(delta: number): CameraOffset {
+    if (delta > 1) return { x: 0, y: 0 }
     elapsed += delta
     const dz = ROAD_SPEED * delta
     const dist = Math.abs(dz)
@@ -652,6 +779,17 @@ export function createBlocks(scene: THREE.Scene): BlocksState {
     // Rotate windmill sails
     for (const obj of spawned) {
       if (obj.sails) obj.sails.rotation.z += delta * 1.0
+    }
+
+    // Parallax mountain scrolling
+    for (const { meshL, meshR, speed } of mountainLayers) {
+      const mdx = ROAD_SPEED * speed * delta
+      meshL.position.x += mdx
+      meshR.position.x += mdx
+      if (meshL.position.x < -mtSegLen) {
+        meshL.position.x += mtSegLen / 2
+        meshR.position.x += mtSegLen / 2
+      }
     }
 
     // Camera vibration (road rumble)
@@ -689,6 +827,12 @@ export function createBlocks(scene: THREE.Scene): BlocksState {
         child.castShadow = originalDirCastShadow
       }
     })
+
+    for (const { meshL, meshR } of mountainLayers) {
+      scene.remove(meshL, meshR)
+      meshL.geometry.dispose()
+      meshR.geometry.dispose()
+    }
 
     // Dispose shared resources
     for (const geo of sharedGeos) geo.dispose()
