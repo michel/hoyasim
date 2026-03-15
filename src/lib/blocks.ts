@@ -5,6 +5,7 @@ import * as BufferGeometryUtils from 'three/addons/utils/BufferGeometryUtils.js'
 
 const SPAWN_Z = 100
 const CULL_Z = -60
+const VISIBLE_Z = 30
 const GROUND_Y = -0.9
 const ROAD_ROTATION_Y = 1.25
 const DEFAULT_ROAD_SPEED = -5.0
@@ -1679,7 +1680,10 @@ export function createBlocks(scene: THREE.Scene): BlocksState {
       spawnRow(SPAWN_Z, zone)
     }
 
-    for (const obj of spawned) obj.group.position.z += dz
+    for (const obj of spawned) {
+      obj.group.position.z += dz
+      obj.group.visible = obj.group.position.z < VISIBLE_Z
+    }
 
     let i = 0
     while (i < spawned.length) {
