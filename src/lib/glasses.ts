@@ -333,6 +333,7 @@ interface LensRefs {
   lensAMesh: THREE.Object3D | null
   lensBMesh: THREE.Object3D | null
   gradCanvas: HTMLCanvasElement | null
+  gradCtx: CanvasRenderingContext2D | null
   gradTex: THREE.CanvasTexture | null
 }
 
@@ -341,6 +342,7 @@ export async function loadGlasses(camera: THREE.Camera): Promise<GlassesState> {
     lensAMesh: null,
     lensBMesh: null,
     gradCanvas: null,
+    gradCtx: null,
     gradTex: null,
   }
 
@@ -425,6 +427,7 @@ export async function loadGlasses(camera: THREE.Camera): Promise<GlassesState> {
   )
   const rightGroup = primaryRight.group
   refs.gradCanvas = primaryRight.gradCanvas
+  refs.gradCtx = primaryRight.gradCanvas.getContext('2d')
   refs.gradTex = primaryRight.gradTex
 
   // Alternate right
@@ -466,7 +469,7 @@ export async function loadGlasses(camera: THREE.Camera): Promise<GlassesState> {
   let lastGradientOffset = Number.POSITIVE_INFINITY
 
   function update(polarAngle: number, minPolar: number, maxPolar: number) {
-    if (refs.gradCanvas && refs.gradTex) {
+    if (refs.gradCtx && refs.gradTex) {
       const offset = THREE.MathUtils.mapLinear(
         polarAngle,
         minPolar,
@@ -477,23 +480,21 @@ export async function loadGlasses(camera: THREE.Camera): Promise<GlassesState> {
       const quantized = Math.round(offset)
       if (lastGradientOffset !== quantized) {
         lastGradientOffset = quantized
-        const ctx = refs.gradCanvas.getContext('2d')
-        if (ctx) {
-          ctx.clearRect(0, 0, GRADIENT_SIZE, GRADIENT_SIZE)
-          const grd = ctx.createLinearGradient(
-            offset,
-            0,
-            GRADIENT_SIZE + offset,
-            0,
-          )
-          grd.addColorStop(0, '#fff')
-          grd.addColorStop(0.35, '#000')
-          grd.addColorStop(0.55, '#000')
-          grd.addColorStop(1, '#fff')
-          ctx.fillStyle = grd
-          ctx.fillRect(0, 0, GRADIENT_SIZE, GRADIENT_SIZE)
-          refs.gradTex.needsUpdate = true
-        }
+        const ctx = refs.gradCtx
+        ctx.clearRect(0, 0, GRADIENT_SIZE, GRADIENT_SIZE)
+        const grd = ctx.createLinearGradient(
+          offset,
+          0,
+          GRADIENT_SIZE + offset,
+          0,
+        )
+        grd.addColorStop(0, '#fff')
+        grd.addColorStop(0.35, '#000')
+        grd.addColorStop(0.55, '#000')
+        grd.addColorStop(1, '#fff')
+        ctx.fillStyle = grd
+        ctx.fillRect(0, 0, GRADIENT_SIZE, GRADIENT_SIZE)
+        refs.gradTex.needsUpdate = true
       }
     }
 
