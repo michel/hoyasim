@@ -1083,79 +1083,24 @@ export function createBlocks(scene: THREE.Scene): BlocksState {
   const staticMeshes: THREE.Mesh[] = []
   const groundLen = 400
 
-  const grass = new THREE.Mesh(
-    new THREE.PlaneGeometry(60, groundLen),
-    res.grassMat,
-  )
-  grass.rotation.x = -Math.PI / 2
-  grass.position.set(0, -0.01, 30)
-  grass.receiveShadow = true
-  group.add(grass)
-  staticMeshes.push(grass)
-
-  const road = new THREE.Mesh(
-    new THREE.PlaneGeometry(3, groundLen),
-    res.roadMat,
-  )
-  road.rotation.x = -Math.PI / 2
-  road.position.set(0, 0, 30)
-  road.receiveShadow = true
-  group.add(road)
-  staticMeshes.push(road)
-
-  const sidewalkL = new THREE.Mesh(
-    new THREE.PlaneGeometry(0.6, groundLen),
-    res.sidewalkMat,
-  )
-  sidewalkL.rotation.x = -Math.PI / 2
-  sidewalkL.position.set(-1.8, 0.001, 30)
-  group.add(sidewalkL)
-  staticMeshes.push(sidewalkL)
-
-  const sidewalkR = new THREE.Mesh(
-    new THREE.PlaneGeometry(0.6, groundLen),
-    res.sidewalkMat,
-  )
-  sidewalkR.rotation.x = -Math.PI / 2
-  sidewalkR.position.set(1.8, 0.001, 30)
-  group.add(sidewalkR)
-  staticMeshes.push(sidewalkR)
-
-  const backRoadR = new THREE.Mesh(
-    new THREE.PlaneGeometry(2, groundLen),
-    res.roadMat,
-  )
-  backRoadR.rotation.x = -Math.PI / 2
-  backRoadR.position.set(9, 0, 30)
-  group.add(backRoadR)
-  staticMeshes.push(backRoadR)
-
-  const backRoadL = new THREE.Mesh(
-    new THREE.PlaneGeometry(2, groundLen),
-    res.roadMat,
-  )
-  backRoadL.rotation.x = -Math.PI / 2
-  backRoadL.position.set(-9, 0, 30)
-  group.add(backRoadL)
-  staticMeshes.push(backRoadL)
-
-  const backSidewalkR = new THREE.Mesh(
-    new THREE.PlaneGeometry(0.5, groundLen),
-    res.sidewalkMat,
-  )
-  backSidewalkR.rotation.x = -Math.PI / 2
-  backSidewalkR.position.set(10.3, 0.001, 30)
-  group.add(backSidewalkR)
-  staticMeshes.push(backSidewalkR)
-
-  const backSidewalkL = new THREE.Mesh(
-    new THREE.PlaneGeometry(0.5, groundLen),
-    res.sidewalkMat,
-  )
-  backSidewalkL.rotation.x = -Math.PI / 2
-  backSidewalkL.position.set(-10.3, 0.001, 30)
-  group.add(backSidewalkL)
-  staticMeshes.push(backSidewalkL)
+  const groundStrips: [number, THREE.Material, number, number][] = [
+    [60, res.grassMat, 0, -0.01],
+    [3, res.roadMat, 0, 0],
+    [0.6, res.sidewalkMat, -1.8, 0.001],
+    [0.6, res.sidewalkMat, 1.8, 0.001],
+    [2, res.roadMat, 9, 0],
+    [2, res.roadMat, -9, 0],
+    [0.5, res.sidewalkMat, 10.3, 0.001],
+    [0.5, res.sidewalkMat, -10.3, 0.001],
+  ]
+  for (const [width, mat, x, y] of groundStrips) {
+    const mesh = new THREE.Mesh(new THREE.PlaneGeometry(width, groundLen), mat)
+    mesh.rotation.x = -Math.PI / 2
+    mesh.position.set(x, y, 30)
+    if (y < 0) mesh.receiveShadow = true
+    group.add(mesh)
+    staticMeshes.push(mesh)
+  }
 
   scene.add(group)
 
@@ -1271,6 +1216,15 @@ export function createBlocks(scene: THREE.Scene): BlocksState {
 
   const spawned: SpawnedObject[] = []
 
+  function spawn(
+    obj: THREE.Object3D,
+    type: SpawnedObject['type'],
+    sails?: THREE.Group,
+  ) {
+    group.add(obj)
+    spawned.push({ group: obj, type, ...(sails && { sails }) })
+  }
+
   function disposeObject(obj: SpawnedObject) {
     group.remove(obj.group)
     obj.group.traverse((child) => {
@@ -1284,43 +1238,37 @@ export function createBlocks(scene: THREE.Scene): BlocksState {
         const house = createHouse(res)
         house.rotation.y = Math.PI
         house.position.set(rand(4.0, 4.5), 0, z)
-        group.add(house)
-        spawned.push({ group: house, type: 'house' })
+        spawn(house, 'house')
       }
 
       if (zone === 'city' || Math.random() < 0.5) {
         const house = createHouse(res)
         house.position.set(rand(-4.5, -4.0), 0, z)
-        group.add(house)
-        spawned.push({ group: house, type: 'house' })
+        spawn(house, 'house')
       }
 
       if (zone === 'city' || Math.random() < 0.3) {
         const house = createHouse(res)
         house.rotation.y = Math.PI
         house.position.set(rand(11.0, 11.5), 0, z + rand(1.5, 3.5))
-        group.add(house)
-        spawned.push({ group: house, type: 'house' })
+        spawn(house, 'house')
       }
       if (zone === 'city' || Math.random() < 0.3) {
         const house = createHouse(res)
         house.rotation.y = 0
         house.position.set(rand(-11.5, -11.0), 0, z + rand(1.5, 3.5))
-        group.add(house)
-        spawned.push({ group: house, type: 'house' })
+        spawn(house, 'house')
       }
 
       if (Math.random() < 0.4) {
         const tree = createTree(res)
         tree.position.set(rand(2.0, 6.0), 0, z + SPAWN_INTERVAL * 0.5)
-        group.add(tree)
-        spawned.push({ group: tree, type: 'tree' })
+        spawn(tree, 'tree')
       }
       if (Math.random() < 0.4) {
         const tree = createTree(res)
         tree.position.set(-rand(2.0, 6.0), 0, z + SPAWN_INTERVAL * 0.5)
-        group.add(tree)
-        spawned.push({ group: tree, type: 'tree' })
+        spawn(tree, 'tree')
       }
 
       if (Math.random() < 0.15) {
@@ -1330,8 +1278,7 @@ export function createBlocks(scene: THREE.Scene): BlocksState {
           0,
           z + rand(0, SPAWN_INTERVAL),
         )
-        group.add(bush)
-        spawned.push({ group: bush, type: 'bush' })
+        spawn(bush, 'bush')
       }
 
       // Flower boxes / clusters near sidewalks
@@ -1344,16 +1291,14 @@ export function createBlocks(scene: THREE.Scene): BlocksState {
             z + rand(0, SPAWN_INTERVAL),
           )
           flowers.scale.setScalar(0.6)
-          group.add(flowers)
-          spawned.push({ group: flowers, type: 'flower' })
+          spawn(flowers, 'flower')
         }
       }
     }
 
     const marking = createRoadMarking(res)
     marking.position.set(0, 0, z)
-    group.add(marking)
-    spawned.push({ group: marking, type: 'marking' })
+    spawn(marking, 'marking')
 
     // Determine lake side early so all far-field spawns can avoid it
     let lakeSide = 0
@@ -1371,8 +1316,7 @@ export function createBlocks(scene: THREE.Scene): BlocksState {
               0,
               z + rand(0, SPAWN_INTERVAL) * i,
             )
-            group.add(tree)
-            spawned.push({ group: tree, type: 'tree' })
+            spawn(tree, 'tree')
           }
         }
       }
@@ -1388,8 +1332,7 @@ export function createBlocks(scene: THREE.Scene): BlocksState {
               0,
               z + rand(0, SPAWN_INTERVAL),
             )
-            group.add(bush)
-            spawned.push({ group: bush, type: 'bush' })
+            spawn(bush, 'bush')
           }
         }
       }
@@ -1406,8 +1349,7 @@ export function createBlocks(scene: THREE.Scene): BlocksState {
               0,
               z + rand(0, SPAWN_INTERVAL),
             )
-            group.add(tree)
-            spawned.push({ group: tree, type: 'tree' })
+            spawn(tree, 'tree')
           }
           const bushCount = Math.floor(rand(2, 4))
           for (let i = 0; i < bushCount; i++) {
@@ -1417,8 +1359,7 @@ export function createBlocks(scene: THREE.Scene): BlocksState {
               0,
               z + rand(0, SPAWN_INTERVAL),
             )
-            group.add(bush)
-            spawned.push({ group: bush, type: 'bush' })
+            spawn(bush, 'bush')
           }
         }
       }
@@ -1429,8 +1370,7 @@ export function createBlocks(scene: THREE.Scene): BlocksState {
         if (side === lakeSide) side = -side
         const patch = createSunflowerPatch(res)
         patch.position.set(side * rand(5, 18), 0, z + rand(0, SPAWN_INTERVAL))
-        group.add(patch)
-        spawned.push({ group: patch, type: 'flower' })
+        spawn(patch, 'flower')
       }
 
       // Grass tufts (nature — dense)
@@ -1442,8 +1382,7 @@ export function createBlocks(scene: THREE.Scene): BlocksState {
           if (side === lakeSide && x > 10) side = -side
           const grass = createGrassTuft(res)
           grass.position.set(x * side, 0, z + rand(0, SPAWN_INTERVAL))
-          group.add(grass)
-          spawned.push({ group: grass, type: 'bush' })
+          spawn(grass, 'bush')
         }
       }
 
@@ -1456,8 +1395,7 @@ export function createBlocks(scene: THREE.Scene): BlocksState {
             0,
             z + rand(0, SPAWN_INTERVAL),
           )
-          group.add(flowers)
-          spawned.push({ group: flowers, type: 'flower' })
+          spawn(flowers, 'flower')
         }
       }
 
@@ -1467,8 +1405,7 @@ export function createBlocks(scene: THREE.Scene): BlocksState {
         const field = createTulipField(res)
         field.position.set(side * rand(3, 8), 0, z + rand(0, SPAWN_INTERVAL))
         field.rotation.y = rand(-0.15, 0.15)
-        group.add(field)
-        spawned.push({ group: field, type: 'tulipfield' })
+        spawn(field, 'tulipfield')
       }
 
       // Large tulip fields beyond back roads (avoid lake side)
@@ -1482,8 +1419,7 @@ export function createBlocks(scene: THREE.Scene): BlocksState {
             z + rand(0, SPAWN_INTERVAL),
           )
           field.rotation.y = rand(-0.15, 0.15)
-          group.add(field)
-          spawned.push({ group: field, type: 'tulipfield' })
+          spawn(field, 'tulipfield')
         }
       }
 
@@ -1496,8 +1432,7 @@ export function createBlocks(scene: THREE.Scene): BlocksState {
           z + rand(0, SPAWN_INTERVAL),
         )
         lake.rotation.y = rand(0, Math.PI)
-        group.add(lake)
-        spawned.push({ group: lake, type: 'lake' })
+        spawn(lake, 'lake')
       }
 
       // Cows in small herds (avoid lake side)
@@ -1510,8 +1445,7 @@ export function createBlocks(scene: THREE.Scene): BlocksState {
         for (let i = 0; i < herdSize; i++) {
           const cow = createCow(res)
           cow.position.set(baseX + rand(-2, 2), 0, baseZ + rand(-2, 2))
-          group.add(cow)
-          spawned.push({ group: cow, type: 'cow' })
+          spawn(cow, 'cow')
         }
       }
 
@@ -1521,8 +1455,7 @@ export function createBlocks(scene: THREE.Scene): BlocksState {
         const wm = createWindmill(res)
         wm.group.position.set(side * rand(6.0, 10.0), 0, z)
         wm.group.rotation.y = Math.PI
-        group.add(wm.group)
-        spawned.push({ group: wm.group, type: 'windmill', sails: wm.sails })
+        spawn(wm.group, 'windmill', wm.sails)
       }
     }
   }

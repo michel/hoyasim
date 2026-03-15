@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react'
+import { useEffect } from 'react'
 import * as THREE from 'three'
 import type { BlocksState } from '@/lib/blocks'
 import { subscribe } from '@/lib/debug'
@@ -25,29 +25,11 @@ export function useRenderLoop(
   lonRef: React.RefObject<number>,
   latRef: React.RefObject<number>,
 ) {
-  const refs = useRef({
-    glasses: glassesRef,
-    blocks: blocksRef,
-    fps: fpsRef,
-    gyroActive: gyroActiveRef,
-    lon: lonRef,
-    lat: latRef,
-  })
-  refs.current = {
-    glasses: glassesRef,
-    blocks: blocksRef,
-    fps: fpsRef,
-    gyroActive: gyroActiveRef,
-    lon: lonRef,
-    lat: latRef,
-  }
-
   useEffect(() => {
     if (!scene || !camera || !renderer) return
 
     const unsubDebug = subscribe((on) => {
-      if (refs.current.fps.current)
-        refs.current.fps.current.style.display = on ? 'block' : 'none'
+      if (fpsRef.current) fpsRef.current.style.display = on ? 'block' : 'none'
     })
 
     let mounted = true
@@ -63,13 +45,11 @@ export function useRenderLoop(
       const delta = (now - prevTime) / 1000
       prevTime = now
 
-      const r = refs.current
-
       // Camera orientation from pointer controls
-      if (!r.gyroActive.current) {
-        r.lat.current = Math.max(LAT_MIN, Math.min(LAT_MAX, r.lat.current))
-        const phi = THREE.MathUtils.degToRad(90 - r.lat.current)
-        const theta = THREE.MathUtils.degToRad(r.lon.current)
+      if (!gyroActiveRef.current) {
+        latRef.current = Math.max(LAT_MIN, Math.min(LAT_MAX, latRef.current))
+        const phi = THREE.MathUtils.degToRad(90 - latRef.current)
+        const theta = THREE.MathUtils.degToRad(lonRef.current)
         camera.lookAt(
           Math.sin(phi) * Math.cos(theta),
           Math.cos(phi),
@@ -78,7 +58,7 @@ export function useRenderLoop(
       }
 
       // Glasses update
-      const glasses = r.glasses.current
+      const glasses = glassesRef.current
       if (glasses) {
         _direction.set(0, 0, -1).applyQuaternion(camera.quaternion)
         const polarAngle = Math.acos(THREE.MathUtils.clamp(_direction.y, -1, 1))
@@ -88,7 +68,7 @@ export function useRenderLoop(
       }
 
       // Blocks update
-      const offset = r.blocks.current?.update(delta)
+      const offset = blocksRef.current?.update(delta)
       if (offset) {
         camera.position.x = offset.x
         camera.position.y = offset.y
@@ -99,8 +79,8 @@ export function useRenderLoop(
       // FPS tracking
       frames++
       if (now - fpsLastTime >= 500) {
-        if (r.fps.current)
-          r.fps.current.textContent = `${Math.round(frames / ((now - fpsLastTime) / 1000))} fps | ${renderer.info.render.triangles} tris | ${renderer.info.render.calls} calls`
+        if (fpsRef.current)
+          fpsRef.current.textContent = `${Math.round(frames / ((now - fpsLastTime) / 1000))} fps | ${renderer.info.render.triangles} tris | ${renderer.info.render.calls} calls`
         frames = 0
         fpsLastTime = now
       }
@@ -114,5 +94,15 @@ export function useRenderLoop(
       cancelAnimationFrame(animationId)
       unsubDebug()
     }
-  }, [scene, camera, renderer])
+  }, [
+    scene,
+    camera,
+    renderer,
+    blocksRef.current?.update,
+    fpsRef.current,
+    glassesRef.current,
+    gyroActiveRef.current,
+    latRef,
+    lonRef.current,
+  ])
 }

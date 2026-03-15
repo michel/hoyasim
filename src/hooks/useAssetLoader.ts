@@ -6,6 +6,7 @@ import type { SceneConfig, SceneModel } from '@/config/scenes'
 import { type BlocksState, createBlocks } from '@/lib/blocks'
 import { type GlassesState, loadGlasses } from '@/lib/glasses'
 import { gltfLoader } from '@/lib/loaders'
+import { disposeMeshes } from '@/lib/utils'
 
 const LOAD_TIMEOUT_MS = 30_000
 
@@ -86,15 +87,7 @@ export function useAssetLoader(
             model.path,
             (gltf) => {
               if (signal.aborted) {
-                gltf.scene.traverse((child) => {
-                  if (child instanceof THREE.Mesh) {
-                    child.geometry.dispose()
-                    const mats = Array.isArray(child.material)
-                      ? child.material
-                      : [child.material]
-                    for (const m of mats) m.dispose()
-                  }
-                })
+                disposeMeshes(gltf.scene)
                 return resolve()
               }
               const obj = gltf.scene
@@ -152,14 +145,7 @@ export function useAssetLoader(
 
       for (const obj of loadedObjects) {
         scene.remove(obj)
-        obj.traverse((child) => {
-          if (child instanceof THREE.Mesh) {
-            child.geometry.dispose()
-            if (Array.isArray(child.material))
-              for (const m of child.material) m.dispose()
-            else child.material.dispose()
-          }
-        })
+        disposeMeshes(obj)
       }
 
       if (scene.background instanceof THREE.Texture) {

@@ -1,6 +1,7 @@
 import * as THREE from 'three'
 import { subscribe, toggle } from './debug'
 import { gltfLoader, textureLoader } from './loaders'
+import { disposeMeshes } from './utils'
 
 // ── Constants ────────────────────────────────────────────────────────
 
@@ -509,24 +510,27 @@ export async function loadGlasses(camera: THREE.Camera): Promise<GlassesState> {
     }
   }
 
-  function swapLeft() {
-    leftSwapped = !leftSwapped
-    const anim = getAnimation(leftGroup)
-    anim.targetY = leftSwapped ? SWAP_VISIBLE_Y : SWAP_SHOWN_Y
+  function doSwap(
+    swapped: boolean,
+    primary: THREE.Group,
+    alt: THREE.Group,
+  ): boolean {
+    const next = !swapped
+    const anim = getAnimation(primary)
+    anim.targetY = next ? SWAP_VISIBLE_Y : SWAP_SHOWN_Y
     anim.animating = true
-    const altAnim = getAnimation(leftGroupAlt)
-    altAnim.targetY = leftSwapped ? SWAP_SHOWN_Y : SWAP_HIDDEN_Y
+    const altAnim = getAnimation(alt)
+    altAnim.targetY = next ? SWAP_SHOWN_Y : SWAP_HIDDEN_Y
     altAnim.animating = true
+    return next
+  }
+
+  function swapLeft() {
+    leftSwapped = doSwap(leftSwapped, leftGroup, leftGroupAlt)
   }
 
   function swapRight() {
-    rightSwapped = !rightSwapped
-    const anim = getAnimation(rightGroup)
-    anim.targetY = rightSwapped ? SWAP_VISIBLE_Y : SWAP_SHOWN_Y
-    anim.animating = true
-    const altAnim = getAnimation(rightGroupAlt)
-    altAnim.targetY = rightSwapped ? SWAP_SHOWN_Y : SWAP_HIDDEN_Y
-    altAnim.animating = true
+    rightSwapped = doSwap(rightSwapped, rightGroup, rightGroupAlt)
   }
 
   function resetDepthClear() {
@@ -549,14 +553,7 @@ export async function loadGlasses(camera: THREE.Camera): Promise<GlassesState> {
   function dispose() {
     for (const g of allGroups) {
       camera.remove(g)
-      g.traverse((child) => {
-        if (child instanceof THREE.Mesh) {
-          child.geometry.dispose()
-          if (Array.isArray(child.material))
-            for (const m of child.material) m.dispose()
-          else child.material.dispose()
-        }
-      })
+      disposeMeshes(g)
     }
     mapA.dispose()
     mapB.dispose()

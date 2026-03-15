@@ -22,6 +22,8 @@ const DeviceOrientationEventiOS =
     requestPermission?: () => Promise<'granted' | 'denied'>
   }
 
+const isIOS = typeof DeviceOrientationEventiOS.requestPermission === 'function'
+
 // ── Hook ─────────────────────────────────────────────────────────────
 
 export function useDeviceOrientation(
@@ -35,8 +37,6 @@ export function useDeviceOrientation(
 
   // Check if iOS permission prompt is needed
   useEffect(() => {
-    const isIOS =
-      typeof DeviceOrientationEventiOS.requestPermission === 'function'
     setShowEnableButton(isIOS)
   }, [])
 
@@ -90,8 +90,6 @@ export function useDeviceOrientation(
 
   // For non-iOS devices, auto-detect gyro availability
   useEffect(() => {
-    const isIOS =
-      typeof DeviceOrientationEventiOS.requestPermission === 'function'
     if (isIOS) return
 
     const testOrientation = (event: DeviceOrientationEvent) => {
