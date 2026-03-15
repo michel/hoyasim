@@ -1,8 +1,8 @@
 import { useEffect } from 'react'
 import * as THREE from 'three'
 import type { BlocksState } from '@/lib/blocks'
+import { isDebug, subscribe } from '@/lib/debug'
 import type { GlassesState } from '@/lib/glasses'
-import { subscribe, isDebug } from '@/lib/debug'
 import { LAT_MAX, LAT_MIN } from './usePointerControls'
 
 // ── Constants ────────────────────────────────────────────────────────

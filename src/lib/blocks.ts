@@ -72,7 +72,12 @@ export function createBlocks(scene: THREE.Scene): BlocksState {
     0x4a2c2a, 0x3e2723, 0x5d4037, 0x2a2a2a, 0x1a1a1a, 0x8b4513,
   ]
   const brickMats = brickColors.map(
-    (c) => new THREE.MeshStandardMaterial({ color: c, flatShading: true, roughness: 0.9 }),
+    (c) =>
+      new THREE.MeshStandardMaterial({
+        color: c,
+        flatShading: true,
+        roughness: 0.9,
+      }),
   )
   const glassMat = new THREE.MeshStandardMaterial({
     color: 0x4488aa,
@@ -82,25 +87,90 @@ export function createBlocks(scene: THREE.Scene): BlocksState {
     roughness: 0.3,
     metalness: 0.1,
   })
-  const frameMat = new THREE.MeshStandardMaterial({ color: 0xffffff, flatShading: true, roughness: 0.7 })
-  const doorMat = new THREE.MeshStandardMaterial({ color: 0x2a1a0a, flatShading: true, roughness: 0.9 })
-  const roofMat = new THREE.MeshStandardMaterial({ color: 0x222222, flatShading: true, roughness: 0.9 })
-  const redRoofMat = new THREE.MeshStandardMaterial({ color: 0x8b2500, flatShading: true, roughness: 0.85 })
-  const trimMat = new THREE.MeshStandardMaterial({ color: 0xeeeeee, flatShading: true, roughness: 0.7 })
-  const trunkMat = new THREE.MeshStandardMaterial({ color: 0x4a3728, flatShading: true, roughness: 0.9 })
-  const leavesMat = new THREE.MeshStandardMaterial({ color: 0x2e8b57, flatShading: true, roughness: 0.95 })
-  const pineMat = new THREE.MeshStandardMaterial({ color: 0x1a5c2a, flatShading: true, roughness: 0.95 })
-  const towerMat = new THREE.MeshStandardMaterial({ color: 0x555555, flatShading: true, roughness: 0.9 })
-  const sailMat = new THREE.MeshStandardMaterial({ color: 0xcccccc, flatShading: true, roughness: 0.7 })
-  const markingMat = new THREE.MeshStandardMaterial({ color: 0xffffff, flatShading: true, roughness: 0.7 })
-  const bushMat = new THREE.MeshStandardMaterial({ color: 0x3a7d44, flatShading: true, roughness: 0.95 })
+  const frameMat = new THREE.MeshStandardMaterial({
+    color: 0xffffff,
+    flatShading: true,
+    roughness: 0.7,
+  })
+  const doorMat = new THREE.MeshStandardMaterial({
+    color: 0x2a1a0a,
+    flatShading: true,
+    roughness: 0.9,
+  })
+  const roofMat = new THREE.MeshStandardMaterial({
+    color: 0x222222,
+    flatShading: true,
+    roughness: 0.9,
+  })
+  const redRoofMat = new THREE.MeshStandardMaterial({
+    color: 0x8b2500,
+    flatShading: true,
+    roughness: 0.85,
+  })
+  const trimMat = new THREE.MeshStandardMaterial({
+    color: 0xeeeeee,
+    flatShading: true,
+    roughness: 0.7,
+  })
+  const trunkMat = new THREE.MeshStandardMaterial({
+    color: 0x4a3728,
+    flatShading: true,
+    roughness: 0.9,
+  })
+  const leavesMat = new THREE.MeshStandardMaterial({
+    color: 0x2e8b57,
+    flatShading: true,
+    roughness: 0.95,
+  })
+  const pineMat = new THREE.MeshStandardMaterial({
+    color: 0x1a5c2a,
+    flatShading: true,
+    roughness: 0.95,
+  })
+  const towerMat = new THREE.MeshStandardMaterial({
+    color: 0x555555,
+    flatShading: true,
+    roughness: 0.9,
+  })
+  const sailMat = new THREE.MeshStandardMaterial({
+    color: 0xcccccc,
+    flatShading: true,
+    roughness: 0.7,
+  })
+  const markingMat = new THREE.MeshStandardMaterial({
+    color: 0xffffff,
+    flatShading: true,
+    roughness: 0.7,
+  })
+  const bushMat = new THREE.MeshStandardMaterial({
+    color: 0x3a7d44,
+    flatShading: true,
+    roughness: 0.95,
+  })
   const flowerColors = [0xe84393, 0xfdcb6e, 0x6c5ce7, 0xff7675, 0xffffff]
   const flowerMats = flowerColors.map(
-    (c) => new THREE.MeshStandardMaterial({ color: c, flatShading: true, roughness: 0.8 }),
+    (c) =>
+      new THREE.MeshStandardMaterial({
+        color: c,
+        flatShading: true,
+        roughness: 0.8,
+      }),
   )
-  const grassMat = new THREE.MeshStandardMaterial({ color: 0x6b8e23, flatShading: true, roughness: 0.95 })
-  const roadMat = new THREE.MeshStandardMaterial({ color: 0xa55145, flatShading: true, roughness: 0.9 })
-  const sidewalkMat = new THREE.MeshStandardMaterial({ color: 0x888888, flatShading: true, roughness: 0.95 })
+  const grassMat = new THREE.MeshStandardMaterial({
+    color: 0x6b8e23,
+    flatShading: true,
+    roughness: 0.95,
+  })
+  const roadMat = new THREE.MeshStandardMaterial({
+    color: 0xa55145,
+    flatShading: true,
+    roughness: 0.9,
+  })
+  const sidewalkMat = new THREE.MeshStandardMaterial({
+    color: 0x888888,
+    flatShading: true,
+    roughness: 0.95,
+  })
 
   const sharedGeos = [
     boxGeo,
@@ -538,7 +608,12 @@ export function createBlocks(scene: THREE.Scene): BlocksState {
     speed: number
   }
 
-  function createMountainProfile(segLen: number, peaks: number, minH: number, maxH: number): THREE.Shape {
+  function createMountainProfile(
+    segLen: number,
+    peaks: number,
+    minH: number,
+    maxH: number,
+  ): THREE.Shape {
     const shape = new THREE.Shape()
     shape.moveTo(0, -0.5)
     shape.lineTo(0, 0)
@@ -553,7 +628,10 @@ export function createBlocks(scene: THREE.Scene): BlocksState {
 
       shape.lineTo(midX, midH)
       shape.lineTo(peakX, peakH)
-      shape.lineTo(x0 + segWidth * rand(0.75, 0.9), rand(minH * 0.2, peakH * 0.4))
+      shape.lineTo(
+        x0 + segWidth * rand(0.75, 0.9),
+        rand(minH * 0.2, peakH * 0.4),
+      )
     }
 
     shape.lineTo(segLen, 0)
@@ -574,11 +652,27 @@ export function createBlocks(scene: THREE.Scene): BlocksState {
   ]
 
   for (const cfg of layerConfigs) {
-    const mat = new THREE.MeshStandardMaterial({ color: cfg.color, flatShading: true, roughness: 0.95, side: THREE.DoubleSide, fog: false })
+    const mat = new THREE.MeshStandardMaterial({
+      color: cfg.color,
+      flatShading: true,
+      roughness: 0.95,
+      side: THREE.DoubleSide,
+      fog: false,
+    })
     sharedMats.push(mat)
 
-    const meshL = new THREE.Mesh(new THREE.ShapeGeometry(createMountainProfile(mtSegLen, cfg.peaks, cfg.minH, cfg.maxH)), mat)
-    const meshR = new THREE.Mesh(new THREE.ShapeGeometry(createMountainProfile(mtSegLen, cfg.peaks, cfg.minH, cfg.maxH)), mat)
+    const meshL = new THREE.Mesh(
+      new THREE.ShapeGeometry(
+        createMountainProfile(mtSegLen, cfg.peaks, cfg.minH, cfg.maxH),
+      ),
+      mat,
+    )
+    const meshR = new THREE.Mesh(
+      new THREE.ShapeGeometry(
+        createMountainProfile(mtSegLen, cfg.peaks, cfg.minH, cfg.maxH),
+      ),
+      mat,
+    )
     meshL.position.set(-mtSegLen / 2, GROUND_Y - 0.5, -cfg.z)
     meshR.position.set(-mtSegLen / 2, GROUND_Y - 0.5, cfg.z)
     scene.add(meshL, meshR)
@@ -678,7 +772,11 @@ export function createBlocks(scene: THREE.Scene): BlocksState {
       // Urban bushes near sidewalks
       if (Math.random() < 0.15) {
         const bush = createBush()
-        bush.position.set(rand(2.0, 3.0) * (Math.random() < 0.5 ? 1 : -1), 0, z + rand(0, SPAWN_INTERVAL))
+        bush.position.set(
+          rand(2.0, 3.0) * (Math.random() < 0.5 ? 1 : -1),
+          0,
+          z + rand(0, SPAWN_INTERVAL),
+        )
         group.add(bush)
         spawned.push({ group: bush, type: 'bush' })
       }
@@ -709,7 +807,11 @@ export function createBlocks(scene: THREE.Scene): BlocksState {
       // Bushes
       if (Math.random() < 0.4) {
         const bush = createBush()
-        bush.position.set(rand(2.0, 12.0) * (Math.random() < 0.5 ? 1 : -1), 0, z + rand(0, SPAWN_INTERVAL))
+        bush.position.set(
+          rand(2.0, 12.0) * (Math.random() < 0.5 ? 1 : -1),
+          0,
+          z + rand(0, SPAWN_INTERVAL),
+        )
         group.add(bush)
         spawned.push({ group: bush, type: 'bush' })
       }
@@ -717,7 +819,11 @@ export function createBlocks(scene: THREE.Scene): BlocksState {
       // Flowers (nature only)
       if (zone === 'nature' && Math.random() < 0.25) {
         const flowers = createFlowerCluster()
-        flowers.position.set(rand(2.0, 6.0) * (Math.random() < 0.5 ? 1 : -1), 0, z + rand(0, SPAWN_INTERVAL))
+        flowers.position.set(
+          rand(2.0, 6.0) * (Math.random() < 0.5 ? 1 : -1),
+          0,
+          z + rand(0, SPAWN_INTERVAL),
+        )
         group.add(flowers)
         spawned.push({ group: flowers, type: 'flower' })
       }
