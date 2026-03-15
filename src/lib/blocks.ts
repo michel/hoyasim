@@ -1292,13 +1292,13 @@ export function createBlocks(scene: THREE.Scene): BlocksState {
       child.color.set(0xffddaa)
       child.intensity = 0.8
       child.castShadow = true
-      child.shadow.mapSize.set(256, 256)
-      child.shadow.camera.left = -20
-      child.shadow.camera.right = 20
-      child.shadow.camera.top = 20
-      child.shadow.camera.bottom = -20
+      child.shadow.mapSize.set(128, 128)
+      child.shadow.camera.left = -15
+      child.shadow.camera.right = 15
+      child.shadow.camera.top = 15
+      child.shadow.camera.bottom = -15
       child.shadow.camera.near = 0.5
-      child.shadow.camera.far = 40
+      child.shadow.camera.far = 25
     }
   })
 
