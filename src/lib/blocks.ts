@@ -113,11 +113,22 @@ function getZone(offset: number): Zone {
   return 'transition'
 }
 
+function flatMat(
+  color: number,
+  roughness = 0.9,
+  extra?: Partial<THREE.MeshStandardMaterialParameters>,
+): THREE.MeshStandardMaterial {
+  return new THREE.MeshStandardMaterial({
+    color,
+    flatShading: true,
+    roughness,
+    ...extra,
+  })
+}
+
 // ── Resource factory ─────────────────────────────────────────────────
 
 export function createBlockResources(): BlockResources & {
-  allGeometries: THREE.BufferGeometry[]
-  allMaterials: THREE.Material[]
   grassMat: THREE.MeshStandardMaterial
   roadMat: THREE.MeshStandardMaterial
   sidewalkMat: THREE.MeshStandardMaterial
@@ -136,109 +147,32 @@ export function createBlockResources(): BlockResources & {
   const tulipPetalGeo = new THREE.SphereGeometry(0.06, 4, 3)
   tulipPetalGeo.scale(0.8, 1.3, 0.8)
 
-  const brickColors = [
+  const brickMats = [
     0x4a2c2a, 0x3e2723, 0x5d4037, 0x2a2a2a, 0x1a1a1a, 0x8b4513,
-  ]
-  const brickMats = brickColors.map(
-    (c) =>
-      new THREE.MeshStandardMaterial({
-        color: c,
-        flatShading: true,
-        roughness: 0.9,
-      }),
-  )
-  const glassMat = new THREE.MeshStandardMaterial({
-    color: 0x4488aa,
+  ].map((c) => flatMat(c))
+  const glassMat = flatMat(0x4488aa, 0.3, {
     emissive: 0x112233,
     emissiveIntensity: 0.3,
-    flatShading: true,
-    roughness: 0.3,
     metalness: 0.1,
   })
-  const frameMat = new THREE.MeshStandardMaterial({
-    color: 0xffffff,
-    flatShading: true,
-    roughness: 0.7,
-  })
-  const doorMat = new THREE.MeshStandardMaterial({
-    color: 0x2a1a0a,
-    flatShading: true,
-    roughness: 0.9,
-  })
-  const roofMat = new THREE.MeshStandardMaterial({
-    color: 0x222222,
-    flatShading: true,
-    roughness: 0.9,
-  })
-  const redRoofMat = new THREE.MeshStandardMaterial({
-    color: 0x8b2500,
-    flatShading: true,
-    roughness: 0.85,
-  })
-  const trimMat = new THREE.MeshStandardMaterial({
-    color: 0xeeeeee,
-    flatShading: true,
-    roughness: 0.7,
-  })
-  const trunkMat = new THREE.MeshStandardMaterial({
-    color: 0x4a3728,
-    flatShading: true,
-    roughness: 0.9,
-  })
-  const leavesMat = new THREE.MeshStandardMaterial({
-    color: 0x2e8b57,
-    flatShading: true,
-    roughness: 0.95,
-  })
-  const pineMat = new THREE.MeshStandardMaterial({
-    color: 0x1a5c2a,
-    flatShading: true,
-    roughness: 0.95,
-  })
-  const towerMat = new THREE.MeshStandardMaterial({
-    color: 0x555555,
-    flatShading: true,
-    roughness: 0.9,
-  })
-  const sailMat = new THREE.MeshStandardMaterial({
-    color: 0xcccccc,
-    flatShading: true,
-    roughness: 0.7,
-  })
-  const markingMat = new THREE.MeshStandardMaterial({
-    color: 0xffffff,
-    flatShading: true,
-    roughness: 0.7,
-  })
-  const bushMat = new THREE.MeshStandardMaterial({
-    color: 0x3a7d44,
-    flatShading: true,
-    roughness: 0.95,
-  })
-  const flowerColors = [0xe84393, 0xfdcb6e, 0x6c5ce7, 0xff7675, 0xffffff]
-  const flowerMats = flowerColors.map(
-    (c) =>
-      new THREE.MeshStandardMaterial({
-        color: c,
-        flatShading: true,
-        roughness: 0.8,
-      }),
+  const frameMat = flatMat(0xffffff, 0.7)
+  const doorMat = flatMat(0x2a1a0a)
+  const roofMat = flatMat(0x222222)
+  const redRoofMat = flatMat(0x8b2500, 0.85)
+  const trimMat = flatMat(0xeeeeee, 0.7)
+  const trunkMat = flatMat(0x4a3728)
+  const leavesMat = flatMat(0x2e8b57, 0.95)
+  const pineMat = flatMat(0x1a5c2a, 0.95)
+  const towerMat = flatMat(0x555555)
+  const sailMat = flatMat(0xcccccc, 0.7)
+  const markingMat = flatMat(0xffffff, 0.7)
+  const bushMat = flatMat(0x3a7d44, 0.95)
+  const flowerMats = [0xe84393, 0xfdcb6e, 0x6c5ce7, 0xff7675, 0xffffff].map(
+    (c) => flatMat(c, 0.8),
   )
-  const grassMat = new THREE.MeshStandardMaterial({
-    color: 0x6b8e23,
-    flatShading: true,
-    roughness: 0.95,
-  })
-  const roadMat = new THREE.MeshStandardMaterial({
-    color: 0xa55145,
-    flatShading: true,
-    roughness: 0.9,
-  })
-  const sidewalkMat = new THREE.MeshStandardMaterial({
-    color: 0x888888,
-    flatShading: true,
-    roughness: 0.95,
-  })
+  const grassMat = flatMat(0x6b8e23, 0.95)
+  const roadMat = flatMat(0xa55145)
+  const sidewalkMat = flatMat(0x888888, 0.95)
 
   const sharedGeos: THREE.BufferGeometry[] = [
     boxGeo,
@@ -254,82 +188,21 @@ export function createBlockResources(): BlockResources & {
     tulipPetalGeo,
   ]
   // Factory materials — shared across all instances
-  const windmillBrickMat = new THREE.MeshStandardMaterial({
-    color: 0x8b4513,
-    flatShading: true,
-    roughness: 0.95,
-  })
-  const windmillCapMat = new THREE.MeshStandardMaterial({
-    color: 0x2a2a2a,
-    flatShading: true,
-    roughness: 0.85,
-  })
-  const windmillDoorMat = new THREE.MeshStandardMaterial({
-    color: 0x1a3a1a,
-    flatShading: true,
-    roughness: 0.9,
-  })
-  const windmillBalconyMat = new THREE.MeshStandardMaterial({
-    color: 0x3a2a1a,
-    flatShading: true,
-    roughness: 0.9,
-  })
-  const tallGrassMat = new THREE.MeshStandardMaterial({
-    color: 0x7a9a3a,
-    flatShading: true,
-    roughness: 0.95,
-  })
-  const sunflowerYellowMat = new THREE.MeshStandardMaterial({
-    color: 0xffd700,
-    flatShading: true,
-    roughness: 0.8,
-  })
-  const sunflowerCenterMat = new THREE.MeshStandardMaterial({
-    color: 0x3a2a0a,
-    flatShading: true,
-    roughness: 0.9,
-  })
-  const sunflowerLeafMat = new THREE.MeshStandardMaterial({
-    color: 0x4a7a2a,
-    flatShading: true,
-    roughness: 0.9,
-  })
-  const lakeMat = new THREE.MeshStandardMaterial({
-    color: 0x3a7cbd,
-    flatShading: true,
-    roughness: 0.2,
-    metalness: 0.3,
-  })
-  const lakeEdgeMat = new THREE.MeshStandardMaterial({
-    color: 0x5a8a50,
-    flatShading: true,
-    roughness: 0.95,
-  })
-  const duckMat = new THREE.MeshStandardMaterial({
-    color: 0xffffff,
-    flatShading: true,
-    roughness: 0.8,
-  })
-  const duckBeakMat = new THREE.MeshStandardMaterial({
-    color: 0xf5a623,
-    flatShading: true,
-    roughness: 0.7,
-  })
-  const cowBodyMat = new THREE.MeshStandardMaterial({
-    color: 0xf5f0e8,
-    flatShading: true,
-    roughness: 0.9,
-  })
-  const cowSpotMat = new THREE.MeshStandardMaterial({
-    color: 0x1a1a1a,
-    flatShading: true,
-    roughness: 0.9,
-  })
-  const cowPinkMat = new THREE.MeshStandardMaterial({
-    color: 0xf0a0a0,
-    flatShading: true,
-    roughness: 0.85,
-  })
+  const windmillBrickMat = flatMat(0x8b4513, 0.95)
+  const windmillCapMat = flatMat(0x2a2a2a, 0.85)
+  const windmillDoorMat = flatMat(0x1a3a1a)
+  const windmillBalconyMat = flatMat(0x3a2a1a)
+  const tallGrassMat = flatMat(0x7a9a3a, 0.95)
+  const sunflowerYellowMat = flatMat(0xffd700, 0.8)
+  const sunflowerCenterMat = flatMat(0x3a2a0a)
+  const sunflowerLeafMat = flatMat(0x4a7a2a)
+  const lakeMat = flatMat(0x3a7cbd, 0.2, { metalness: 0.3 })
+  const lakeEdgeMat = flatMat(0x5a8a50, 0.95)
+  const duckMat = flatMat(0xffffff, 0.8)
+  const duckBeakMat = flatMat(0xf5a623, 0.7)
+  const cowBodyMat = flatMat(0xf5f0e8)
+  const cowSpotMat = flatMat(0x1a1a1a)
+  const cowPinkMat = flatMat(0xf0a0a0, 0.85)
 
   // Lake geometries — shared across all lake instances
   const lakeCircleGeo = new THREE.CircleGeometry(1, 7)
@@ -867,7 +740,9 @@ export function createTulipField(
   const cols = large ? Math.floor(rand(16, 25)) : Math.floor(rand(8, 15))
   const rowSpacing = 0.25
   const colSpacing = 0.18
-  const numColors = large ? Math.floor(rand(2, 4)) : Math.random() < 0.5 ? 1 : 2
+  let numColors: number
+  if (large) numColors = Math.floor(rand(2, 4))
+  else numColors = Math.random() < 0.5 ? 1 : 2
   const colorA =
     res.flowerMats[Math.floor(Math.random() * res.flowerMats.length)]
   const colorB =

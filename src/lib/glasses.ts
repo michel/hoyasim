@@ -82,7 +82,6 @@ export function createFrameMaterial(): THREE.MeshStandardMaterial {
     roughness: 0.1,
     metalness: 0.0,
     transparent: true,
-    opacity: 1,
     depthWrite: true,
   })
 }
@@ -535,8 +534,7 @@ export async function loadGlasses(camera: THREE.Camera): Promise<GlassesState> {
   }
 
   function animateSwap() {
-    const groups = [leftGroup, rightGroup, leftGroupAlt, rightGroupAlt]
-    for (const group of groups) {
+    for (const group of allGroups) {
       const anim = getAnimation(group)
       if (anim.animating) {
         group.position.y += (anim.targetY - group.position.y) * SWAP_LERP_SPEED
@@ -549,7 +547,6 @@ export async function loadGlasses(camera: THREE.Camera): Promise<GlassesState> {
   }
 
   function dispose() {
-    const allGroups = [leftGroup, rightGroup, leftGroupAlt, rightGroupAlt]
     for (const g of allGroups) {
       camera.remove(g)
       g.traverse((child) => {
