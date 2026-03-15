@@ -161,7 +161,7 @@ export function createRightLensMaterial(
     transmission: 1,
     thickness: 0.5,
     ior: 1.15,
-    roughness: 0.2,
+    roughness: 0.15,
     thicknessMap: gradTex,
     depthWrite: true,
   })

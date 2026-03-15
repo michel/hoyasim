@@ -101,6 +101,6 @@ describe('createRightLensMaterial', () => {
 
 describe('PROGRESSIVE_POWER', () => {
   it('is exported with expected value', () => {
-    expect(PROGRESSIVE_POWER).toBe(0.15)
+    expect(PROGRESSIVE_POWER).toBe(0.35)
   })
 })
