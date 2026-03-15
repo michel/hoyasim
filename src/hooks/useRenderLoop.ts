@@ -77,7 +77,8 @@ export function useRenderLoop(
       // FPS tracking
       frames++
       if (now - fpsLastTime >= 500) {
-        if (fpsRef.current) fpsRef.current.textContent = `${Math.round(frames / ((now - fpsLastTime) / 1000))} fps | ${renderer.info.render.triangles} tris | ${renderer.info.render.calls} calls`
+        if (fpsRef.current)
+          fpsRef.current.textContent = `${Math.round(frames / ((now - fpsLastTime) / 1000))} fps | ${renderer.info.render.triangles} tris | ${renderer.info.render.calls} calls`
         frames = 0
         fpsLastTime = now
       }

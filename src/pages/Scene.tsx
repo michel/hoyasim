@@ -39,41 +39,41 @@ export default function Scene() {
 
   return (
     <ErrorBoundary>
-    <LandscapeGuard>
-      <div className="fixed inset-0">
-        <ThreeView
-          image={sceneConfig.image}
-          models={sceneConfig.models}
-          effects={sceneConfig.effects}
-          gyroActive={gyroActive}
-          onGyroActiveChange={setGyroActive}
-          onGlassesReady={setGlassesControls}
-        />
-        <div className="absolute top-4 right-4 z-30">
-          <Select
-            value={scene}
-            onValueChange={(value) => navigate(`/scenes/${value}`)}
-          >
-            <SelectTrigger className="w-32">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {sceneNames.map((name) => (
-                <SelectItem key={name} value={name}>
-                  {name}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-        {glassesControls && (
-          <GlassesControls
-            onSwapLeft={glassesControls.swapLeft}
-            onSwapRight={glassesControls.swapRight}
+      <LandscapeGuard>
+        <div className="fixed inset-0">
+          <ThreeView
+            image={sceneConfig.image}
+            models={sceneConfig.models}
+            effects={sceneConfig.effects}
+            gyroActive={gyroActive}
+            onGyroActiveChange={setGyroActive}
+            onGlassesReady={setGlassesControls}
           />
-        )}
-      </div>
-    </LandscapeGuard>
+          <div className="absolute top-4 right-4 z-30">
+            <Select
+              value={scene}
+              onValueChange={(value) => navigate(`/scenes/${value}`)}
+            >
+              <SelectTrigger className="w-32">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {sceneNames.map((name) => (
+                  <SelectItem key={name} value={name}>
+                    {name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          {glassesControls && (
+            <GlassesControls
+              onSwapLeft={glassesControls.swapLeft}
+              onSwapRight={glassesControls.swapRight}
+            />
+          )}
+        </div>
+      </LandscapeGuard>
     </ErrorBoundary>
   )
 }

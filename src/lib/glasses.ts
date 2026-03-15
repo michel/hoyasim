@@ -203,7 +203,9 @@ export function createRightLensMaterial(
     )
 
     if (patchedChunk === chunk)
-      console.warn('[RIGHT LENS] transmission_pars_fragment replacement FAILED — Three.js version may have changed')
+      console.warn(
+        '[RIGHT LENS] transmission_pars_fragment replacement FAILED — Three.js version may have changed',
+      )
 
     // Force alpha=1.0 to prevent transmissionAlpha from causing ghost bleed-through
     const beforeOpaque = shader.fragmentShader
@@ -380,13 +382,23 @@ export async function loadGlasses(camera: THREE.Camera): Promise<GlassesState> {
   leftGroupAlt.position.y = SWAP_HIDDEN_Y
 
   // Primary right
-  const primaryRight = buildRightLensGroup(lensRight, frameRight, blankR, progressiveUniforms)
+  const primaryRight = buildRightLensGroup(
+    lensRight,
+    frameRight,
+    blankR,
+    progressiveUniforms,
+  )
   const rightGroup = primaryRight.group
   refs.gradCanvas = primaryRight.gradCanvas
   refs.gradTex = primaryRight.gradTex
 
   // Alternate right
-  const altRight = buildRightLensGroup(lensRight02, frameRight, blankR, progressiveUniforms)
+  const altRight = buildRightLensGroup(
+    lensRight02,
+    frameRight,
+    blankR,
+    progressiveUniforms,
+  )
   const rightGroupAlt = altRight.group
   rightGroupAlt.position.y = SWAP_HIDDEN_Y
 

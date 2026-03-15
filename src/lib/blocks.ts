@@ -334,7 +334,9 @@ export function createHouse(res: BlockResources): THREE.Group {
     for (let i = 0; i < steps; i++) {
       gableD *= 0.78
       const sy = h + i * stepH + stepH / 2
-      brickGeos.push(scaledBoxGeo(res.boxGeo, wallThick, stepH, gableD, facadeX, sy, 0))
+      brickGeos.push(
+        scaledBoxGeo(res.boxGeo, wallThick, stepH, gableD, facadeX, sy, 0),
+      )
       trimGeos.push(
         scaledBoxGeo(
           res.boxGeo,
@@ -350,9 +352,19 @@ export function createHouse(res: BlockResources): THREE.Group {
     }
   } else {
     trimGeos.push(
-      scaledBoxGeo(res.boxGeo, wallThick + 0.1, 0.15, d + 0.15, facadeX, h + 0.075, 0),
+      scaledBoxGeo(
+        res.boxGeo,
+        wallThick + 0.1,
+        0.15,
+        d + 0.15,
+        facadeX,
+        h + 0.075,
+        0,
+      ),
     )
-    brickGeos.push(scaledBoxGeo(res.boxGeo, wallThick, 0.25, d, facadeX, h + 0.125, 0))
+    brickGeos.push(
+      scaledBoxGeo(res.boxGeo, wallThick, 0.25, d, facadeX, h + 0.125, 0),
+    )
     gableTopY = h + 0.25
   }
 
@@ -364,20 +376,28 @@ export function createHouse(res: BlockResources): THREE.Group {
     const halfD = d / 2
 
     const verts = new Float32Array([
-      xBack, eaveY, -halfD,
-      xBack, eaveY, halfD,
-      xBack, ridgeY, 0,
-      xFront, eaveY, -halfD,
-      xFront, eaveY, halfD,
-      xFront, ridgeY, 0,
+      xBack,
+      eaveY,
+      -halfD,
+      xBack,
+      eaveY,
+      halfD,
+      xBack,
+      ridgeY,
+      0,
+      xFront,
+      eaveY,
+      -halfD,
+      xFront,
+      eaveY,
+      halfD,
+      xFront,
+      ridgeY,
+      0,
     ])
 
     const indices = new Uint16Array([
-      0, 2, 5, 0, 5, 3,
-      1, 4, 5, 1, 5, 2,
-      0, 1, 2,
-      3, 5, 4,
-      0, 3, 4, 0, 4, 1,
+      0, 2, 5, 0, 5, 3, 1, 4, 5, 1, 5, 2, 0, 1, 2, 3, 5, 4, 0, 3, 4, 0, 4, 1,
     ])
 
     const roofGeo = new THREE.BufferGeometry()
@@ -391,10 +411,26 @@ export function createHouse(res: BlockResources): THREE.Group {
     const beamY = gableTopY - 0.15
     const beamLen = 0.5
     brickGeos.push(
-      scaledBoxGeo(res.boxGeo, beamLen, 0.07, 0.07, w / 2 + beamLen / 2, beamY, 0),
+      scaledBoxGeo(
+        res.boxGeo,
+        beamLen,
+        0.07,
+        0.07,
+        w / 2 + beamLen / 2,
+        beamY,
+        0,
+      ),
     )
     brickGeos.push(
-      scaledBoxGeo(res.boxGeo, 0.05, 0.12, 0.05, w / 2 + beamLen - 0.025, beamY - 0.1, 0),
+      scaledBoxGeo(
+        res.boxGeo,
+        0.05,
+        0.12,
+        0.05,
+        w / 2 + beamLen - 0.025,
+        beamY - 0.1,
+        0,
+      ),
     )
   }
 
@@ -406,15 +442,23 @@ export function createHouse(res: BlockResources): THREE.Group {
     for (const zOff of [-windowSpacing, windowSpacing]) {
       const fx = w / 2 + 0.02
       frameGeos.push(scaledBoxGeo(res.boxGeo, 0.04, 0.9, 0.7, fx, cy, zOff))
-      glassGeos.push(scaledBoxGeo(res.boxGeo, 0.05, 0.8, 0.6, fx + 0.01, cy, zOff))
-      trimGeos.push(scaledBoxGeo(res.boxGeo, 0.1, 0.06, 0.75, fx + 0.03, cy - 0.48, zOff))
-      frameGeos.push(scaledBoxGeo(res.boxGeo, 0.06, 0.85, 0.04, fx + 0.01, cy, zOff))
+      glassGeos.push(
+        scaledBoxGeo(res.boxGeo, 0.05, 0.8, 0.6, fx + 0.01, cy, zOff),
+      )
+      trimGeos.push(
+        scaledBoxGeo(res.boxGeo, 0.1, 0.06, 0.75, fx + 0.03, cy - 0.48, zOff),
+      )
+      frameGeos.push(
+        scaledBoxGeo(res.boxGeo, 0.06, 0.85, 0.04, fx + 0.01, cy, zOff),
+      )
     }
   }
 
   const doorH = 1.1
   const doorW = 0.55
-  doorGeos.push(scaledBoxGeo(res.boxGeo, 0.06, doorH, doorW, w / 2 + 0.03, doorH / 2, 0))
+  doorGeos.push(
+    scaledBoxGeo(res.boxGeo, 0.06, doorH, doorW, w / 2 + 0.03, doorH / 2, 0),
+  )
   trimGeos.push(
     scaledBoxGeo(
       res.boxGeo,
@@ -491,33 +535,154 @@ export function createRandomTree(res: BlockResources): THREE.Group {
   return Math.random() < 0.4 ? createPine(res) : createTree(res)
 }
 
-export function createWindmill(res: BlockResources): { group: THREE.Group; sails: THREE.Group } {
+export function createWindmill(res: BlockResources): {
+  group: THREE.Group
+  sails: THREE.Group
+} {
+  const windmillBrickMat = new THREE.MeshStandardMaterial({
+    color: 0x8b4513,
+    flatShading: true,
+    roughness: 0.95,
+  })
+  const windmillCapMat = new THREE.MeshStandardMaterial({
+    color: 0x2a2a2a,
+    flatShading: true,
+    roughness: 0.85,
+  })
+  const windmillDoorMat = new THREE.MeshStandardMaterial({
+    color: 0x1a3a1a,
+    flatShading: true,
+    roughness: 0.9,
+  })
+  const windmillBalconyMat = new THREE.MeshStandardMaterial({
+    color: 0x3a2a1a,
+    flatShading: true,
+    roughness: 0.9,
+  })
+
   const g = new THREE.Group()
-  const towerH = rand(3.5, 5)
+  const towerH = rand(4, 6)
+  const baseR = 0.9
+  const topR = 0.5
 
-  const tower = new THREE.Mesh(res.towerGeo, res.towerMat)
-  tower.scale.y = towerH
-  tower.position.y = towerH / 2
-  g.add(tower)
+  // Tapered tower body (wider base, narrower top)
+  const towerBody = new THREE.Mesh(
+    new THREE.CylinderGeometry(topR, baseR, towerH, 8),
+    windmillBrickMat,
+  )
+  towerBody.position.y = towerH / 2
+  g.add(towerBody)
 
-  const cap = new THREE.Mesh(res.capGeo, res.towerMat)
-  cap.scale.set(1, 0.6, 1)
-  cap.position.y = towerH
-  g.add(cap)
+  // Horizontal brick bands
+  for (let i = 1; i <= 3; i++) {
+    const bandY = towerH * (i / 4)
+    const r = baseR + (topR - baseR) * (i / 4) + 0.03
+    const band = new THREE.Mesh(res.boxGeo, res.trimMat)
+    band.scale.set(r * 2.1, 0.06, r * 2.1)
+    band.position.y = bandY
+    g.add(band)
+  }
 
+  // Onion-shaped cap (stretched sphere + cone)
+  const capBase = new THREE.Mesh(res.capGeo, windmillCapMat)
+  capBase.scale.set(topR + 0.1, 0.5, topR + 0.1)
+  capBase.position.y = towerH + 0.15
+  g.add(capBase)
+
+  const capTip = new THREE.Mesh(res.pineGeo, windmillCapMat)
+  capTip.scale.set(0.2, 0.6, 0.2)
+  capTip.position.y = towerH + 0.7
+  g.add(capTip)
+
+  // Balcony/gallery around the top
+  const balconyR = topR + 0.25
+  const balcony = new THREE.Mesh(
+    new THREE.CylinderGeometry(balconyR, balconyR, 0.06, 10),
+    windmillBalconyMat,
+  )
+  balcony.position.y = towerH - 0.1
+  g.add(balcony)
+
+  // Balcony railing posts
+  for (let i = 0; i < 8; i++) {
+    const angle = (i / 8) * Math.PI * 2
+    const post = new THREE.Mesh(res.boxGeo, windmillBalconyMat)
+    post.scale.set(0.04, 0.25, 0.04)
+    post.position.set(
+      Math.cos(angle) * balconyR,
+      towerH + 0.02,
+      Math.sin(angle) * balconyR,
+    )
+    g.add(post)
+  }
+
+  // Door at base
+  const door = new THREE.Mesh(res.boxGeo, windmillDoorMat)
+  door.scale.set(0.45, 0.8, 0.08)
+  door.position.set(0, 0.4, baseR + 0.01)
+  g.add(door)
+
+  // Door frame
+  const doorFrame = new THREE.Mesh(res.boxGeo, res.trimMat)
+  doorFrame.scale.set(0.55, 0.9, 0.06)
+  doorFrame.position.set(0, 0.4, baseR - 0.01)
+  g.add(doorFrame)
+
+  // Small windows
+  for (let i = 1; i <= 2; i++) {
+    const wy = towerH * (i / 3)
+    const wr = baseR + (topR - baseR) * (i / 3)
+    const win = new THREE.Mesh(res.boxGeo, res.glassMat)
+    win.scale.set(0.2, 0.3, 0.06)
+    win.position.set(0, wy, wr + 0.02)
+    g.add(win)
+    const winFrame = new THREE.Mesh(res.boxGeo, res.frameMat)
+    winFrame.scale.set(0.26, 0.36, 0.04)
+    winFrame.position.set(0, wy, wr)
+    g.add(winFrame)
+  }
+
+  // Sails — lattice-style with spine + cross-bars
   const sails = new THREE.Group()
-  sails.position.y = towerH * 0.9
-  sails.position.z = 0.9
-  const sailLen = rand(2, 3)
+  sails.position.y = towerH * 0.85
+  sails.position.z = topR + 0.15
+  const sailLen = rand(2.5, 3.5)
+
   for (let i = 0; i < 4; i++) {
-    const sail = new THREE.Mesh(res.boxGeo, res.sailMat)
-    sail.scale.set(0.15, sailLen, 0.05)
-    sail.position.y = sailLen / 2
     const arm = new THREE.Group()
     arm.rotation.z = (i * Math.PI) / 2
-    arm.add(sail)
+
+    // Main spine
+    const spine = new THREE.Mesh(res.boxGeo, windmillBalconyMat)
+    spine.scale.set(0.08, sailLen, 0.04)
+    spine.position.y = sailLen / 2
+    arm.add(spine)
+
+    // Sail cloth (offset to one side of spine, like real windmills)
+    const clothW = sailLen * 0.22
+    const cloth = new THREE.Mesh(res.boxGeo, res.sailMat)
+    cloth.scale.set(clothW, sailLen * 0.85, 0.02)
+    cloth.position.set(clothW / 2 + 0.04, sailLen * 0.5, 0)
+    arm.add(cloth)
+
+    // Cross-bars along the spine
+    const bars = 5
+    for (let b = 0; b < bars; b++) {
+      const by = sailLen * 0.15 + (b / bars) * sailLen * 0.75
+      const bar = new THREE.Mesh(res.boxGeo, windmillBalconyMat)
+      bar.scale.set(clothW + 0.1, 0.03, 0.03)
+      bar.position.set(clothW / 2, by, 0)
+      arm.add(bar)
+    }
+
     sails.add(arm)
   }
+
+  // Hub at sail center
+  const hub = new THREE.Mesh(res.capGeo, windmillCapMat)
+  hub.scale.setScalar(0.15)
+  sails.add(hub)
+
   g.add(sails)
 
   return { group: g, sails }
@@ -548,7 +713,8 @@ export function createFlowerCluster(res: BlockResources): THREE.Group {
   const count = Math.floor(rand(3, 7))
   for (let i = 0; i < count; i++) {
     const h = rand(0.2, 0.45)
-    const mat = res.flowerMats[Math.floor(Math.random() * res.flowerMats.length)]
+    const mat =
+      res.flowerMats[Math.floor(Math.random() * res.flowerMats.length)]
     const stem = new THREE.Mesh(res.flowerStemGeo, res.bushMat)
     stem.scale.y = h
     stem.position.set(rand(-0.3, 0.3), h / 2, rand(-0.3, 0.3))
@@ -560,18 +726,18 @@ export function createFlowerCluster(res: BlockResources): THREE.Group {
   return g
 }
 
-export function createTulipField(res: BlockResources, large = false): THREE.Group {
+export function createTulipField(
+  res: BlockResources,
+  large = false,
+): THREE.Group {
   const g = new THREE.Group()
   const rows = large ? Math.floor(rand(8, 13)) : Math.floor(rand(4, 7))
   const cols = large ? Math.floor(rand(16, 25)) : Math.floor(rand(8, 15))
   const rowSpacing = 0.25
   const colSpacing = 0.18
-  const numColors = large
-    ? Math.floor(rand(2, 4))
-    : Math.random() < 0.5
-      ? 1
-      : 2
-  const colorA = res.flowerMats[Math.floor(Math.random() * res.flowerMats.length)]
+  const numColors = large ? Math.floor(rand(2, 4)) : Math.random() < 0.5 ? 1 : 2
+  const colorA =
+    res.flowerMats[Math.floor(Math.random() * res.flowerMats.length)]
   const colorB =
     numColors >= 2
       ? res.flowerMats[Math.floor(Math.random() * res.flowerMats.length)]
@@ -616,7 +782,10 @@ export function createTulipField(res: BlockResources, large = false): THREE.Grou
 
   if (stemGeos.length > 0)
     g.add(
-      new THREE.Mesh(BufferGeometryUtils.mergeGeometries(stemGeos), res.bushMat),
+      new THREE.Mesh(
+        BufferGeometryUtils.mergeGeometries(stemGeos),
+        res.bushMat,
+      ),
     )
   for (const [mat, geos] of headsByMat)
     g.add(new THREE.Mesh(BufferGeometryUtils.mergeGeometries(geos), mat))
@@ -770,11 +939,7 @@ export function createLake(res: BlockResources): THREE.Group {
   for (let i = 0; i < grassCount; i++) {
     const angle = rand(0, Math.PI * 2)
     const bush = createBush(res)
-    bush.position.set(
-      Math.cos(angle) * w * 0.95,
-      0,
-      Math.sin(angle) * d * 0.95,
-    )
+    bush.position.set(Math.cos(angle) * w * 0.95, 0, Math.sin(angle) * d * 0.95)
     bush.scale.setScalar(rand(0.5, 0.8))
     g.add(bush)
   }
@@ -857,11 +1022,15 @@ export function createCow(res: BlockResources): THREE.Group {
   bodyGeos.push(scaledBoxGeo(res.boxGeo, 0.22, 0.22, 0.2, 0, 0.55, 0.4))
 
   for (const side of [-1, 1])
-    bodyGeos.push(scaledBoxGeo(res.boxGeo, 0.06, 0.06, 0.1, side * 0.14, 0.62, 0.38))
+    bodyGeos.push(
+      scaledBoxGeo(res.boxGeo, 0.06, 0.06, 0.1, side * 0.14, 0.62, 0.38),
+    )
 
   for (const xOff of [-0.12, 0.12])
     for (const zOff of [-0.2, 0.2])
-      bodyGeos.push(scaledBoxGeo(res.boxGeo, 0.08, 0.28, 0.08, xOff, 0.14, zOff))
+      bodyGeos.push(
+        scaledBoxGeo(res.boxGeo, 0.08, 0.28, 0.08, xOff, 0.14, zOff),
+      )
 
   const spots = Math.floor(rand(4, 8))
   for (let i = 0; i < spots; i++) {
@@ -928,10 +1097,7 @@ export function createMountainProfile(
 
     shape.lineTo(midX, midH)
     shape.lineTo(peakX, peakH)
-    shape.lineTo(
-      x0 + segWidth * rand(0.75, 0.9),
-      rand(minH * 0.2, peakH * 0.4),
-    )
+    shape.lineTo(x0 + segWidth * rand(0.75, 0.9), rand(minH * 0.2, peakH * 0.4))
   }
 
   shape.lineTo(segLen, 0)
@@ -955,14 +1121,20 @@ export function createBlocks(scene: THREE.Scene): BlocksState {
   const staticMeshes: THREE.Mesh[] = []
   const groundLen = 400
 
-  const grass = new THREE.Mesh(new THREE.PlaneGeometry(60, groundLen), res.grassMat)
+  const grass = new THREE.Mesh(
+    new THREE.PlaneGeometry(60, groundLen),
+    res.grassMat,
+  )
   grass.rotation.x = -Math.PI / 2
   grass.position.set(0, -0.01, 30)
   grass.receiveShadow = true
   group.add(grass)
   staticMeshes.push(grass)
 
-  const road = new THREE.Mesh(new THREE.PlaneGeometry(3, groundLen), res.roadMat)
+  const road = new THREE.Mesh(
+    new THREE.PlaneGeometry(3, groundLen),
+    res.roadMat,
+  )
   road.rotation.x = -Math.PI / 2
   road.position.set(0, 0, 30)
   road.receiveShadow = true
