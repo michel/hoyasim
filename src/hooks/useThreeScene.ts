@@ -58,7 +58,9 @@ export function useThreeScene(
     renderer.shadowMap.enabled = true
     renderer.shadowMap.type = THREE.BasicShadowMap
     renderer.setSize(width, height)
-    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2))
+    renderer.setPixelRatio(
+      Math.min(window.devicePixelRatio, window.innerWidth > 600 ? 2 : 1.5),
+    )
     mountRef.current.appendChild(renderer.domElement)
 
     refs.current = { scene, camera, renderer }
