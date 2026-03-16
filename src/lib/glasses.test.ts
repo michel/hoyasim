@@ -84,16 +84,18 @@ describe('createGradientCanvas', () => {
 })
 
 describe('createRightLensMaterial', () => {
-  it('returns material with gradient texture as thicknessMap', () => {
+  it('returns material with gradient texture as thicknessMap and roughnessMap', () => {
     const { texture } = createGradientCanvas()
-    const mat = createRightLensMaterial(texture, [])
+    const roughness = new THREE.Texture()
+    const mat = createRightLensMaterial(texture, [], roughness)
     expect(mat.transmission).toBe(1)
     expect(mat.thicknessMap).toBe(texture)
+    expect(mat.roughnessMap).toBe(roughness)
   })
 
   it('has onBeforeCompile for progressive lens effect', () => {
     const { texture } = createGradientCanvas()
-    const mat = createRightLensMaterial(texture, [])
+    const mat = createRightLensMaterial(texture, [], new THREE.Texture())
     expect(mat.onBeforeCompile).toBeTypeOf('function')
     expect(mat.customProgramCacheKey()).toBe('progressive-lens')
   })

@@ -14,6 +14,10 @@ const MIN_ROAD_SPEED = -10.0
 const MAX_ROAD_SPEED = -1.0
 const SPAWN_INTERVAL = 6
 const CYCLE_LENGTH = 150
+const CROSSROADS_SPAWN_OFFSET = 24
+const STOP_DURATION = 10
+const BRAKE_DURATION = 1.5
+const ACCEL_DURATION = 2.0
 
 // ── Types ────────────────────────────────────────────────────────────
 
@@ -39,6 +43,7 @@ interface SpawnedObject {
     | 'tulipfield'
     | 'lake'
     | 'cow'
+    | 'crossroads'
   sails?: THREE.Group
 }
 
@@ -84,6 +89,13 @@ export interface BlockResources {
   cowBodyMat: THREE.MeshStandardMaterial
   cowSpotMat: THREE.MeshStandardMaterial
   cowPinkMat: THREE.MeshStandardMaterial
+  trafficRedMat: THREE.MeshStandardMaterial
+  trafficRedOnMat: THREE.MeshStandardMaterial
+  trafficGreenMat: THREE.MeshStandardMaterial
+  trafficGreenOnMat: THREE.MeshStandardMaterial
+  trafficOrangeMat: THREE.MeshStandardMaterial
+  trafficOrangeOnMat: THREE.MeshStandardMaterial
+  trafficHousingMat: THREE.MeshStandardMaterial
   lakeCircleGeo: THREE.CircleGeometry
   lakeRingGeo: THREE.RingGeometry
   duckBodyGeo: THREE.SphereGeometry
@@ -204,6 +216,24 @@ export function createBlockResources(): BlockResources & {
   const cowSpotMat = flatMat(0x1a1a1a)
   const cowPinkMat = flatMat(0xf0a0a0, 0.85)
 
+  // Traffic light materials
+  const trafficRedMat = flatMat(0x330000, 0.7)
+  const trafficRedOnMat = flatMat(0xff0000, 0.5, {
+    emissive: 0xff0000,
+    emissiveIntensity: 0.8,
+  })
+  const trafficGreenMat = flatMat(0x003300, 0.7)
+  const trafficGreenOnMat = flatMat(0x00ff00, 0.5, {
+    emissive: 0x00ff00,
+    emissiveIntensity: 0.8,
+  })
+  const trafficOrangeMat = flatMat(0x332200, 0.7)
+  const trafficOrangeOnMat = flatMat(0xff8800, 0.5, {
+    emissive: 0xff8800,
+    emissiveIntensity: 0.8,
+  })
+  const trafficHousingMat = flatMat(0x1a1a1a, 0.9)
+
   // Lake geometries — shared across all lake instances
   const lakeCircleGeo = new THREE.CircleGeometry(1, 7)
   const lakeRingGeo = new THREE.RingGeometry(0.92, 1.08, 7)
@@ -244,6 +274,13 @@ export function createBlockResources(): BlockResources & {
     cowBodyMat,
     cowSpotMat,
     cowPinkMat,
+    trafficRedMat,
+    trafficRedOnMat,
+    trafficGreenMat,
+    trafficGreenOnMat,
+    trafficOrangeMat,
+    trafficOrangeOnMat,
+    trafficHousingMat,
   ]
 
   return {
@@ -288,6 +325,13 @@ export function createBlockResources(): BlockResources & {
     cowBodyMat,
     cowSpotMat,
     cowPinkMat,
+    trafficRedMat,
+    trafficRedOnMat,
+    trafficGreenMat,
+    trafficGreenOnMat,
+    trafficOrangeMat,
+    trafficOrangeOnMat,
+    trafficHousingMat,
     lakeCircleGeo,
     lakeRingGeo,
     duckBodyGeo,
@@ -1039,6 +1083,59 @@ export function createCow(res: BlockResources): THREE.Group {
   return g
 }
 
+export function createCrossroads(res: BlockResources): {
+  group: THREE.Group
+  redLight: THREE.Mesh
+  yellowLight: THREE.Mesh
+  greenLight: THREE.Mesh
+} {
+  const g = new THREE.Group()
+
+  // Traffic light pole (right sidewalk)
+  const pole = new THREE.Mesh(res.boxGeo, res.towerMat)
+  pole.scale.set(0.08, 2, 0.08)
+  pole.position.set(2.2, 1, 0)
+  g.add(pole)
+
+  // Housing
+  const housing = new THREE.Mesh(res.boxGeo, res.trafficHousingMat)
+  housing.scale.set(0.4, 0.9, 0.25)
+  housing.position.set(2.2, 2.2, 0)
+  g.add(housing)
+
+  // Red light (top, dim)
+  const redLight = new THREE.Mesh(res.capGeo, res.trafficRedMat)
+  redLight.scale.setScalar(0.1)
+  redLight.position.set(2.2, 2.48, -0.13)
+  g.add(redLight)
+
+  // Yellow light (middle, dim)
+  const yellowLight = new THREE.Mesh(res.capGeo, res.trafficOrangeMat)
+  yellowLight.scale.setScalar(0.1)
+  yellowLight.position.set(2.2, 2.2, -0.13)
+  g.add(yellowLight)
+
+  // Green light (bottom, on)
+  const greenLight = new THREE.Mesh(res.capGeo, res.trafficGreenOnMat)
+  greenLight.scale.setScalar(0.1)
+  greenLight.position.set(2.2, 1.92, -0.13)
+  g.add(greenLight)
+
+  // Zebra crossing — white stripes across road width
+  const stripeCount = 7
+  const roadWidth = 3
+  const stripeWidth = 1.0
+  const gap = roadWidth / stripeCount
+  for (let i = 0; i < stripeCount; i++) {
+    const stripe = new THREE.Mesh(res.boxGeo, res.markingMat)
+    stripe.scale.set(gap * 0.7, 0.02, stripeWidth)
+    stripe.position.set(-roadWidth / 2 + gap * (i + 0.5), 0.015, 0)
+    g.add(stripe)
+  }
+
+  return { group: g, redLight, yellowLight, greenLight }
+}
+
 export function createMountainProfile(
   segLen: number,
   peaks: number,
@@ -1198,14 +1295,15 @@ export function createBlocks(scene: THREE.Scene): BlocksState {
 
   // ── Speed control ─────────────────────────────────────────────
 
+  let targetSpeed = DEFAULT_ROAD_SPEED
   let roadSpeed = DEFAULT_ROAD_SPEED
 
   function onSpeedKey(e: KeyboardEvent) {
     if (e.key === 'ArrowUp') {
-      roadSpeed = Math.max(MIN_ROAD_SPEED, roadSpeed - SPEED_STEP)
+      targetSpeed = Math.max(MIN_ROAD_SPEED, targetSpeed - SPEED_STEP)
       e.preventDefault()
     } else if (e.key === 'ArrowDown') {
-      roadSpeed = Math.min(MAX_ROAD_SPEED, roadSpeed + SPEED_STEP)
+      targetSpeed = Math.min(MAX_ROAD_SPEED, targetSpeed + SPEED_STEP)
       e.preventDefault()
     }
   }
@@ -1465,6 +1563,20 @@ export function createBlocks(scene: THREE.Scene): BlocksState {
   let distanceTraveled = 0
   let spawnAccumulator = 0
 
+  // ── Crossroads state ────────────────────────────────────────
+  type CrossroadsState = 'riding' | 'braking' | 'stopped' | 'accelerating'
+  let crossroadsState: CrossroadsState = 'riding'
+  let crossroadsGroup: THREE.Group | null = null
+  let crossroadsRedLight: THREE.Mesh | null = null
+  let crossroadsYellowLight: THREE.Mesh | null = null
+  let crossroadsGreenLight: THREE.Mesh | null = null
+  let crossroadsSpawned = false
+  let prevCycleOffset = 0
+  let brakeTimer = 0
+  let stopTimer = 0
+  let accelTimer = 0
+  let speedAtBrakeStart = DEFAULT_ROAD_SPEED
+
   for (let z = CULL_Z; z <= SPAWN_Z; z += SPAWN_INTERVAL)
     spawnRow(z, getZone(z))
 
@@ -1477,6 +1589,92 @@ export function createBlocks(scene: THREE.Scene): BlocksState {
   function update(delta: number): CameraOffset {
     if (delta > 1) return { x: 0, y: 0 }
     elapsed += delta
+
+    // ── Crossroads spawn detection ──────────────────────────────
+    const cycleOffset = distanceTraveled % CYCLE_LENGTH
+    // Reset crossroadsSpawned on cycle wrap
+    if (cycleOffset < prevCycleOffset) crossroadsSpawned = false
+    // Spawn when crossing the offset threshold
+    if (
+      !crossroadsSpawned &&
+      prevCycleOffset < CROSSROADS_SPAWN_OFFSET &&
+      cycleOffset >= CROSSROADS_SPAWN_OFFSET
+    ) {
+      crossroadsSpawned = true
+      const cr = createCrossroads(res)
+      cr.group.position.set(0, 0, SPAWN_Z)
+      spawn(cr.group, 'crossroads')
+      crossroadsGroup = cr.group
+      crossroadsRedLight = cr.redLight
+      crossroadsYellowLight = cr.yellowLight
+      crossroadsGreenLight = cr.greenLight
+    }
+    prevCycleOffset = cycleOffset
+
+    // ── Crossroads state machine ────────────────────────────────
+    if (crossroadsState === 'riding') {
+      roadSpeed = targetSpeed
+      if (crossroadsGroup) {
+        const dynamicBrakeThreshold =
+          (Math.abs(targetSpeed) * BRAKE_DURATION) / 2 + 3
+        if (crossroadsGroup.position.z < dynamicBrakeThreshold) {
+          crossroadsState = 'braking'
+          speedAtBrakeStart = roadSpeed
+          brakeTimer = 0
+          // Green → Yellow
+          if (crossroadsGreenLight)
+            crossroadsGreenLight.material = res.trafficGreenMat
+          if (crossroadsYellowLight)
+            crossroadsYellowLight.material = res.trafficOrangeOnMat
+        }
+      }
+    }
+
+    if (crossroadsState === 'braking') {
+      brakeTimer += delta
+      const t = Math.min(brakeTimer / BRAKE_DURATION, 1)
+      const ease = t * (2 - t) // ease-out
+      roadSpeed = speedAtBrakeStart * (1 - ease)
+      if (t >= 1) {
+        roadSpeed = 0
+        crossroadsState = 'stopped'
+        stopTimer = 0
+        // Yellow → Red
+        if (crossroadsYellowLight)
+          crossroadsYellowLight.material = res.trafficOrangeMat
+        if (crossroadsRedLight)
+          crossroadsRedLight.material = res.trafficRedOnMat
+      }
+    }
+
+    if (crossroadsState === 'stopped') {
+      roadSpeed = 0
+      stopTimer += delta
+      if (stopTimer >= STOP_DURATION) {
+        crossroadsState = 'accelerating'
+        accelTimer = 0
+        // Red → Green
+        if (crossroadsRedLight) crossroadsRedLight.material = res.trafficRedMat
+        if (crossroadsGreenLight)
+          crossroadsGreenLight.material = res.trafficGreenOnMat
+      }
+    }
+
+    if (crossroadsState === 'accelerating') {
+      accelTimer += delta
+      const t = Math.min(accelTimer / ACCEL_DURATION, 1)
+      const ease = t * t // ease-in
+      roadSpeed = targetSpeed * ease
+      if (t >= 1) {
+        roadSpeed = targetSpeed
+        crossroadsState = 'riding'
+        crossroadsGroup = null
+        crossroadsRedLight = null
+        crossroadsYellowLight = null
+        crossroadsGreenLight = null
+      }
+    }
+
     const dz = roadSpeed * delta
     const dist = Math.abs(dz)
     distanceTraveled = (distanceTraveled + dist) % (CYCLE_LENGTH * 1000)
@@ -1518,13 +1716,14 @@ export function createBlocks(scene: THREE.Scene): BlocksState {
       }
     }
 
-    const vibrationX =
-      Math.sin(elapsed * 47) * 0.0008 + Math.sin(elapsed * 31) * 0.0005
-    const vibrationY =
-      Math.sin(elapsed * 53) * 0.001 + Math.sin(elapsed * 37) * 0.0006
-
-    // Pedaling bob — cadence scales with speed
+    // Pedaling bob & vibration — scale with speed
     const speedRatio = Math.abs(roadSpeed / DEFAULT_ROAD_SPEED)
+    const vibrationX =
+      (Math.sin(elapsed * 47) * 0.0008 + Math.sin(elapsed * 31) * 0.0005) *
+      speedRatio
+    const vibrationY =
+      (Math.sin(elapsed * 53) * 0.001 + Math.sin(elapsed * 37) * 0.0006) *
+      speedRatio
     const bobY =
       Math.sin(elapsed * Math.PI * 3 * speedRatio) * 0.008 * speedRatio
 

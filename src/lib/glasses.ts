@@ -155,14 +155,16 @@ export function createGradientCanvas(): {
 export function createRightLensMaterial(
   gradTex: THREE.CanvasTexture,
   progressiveUniforms: { value: number }[],
+  roughnessMap: THREE.Texture,
 ): THREE.MeshPhysicalMaterial {
   const mat = new THREE.MeshPhysicalMaterial({
     color: new THREE.Color('#ffffff'),
     transmission: 1,
     thickness: 0.5,
     ior: 1.15,
-    roughness: 0.35,
+    roughness: 1,
     thicknessMap: gradTex,
+    roughnessMap,
     depthWrite: true,
   })
 
@@ -239,6 +241,37 @@ export function createRightLensMaterial(
   return mat
 }
 
+// ── UV helpers ──────────────────────────────────────────────────────
+
+function normalizeUVs(group: THREE.Group): void {
+  const min = new THREE.Vector2(Infinity, Infinity)
+  const max = new THREE.Vector2(-Infinity, -Infinity)
+  group.traverse((child) => {
+    if (!(child instanceof THREE.Mesh)) return
+    const uv = child.geometry.getAttribute('uv')
+    if (!uv) return
+    for (let i = 0; i < uv.count; i++) {
+      min.x = Math.min(min.x, uv.getX(i))
+      min.y = Math.min(min.y, uv.getY(i))
+      max.x = Math.max(max.x, uv.getX(i))
+      max.y = Math.max(max.y, uv.getY(i))
+    }
+  })
+  const rangeX = max.x - min.x
+  const rangeY = max.y - min.y
+  if (rangeX === 0 || rangeY === 0) return
+  group.traverse((child) => {
+    if (!(child instanceof THREE.Mesh)) return
+    const uv = child.geometry.getAttribute('uv')
+    if (!uv) return
+    for (let i = 0; i < uv.count; i++) {
+      uv.setX(i, (uv.getX(i) - min.x) / rangeX)
+      uv.setY(i, (uv.getY(i) - min.y) / rangeY)
+    }
+    uv.needsUpdate = true
+  })
+}
+
 // ── Mesh helpers ─────────────────────────────────────────────────────
 
 function applyMaterial(obj: THREE.Object3D, mat: THREE.Material) {
@@ -296,10 +329,20 @@ function buildRightLensGroup(
   frameGeometry: THREE.Group,
   blankGeometry: THREE.Group,
   progressiveUniforms: { value: number }[],
+  rightMap: THREE.Texture,
 ): RightLensGroupResult {
   const { canvas: gradCanvas, texture: gradTex } = createGradientCanvas()
 
-  const rightMat = createRightLensMaterial(gradTex, progressiveUniforms)
+  normalizeUVs(lensGeometry)
+  rightMap.center.set(0.5, 0.5)
+  rightMap.rotation = Math.PI / 2
+  rightMap.flipY = !rightMap.flipY
+  rightMap.repeat.set(-0.85, -0.85)
+  const rightMat = createRightLensMaterial(
+    gradTex,
+    progressiveUniforms,
+    rightMap,
+  )
   applyMaterial(lensGeometry, rightMat)
 
   const frame = frameGeometry.clone(true)
@@ -371,15 +414,18 @@ export async function loadGlasses(camera: THREE.Camera): Promise<GlassesState> {
   let assets: {
     mapA: THREE.Texture
     mapB: THREE.Texture
+    rightMap: THREE.Texture
     models: THREE.Group[]
   }
   try {
-    const [mapA, mapB] = await Promise.all([
+    const [mapA, mapB, rightMap] = await Promise.all([
       loadTexture('lens_left_map.png'),
       loadTexture('lens_left_map_invert.png'),
+      loadTexture('lens_right_map.png'),
     ])
     mapA.colorSpace = THREE.SRGBColorSpace
     mapB.colorSpace = THREE.SRGBColorSpace
+    rightMap.colorSpace = THREE.SRGBColorSpace
 
     const models = await Promise.all([
       loadGLB('lens_left.glb'),
@@ -391,13 +437,13 @@ export async function loadGlasses(camera: THREE.Camera): Promise<GlassesState> {
       loadGLB('blank_l.glb'),
       loadGLB('blank_r.glb'),
     ])
-    assets = { mapA, mapB, models }
+    assets = { mapA, mapB, rightMap, models }
   } catch (err) {
     cleanupListeners()
     throw err
   }
 
-  const { mapA, mapB, models } = assets
+  const { mapA, mapB, rightMap, models } = assets
   const [
     lensLeft,
     lensLeftFar,
@@ -426,6 +472,7 @@ export async function loadGlasses(camera: THREE.Camera): Promise<GlassesState> {
     frameRight,
     blankR,
     progressiveUniforms,
+    rightMap,
   )
   const rightGroup = primaryRight.group
   refs.gradCanvas = primaryRight.gradCanvas
@@ -438,6 +485,7 @@ export async function loadGlasses(camera: THREE.Camera): Promise<GlassesState> {
     frameRight,
     blankR,
     progressiveUniforms,
+    rightMap,
   )
   const rightGroupAlt = altRight.group
   rightGroupAlt.position.y = SWAP_HIDDEN_Y
@@ -557,6 +605,7 @@ export async function loadGlasses(camera: THREE.Camera): Promise<GlassesState> {
     }
     mapA.dispose()
     mapB.dispose()
+    rightMap.dispose()
     refs.gradTex?.dispose()
     cleanupListeners()
   }
