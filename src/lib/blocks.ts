@@ -110,8 +110,6 @@ function rand(min: number, max: number): number {
   return min + Math.random() * (max - min)
 }
 
-const randomSide = (): number => (Math.random() < 0.5 ? 1 : -1)
-
 // ── Zone helpers ─────────────────────────────────────────────────────
 
 type Zone = 'city' | 'transition' | 'nature'
@@ -693,6 +691,7 @@ export function createWindmill(res: BlockResources): {
 
   // Sails — lattice-style with spine + cross-bars
   const sails = new THREE.Group()
+  sails.name = 'sails'
   sails.position.y = towerH * 0.85
   sails.position.z = topR + 0.15
   const sailLen = rand(2.5, 3.5)
@@ -1083,43 +1082,46 @@ export function createCow(res: BlockResources): THREE.Group {
   return g
 }
 
+interface TrafficLights {
+  red: THREE.Mesh[]
+  yellow: THREE.Mesh[]
+  green: THREE.Mesh[]
+}
+
+function setLights(lights: THREE.Mesh[], mat: THREE.Material): void {
+  for (const l of lights) l.material = mat
+}
+
 export function createCrossroads(res: BlockResources): {
   group: THREE.Group
-  redLight: THREE.Mesh
-  yellowLight: THREE.Mesh
-  greenLight: THREE.Mesh
+  lights: TrafficLights
 } {
   const g = new THREE.Group()
+  const lights: TrafficLights = { red: [], yellow: [], green: [] }
 
-  // Traffic light pole (right sidewalk)
-  const pole = new THREE.Mesh(res.boxGeo, res.towerMat)
-  pole.scale.set(0.08, 2, 0.08)
-  pole.position.set(2.2, 1, 0)
-  g.add(pole)
+  for (const x of [2.2, -2.2]) {
+    const pole = new THREE.Mesh(res.boxGeo, res.towerMat)
+    pole.scale.set(0.08, 2, 0.08)
+    pole.position.set(x, 1, 0)
+    g.add(pole)
 
-  // Housing
-  const housing = new THREE.Mesh(res.boxGeo, res.trafficHousingMat)
-  housing.scale.set(0.4, 0.9, 0.25)
-  housing.position.set(2.2, 2.2, 0)
-  g.add(housing)
+    const housing = new THREE.Mesh(res.boxGeo, res.trafficHousingMat)
+    housing.scale.set(0.4, 0.9, 0.25)
+    housing.position.set(x, 2.2, 0)
+    g.add(housing)
 
-  // Red light (top, dim)
-  const redLight = new THREE.Mesh(res.capGeo, res.trafficRedMat)
-  redLight.scale.setScalar(0.1)
-  redLight.position.set(2.2, 2.48, -0.13)
-  g.add(redLight)
+    const light = (mat: THREE.Material, y: number) => {
+      const mesh = new THREE.Mesh(res.capGeo, mat)
+      mesh.scale.setScalar(0.1)
+      mesh.position.set(x, y, -0.13)
+      g.add(mesh)
+      return mesh
+    }
 
-  // Yellow light (middle, dim)
-  const yellowLight = new THREE.Mesh(res.capGeo, res.trafficOrangeMat)
-  yellowLight.scale.setScalar(0.1)
-  yellowLight.position.set(2.2, 2.2, -0.13)
-  g.add(yellowLight)
-
-  // Green light (bottom, on)
-  const greenLight = new THREE.Mesh(res.capGeo, res.trafficGreenOnMat)
-  greenLight.scale.setScalar(0.1)
-  greenLight.position.set(2.2, 1.92, -0.13)
-  g.add(greenLight)
+    lights.red.push(light(res.trafficRedMat, 2.48))
+    lights.yellow.push(light(res.trafficOrangeMat, 2.2))
+    lights.green.push(light(res.trafficGreenOnMat, 1.92))
+  }
 
   // Zebra crossing — white stripes across road width
   const stripeCount = 7
@@ -1133,7 +1135,7 @@ export function createCrossroads(res: BlockResources): {
     g.add(stripe)
   }
 
-  return { group: g, redLight, yellowLight, greenLight }
+  return { group: g, lights }
 }
 
 export function createMountainProfile(
@@ -1228,18 +1230,11 @@ export function createBlocks(scene: THREE.Scene): BlocksState {
     })
     res.allMaterials.push(mat)
 
-    const meshL = new THREE.Mesh(
-      new THREE.ShapeGeometry(
-        createMountainProfile(mtSegLen, cfg.peaks, cfg.minH, cfg.maxH),
-      ),
-      mat,
+    const shapeGeo = new THREE.ShapeGeometry(
+      createMountainProfile(mtSegLen, cfg.peaks, cfg.minH, cfg.maxH),
     )
-    const meshR = new THREE.Mesh(
-      new THREE.ShapeGeometry(
-        createMountainProfile(mtSegLen, cfg.peaks, cfg.minH, cfg.maxH),
-      ),
-      mat,
-    )
+    const meshL = new THREE.Mesh(shapeGeo, mat)
+    const meshR = new THREE.Mesh(shapeGeo, mat)
     meshL.position.set(-mtSegLen / 2, GROUND_Y - 0.5, -cfg.z)
     meshR.position.set(-mtSegLen / 2, GROUND_Y - 0.5, cfg.z)
     meshL.renderOrder = -cfg.z
@@ -1323,6 +1318,21 @@ export function createBlocks(scene: THREE.Scene): BlocksState {
     spawned.push({ group: obj, type, ...(sails && { sails }) })
   }
 
+  function spawnMirrored(
+    obj: THREE.Object3D,
+    type: SpawnedObject['type'],
+    sails?: THREE.Group,
+  ) {
+    spawn(obj, type, sails)
+    const mirror = obj.clone()
+    mirror.position.x = -mirror.position.x
+    mirror.rotation.y = Math.PI - mirror.rotation.y
+    const mirrorSails = sails
+      ? (mirror.getObjectByName('sails') as THREE.Group)
+      : undefined
+    spawn(mirror, type, mirrorSails)
+  }
+
   function disposeObject(obj: SpawnedObject) {
     group.remove(obj.group)
     obj.group.traverse((child) => {
@@ -1334,63 +1344,33 @@ export function createBlocks(scene: THREE.Scene): BlocksState {
     if (zone === 'city' || zone === 'transition') {
       if (zone === 'city' || Math.random() < 0.5) {
         const house = createHouse(res)
-        house.rotation.y = Math.PI
-        house.position.set(rand(4.0, 4.5), 0, z)
-        spawn(house, 'house')
-      }
-
-      if (zone === 'city' || Math.random() < 0.5) {
-        const house = createHouse(res)
         house.position.set(rand(-4.5, -4.0), 0, z)
-        spawn(house, 'house')
+        spawnMirrored(house, 'house')
       }
 
       if (zone === 'city' || Math.random() < 0.3) {
         const house = createHouse(res)
-        house.rotation.y = Math.PI
-        house.position.set(rand(11.0, 11.5), 0, z + rand(1.5, 3.5))
-        spawn(house, 'house')
-      }
-      if (zone === 'city' || Math.random() < 0.3) {
-        const house = createHouse(res)
-        house.rotation.y = 0
         house.position.set(rand(-11.5, -11.0), 0, z + rand(1.5, 3.5))
-        spawn(house, 'house')
+        spawnMirrored(house, 'house')
       }
 
-      if (Math.random() < 0.4) {
-        const tree = createTree(res)
-        tree.position.set(rand(2.0, 6.0), 0, z + SPAWN_INTERVAL * 0.5)
-        spawn(tree, 'tree')
-      }
       if (Math.random() < 0.4) {
         const tree = createTree(res)
         tree.position.set(-rand(2.0, 6.0), 0, z + SPAWN_INTERVAL * 0.5)
-        spawn(tree, 'tree')
+        spawnMirrored(tree, 'tree')
       }
 
-      if (Math.random() < 0.15) {
+      if (Math.random() < 0.08) {
         const bush = createBush(res)
-        bush.position.set(
-          rand(2.0, 3.0) * randomSide(),
-          0,
-          z + rand(0, SPAWN_INTERVAL),
-        )
-        spawn(bush, 'bush')
+        bush.position.set(-rand(2.0, 3.0), 0, z + rand(0, SPAWN_INTERVAL))
+        spawnMirrored(bush, 'bush')
       }
 
-      // Flower boxes / clusters near sidewalks
-      for (const side of [1, -1]) {
-        if (Math.random() < 0.4) {
-          const flowers = createFlowerCluster(res)
-          flowers.position.set(
-            side * rand(2.5, 3.5),
-            0,
-            z + rand(0, SPAWN_INTERVAL),
-          )
-          flowers.scale.setScalar(0.6)
-          spawn(flowers, 'flower')
-        }
+      if (Math.random() < 0.4) {
+        const flowers = createFlowerCluster(res)
+        flowers.position.set(-rand(2.5, 3.5), 0, z + rand(0, SPAWN_INTERVAL))
+        flowers.scale.setScalar(0.6)
+        spawnMirrored(flowers, 'flower')
       }
     }
 
@@ -1398,162 +1378,111 @@ export function createBlocks(scene: THREE.Scene): BlocksState {
     marking.position.set(0, 0, z)
     spawn(marking, 'marking')
 
-    // Determine lake side early so all far-field spawns can avoid it
-    let lakeSide = 0
-    if (zone === 'nature' && Math.random() < 0.4) lakeSide = randomSide()
-
     if (zone === 'nature' || zone === 'transition') {
-      // Trees on both sides (1-2 per side)
-      for (const side of [1, -1]) {
-        if (zone === 'nature' || Math.random() < 0.5) {
-          const count = Math.floor(rand(1, 3))
-          for (let i = 0; i < count; i++) {
-            const tree = createRandomTree(res)
-            tree.position.set(
-              side * rand(2.5, 8.0),
-              0,
-              z + rand(0, SPAWN_INTERVAL) * i,
-            )
-            spawn(tree, 'tree')
-          }
+      // Trees near road
+      if (zone === 'nature' || Math.random() < 0.5) {
+        const count = Math.floor(rand(1, 3))
+        for (let i = 0; i < count; i++) {
+          const tree = createRandomTree(res)
+          tree.position.set(-rand(2.5, 8.0), 0, z + rand(0, SPAWN_INTERVAL) * i)
+          spawnMirrored(tree, 'tree')
         }
       }
 
-      // Bushes (near road)
-      for (const side of [1, -1]) {
-        if (Math.random() < 0.8) {
-          const bushCount = Math.floor(rand(1, 3))
-          for (let i = 0; i < bushCount; i++) {
-            const bush = createBush(res)
-            bush.position.set(
-              side * rand(2.0, 8.0),
-              0,
-              z + rand(0, SPAWN_INTERVAL),
-            )
-            spawn(bush, 'bush')
-          }
+      // Bushes near road
+      if (Math.random() < 0.8) {
+        const bushCount = Math.floor(rand(1, 3))
+        for (let i = 0; i < bushCount; i++) {
+          const bush = createBush(res)
+          bush.position.set(-rand(2.0, 8.0), 0, z + rand(0, SPAWN_INTERVAL))
+          spawnMirrored(bush, 'bush')
         }
       }
 
-      // Trees and bushes beyond back roads (avoid lake side)
+      // Trees and bushes beyond back roads
       if (zone === 'nature') {
-        for (const side of [1, -1]) {
-          if (side === lakeSide) continue
-          const treeCount = Math.floor(rand(2, 5))
-          for (let i = 0; i < treeCount; i++) {
-            const tree = createRandomTree(res)
-            tree.position.set(
-              side * rand(11, 22),
-              0,
-              z + rand(0, SPAWN_INTERVAL),
-            )
-            spawn(tree, 'tree')
-          }
-          const bushCount = Math.floor(rand(2, 4))
-          for (let i = 0; i < bushCount; i++) {
-            const bush = createBush(res)
-            bush.position.set(
-              side * rand(11, 20),
-              0,
-              z + rand(0, SPAWN_INTERVAL),
-            )
-            spawn(bush, 'bush')
-          }
+        const treeCount = Math.floor(rand(2, 4))
+        for (let i = 0; i < treeCount; i++) {
+          const tree = createRandomTree(res)
+          tree.position.set(-rand(11, 22), 0, z + rand(0, SPAWN_INTERVAL))
+          spawnMirrored(tree, 'tree')
+        }
+        const bushCount = Math.floor(rand(2, 3))
+        for (let i = 0; i < bushCount; i++) {
+          const bush = createBush(res)
+          bush.position.set(-rand(11, 20), 0, z + rand(0, SPAWN_INTERVAL))
+          spawnMirrored(bush, 'bush')
         }
       }
 
       // Sunflower patches
-      if (zone === 'nature' && Math.random() < 0.45) {
-        let side = randomSide()
-        if (side === lakeSide) side = -side
+      if (zone === 'nature' && Math.random() < 0.23) {
         const patch = createSunflowerPatch(res)
-        patch.position.set(side * rand(5, 18), 0, z + rand(0, SPAWN_INTERVAL))
-        spawn(patch, 'flower')
+        patch.position.set(-rand(5, 18), 0, z + rand(0, SPAWN_INTERVAL))
+        spawnMirrored(patch, 'flower')
       }
 
-      // Grass tufts (nature — dense)
+      // Grass tufts
       if (zone === 'nature') {
-        const tufts = Math.floor(rand(5, 10))
+        const tufts = Math.floor(rand(3, 5))
         for (let i = 0; i < tufts; i++) {
-          let side = randomSide()
-          const x = rand(2, 22)
-          if (side === lakeSide && x > 10) side = -side
           const grass = createGrassTuft(res)
-          grass.position.set(x * side, 0, z + rand(0, SPAWN_INTERVAL))
-          spawn(grass, 'bush')
+          grass.position.set(-rand(2, 22), 0, z + rand(0, SPAWN_INTERVAL))
+          spawnMirrored(grass, 'bush')
         }
       }
 
-      // Flowers (nature only) — both sides independently
-      for (const side of [1, -1]) {
-        if (zone === 'nature' && Math.random() < 0.65) {
-          const flowers = createFlowerCluster(res)
-          flowers.position.set(
-            side * rand(2.0, 6.0),
-            0,
-            z + rand(0, SPAWN_INTERVAL),
-          )
-          spawn(flowers, 'flower')
-        }
+      // Flowers
+      if (zone === 'nature' && Math.random() < 0.65) {
+        const flowers = createFlowerCluster(res)
+        flowers.position.set(-rand(2.0, 6.0), 0, z + rand(0, SPAWN_INTERVAL))
+        spawnMirrored(flowers, 'flower')
       }
 
-      // Tulip fields
-      if (zone === 'nature' && Math.random() < 0.25) {
-        const side = randomSide()
+      // Tulip fields near road
+      if (zone === 'nature' && Math.random() < 0.13) {
         const field = createTulipField(res)
-        field.position.set(side * rand(3, 8), 0, z + rand(0, SPAWN_INTERVAL))
+        field.position.set(-rand(3, 8), 0, z + rand(0, SPAWN_INTERVAL))
         field.rotation.y = rand(-0.15, 0.15)
-        spawn(field, 'tulipfield')
+        spawnMirrored(field, 'tulipfield')
       }
 
-      // Large tulip fields beyond back roads (avoid lake side)
-      for (const side of [1, -1]) {
-        if (side === lakeSide) continue
-        if (zone === 'nature' && Math.random() < 0.35) {
-          const field = createTulipField(res, true)
-          field.position.set(
-            side * rand(12, 20),
-            0,
-            z + rand(0, SPAWN_INTERVAL),
-          )
-          field.rotation.y = rand(-0.15, 0.15)
-          spawn(field, 'tulipfield')
-        }
+      // Large tulip fields beyond back roads
+      if (zone === 'nature' && Math.random() < 0.2) {
+        const field = createTulipField(res, true)
+        field.position.set(-rand(12, 20), 0, z + rand(0, SPAWN_INTERVAL))
+        field.rotation.y = rand(-0.15, 0.15)
+        spawnMirrored(field, 'tulipfield')
       }
 
       // Lakes
-      if (lakeSide !== 0) {
+      if (zone === 'nature' && Math.random() < 0.2) {
         const lake = createLake(res)
-        lake.position.set(
-          lakeSide * rand(14, 22),
-          0,
-          z + rand(0, SPAWN_INTERVAL),
-        )
+        lake.position.set(-rand(14, 22), 0, z + rand(0, SPAWN_INTERVAL))
         lake.rotation.y = rand(0, Math.PI)
-        spawn(lake, 'lake')
+        spawnMirrored(lake, 'lake')
       }
 
-      // Cows in small herds (avoid lake side)
+      // Cows in small herds
       if (zone === 'nature' && Math.random() < 0.35) {
-        let side = randomSide()
-        if (side === lakeSide) side = -side
-        const herdSize = Math.floor(rand(3, 7))
-        const baseX = side * rand(12, 19)
+        const herd = new THREE.Group()
+        const herdSize = Math.floor(rand(2, 4))
+        const baseX = -rand(12, 19)
         const baseZ = z + rand(0, SPAWN_INTERVAL)
         for (let i = 0; i < herdSize; i++) {
           const cow = createCow(res)
           cow.position.set(baseX + rand(-2, 2), 0, baseZ + rand(-2, 2))
-          spawn(cow, 'cow')
+          herd.add(cow)
         }
+        spawnMirrored(herd, 'cow')
       }
 
       // Rare windmills
-      if (zone === 'nature' && Math.random() < 0.15) {
-        const side = randomSide()
+      if (zone === 'nature' && Math.random() < 0.08) {
         const wm = createWindmill(res)
-        wm.group.position.set(side * rand(6.0, 10.0), 0, z)
+        wm.group.position.set(-rand(6.0, 10.0), 0, z)
         wm.group.rotation.y = Math.PI
-        spawn(wm.group, 'windmill', wm.sails)
+        spawnMirrored(wm.group, 'windmill', wm.sails)
       }
     }
   }
@@ -1567,9 +1496,7 @@ export function createBlocks(scene: THREE.Scene): BlocksState {
   type CrossroadsState = 'riding' | 'braking' | 'stopped' | 'accelerating'
   let crossroadsState: CrossroadsState = 'riding'
   let crossroadsGroup: THREE.Group | null = null
-  let crossroadsRedLight: THREE.Mesh | null = null
-  let crossroadsYellowLight: THREE.Mesh | null = null
-  let crossroadsGreenLight: THREE.Mesh | null = null
+  let crossroadsLights: TrafficLights = { red: [], yellow: [], green: [] }
   let crossroadsSpawned = false
   let prevCycleOffset = 0
   let brakeTimer = 0
@@ -1605,9 +1532,7 @@ export function createBlocks(scene: THREE.Scene): BlocksState {
       cr.group.position.set(0, 0, SPAWN_Z)
       spawn(cr.group, 'crossroads')
       crossroadsGroup = cr.group
-      crossroadsRedLight = cr.redLight
-      crossroadsYellowLight = cr.yellowLight
-      crossroadsGreenLight = cr.greenLight
+      crossroadsLights = cr.lights
     }
     prevCycleOffset = cycleOffset
 
@@ -1621,11 +1546,8 @@ export function createBlocks(scene: THREE.Scene): BlocksState {
           crossroadsState = 'braking'
           speedAtBrakeStart = roadSpeed
           brakeTimer = 0
-          // Green → Yellow
-          if (crossroadsGreenLight)
-            crossroadsGreenLight.material = res.trafficGreenMat
-          if (crossroadsYellowLight)
-            crossroadsYellowLight.material = res.trafficOrangeOnMat
+          setLights(crossroadsLights.green, res.trafficGreenMat)
+          setLights(crossroadsLights.yellow, res.trafficOrangeOnMat)
         }
       }
     }
@@ -1639,11 +1561,8 @@ export function createBlocks(scene: THREE.Scene): BlocksState {
         roadSpeed = 0
         crossroadsState = 'stopped'
         stopTimer = 0
-        // Yellow → Red
-        if (crossroadsYellowLight)
-          crossroadsYellowLight.material = res.trafficOrangeMat
-        if (crossroadsRedLight)
-          crossroadsRedLight.material = res.trafficRedOnMat
+        setLights(crossroadsLights.yellow, res.trafficOrangeMat)
+        setLights(crossroadsLights.red, res.trafficRedOnMat)
       }
     }
 
@@ -1653,10 +1572,8 @@ export function createBlocks(scene: THREE.Scene): BlocksState {
       if (stopTimer >= STOP_DURATION) {
         crossroadsState = 'accelerating'
         accelTimer = 0
-        // Red → Green
-        if (crossroadsRedLight) crossroadsRedLight.material = res.trafficRedMat
-        if (crossroadsGreenLight)
-          crossroadsGreenLight.material = res.trafficGreenOnMat
+        setLights(crossroadsLights.red, res.trafficRedMat)
+        setLights(crossroadsLights.green, res.trafficGreenOnMat)
       }
     }
 
@@ -1669,9 +1586,7 @@ export function createBlocks(scene: THREE.Scene): BlocksState {
         roadSpeed = targetSpeed
         crossroadsState = 'riding'
         crossroadsGroup = null
-        crossroadsRedLight = null
-        crossroadsYellowLight = null
-        crossroadsGreenLight = null
+        crossroadsLights = { red: [], yellow: [], green: [] }
       }
     }
 
