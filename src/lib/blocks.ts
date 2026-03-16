@@ -1689,6 +1689,12 @@ export function createBlocks(scene: THREE.Scene): BlocksState {
     for (const obj of spawned) {
       obj.group.position.z += dz
       obj.group.visible = obj.group.position.z < VISIBLE_Z
+      if (
+        obj.type === 'marking' &&
+        crossroadsGroup &&
+        Math.abs(obj.group.position.z - crossroadsGroup.position.z) < 1.0
+      )
+        obj.group.visible = false
     }
 
     let i = 0
