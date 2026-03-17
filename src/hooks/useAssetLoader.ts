@@ -51,33 +51,25 @@ export function useAssetLoader(
     const loadedObjects: THREE.Object3D[] = []
 
     const hasBlocks = !!effects?.blocks
-    let texturePromise: Promise<void>
-
-    if (hasBlocks) {
-      const skyColor = 0x5da6e6
-      scene.background = new THREE.Color(skyColor)
-      scene.fog = new THREE.Fog(skyColor, 40, 120)
-      texturePromise = Promise.resolve()
-    } else {
-      texturePromise = new Promise<void>((resolve, reject) => {
-        const onLoaded = (texture: THREE.Texture) => {
-          if (signal.aborted) {
-            texture.dispose()
-            return resolve()
-          }
-          texture.mapping = THREE.EquirectangularReflectionMapping
-          scene.background = texture
-          resolve()
+    const texturePromise = new Promise<void>((resolve, reject) => {
+      const onLoaded = (texture: THREE.Texture) => {
+        if (signal.aborted) {
+          texture.dispose()
+          return resolve()
         }
-        const onError = () => reject(new Error('Failed to load scene texture'))
+        texture.mapping = THREE.EquirectangularReflectionMapping
+        scene.background = texture
+        if (hasBlocks) scene.fog = new THREE.Fog(0x5da6e6, 40, 120)
+        resolve()
+      }
+      const onError = () => reject(new Error('Failed to load scene texture'))
 
-        if (image.endsWith('.exr'))
-          new EXRLoader().load(image, onLoaded, undefined, onError)
-        else if (image.endsWith('.hdr'))
-          new RGBELoader().load(image, onLoaded, undefined, onError)
-        else new THREE.TextureLoader().load(image, onLoaded, undefined, onError)
-      })
-    }
+      if (image.endsWith('.exr'))
+        new EXRLoader().load(image, onLoaded, undefined, onError)
+      else if (image.endsWith('.hdr'))
+        new RGBELoader().load(image, onLoaded, undefined, onError)
+      else new THREE.TextureLoader().load(image, onLoaded, undefined, onError)
+    })
 
     // Load models
     const modelPromises = (models ?? []).map(
@@ -160,7 +152,6 @@ export function useAssetLoader(
       blocksRef.current = null
 
       scene.fog = null
-      if (hasBlocks) scene.background = null
     }
   }, [scene, camera, image, models, effects])
 
