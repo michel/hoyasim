@@ -104,5 +104,6 @@ export function useRenderLoop(
     gyroActiveRef.current,
     latRef,
     lonRef.current,
+    blocksRef.current,
   ])
 }

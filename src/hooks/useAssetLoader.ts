@@ -2,7 +2,9 @@ import { useEffect, useRef, useState } from 'react'
 import * as THREE from 'three'
 import { EXRLoader } from 'three/addons/loaders/EXRLoader.js'
 import { RGBELoader } from 'three/addons/loaders/RGBELoader.js'
+import { blockModelManifest } from '@/config/blockModels'
 import type { SceneConfig, SceneModel } from '@/config/scenes'
+import { loadBlockModels } from '@/lib/blockModelLoader'
 import { type BlocksState, createBlocks } from '@/lib/blocks'
 import { type GlassesState, loadGlasses } from '@/lib/glasses'
 import { gltfLoader } from '@/lib/loaders'
@@ -119,12 +121,22 @@ export function useAssetLoader(
       })
     })
 
-    if (effects?.blocks) blocksRef.current = createBlocks(scene)
+    const blockModelsPromise = hasBlocks
+      ? loadBlockModels(blockModelManifest)
+      : Promise.resolve(undefined)
 
-    withTimeout(
-      Promise.all([texturePromise, ...modelPromises, glassesPromise]),
-      'scene assets',
-    )
+    const assetPromise = Promise.all([
+      texturePromise,
+      ...modelPromises,
+      glassesPromise,
+    ])
+
+    withTimeout(Promise.all([assetPromise, blockModelsPromise]), 'scene assets')
+      .then(([, loadedBlockModels]) => {
+        if (signal.aborted) return
+        if (hasBlocks && loadedBlockModels)
+          blocksRef.current = createBlocks(scene, loadedBlockModels)
+      })
       .catch((err) => {
         if (!signal.aborted) setError(err.message)
       })

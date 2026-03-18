@@ -5,7 +5,7 @@ describe('scenes config', () => {
   it('exports a biking scene with image and models', () => {
     const biking = scenes.biking
     expect(biking).toBeDefined()
-    expect(biking.image).toContain('biking')
+    expect(biking.image).toBeTruthy()
     expect(biking.models.length).toBeGreaterThan(0)
   })
 

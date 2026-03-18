@@ -1,5 +1,6 @@
 import * as THREE from 'three'
 import * as BufferGeometryUtils from 'three/addons/utils/BufferGeometryUtils.js'
+import type { LoadedBlockModels } from '@/lib/blockModelLoader'
 
 // ── Constants ────────────────────────────────────────────────────────
 
@@ -33,30 +34,16 @@ export interface BlocksState {
 
 interface SpawnedObject {
   group: THREE.Object3D
-  type:
-    | 'house'
-    | 'tree'
-    | 'windmill'
-    | 'marking'
-    | 'bush'
-    | 'flower'
-    | 'tulipfield'
-    | 'lake'
-    | 'cow'
-    | 'crossroads'
-  sails?: THREE.Group
+  type: 'house' | 'tree' | 'marking' | 'bush' | 'crossroads'
+  isGlbClone?: boolean
 }
 
 export interface BlockResources {
   boxGeo: THREE.BoxGeometry
   trunkGeo: THREE.CylinderGeometry
   canopyGeo: THREE.SphereGeometry
-  pineGeo: THREE.ConeGeometry
-  towerGeo: THREE.CylinderGeometry
   capGeo: THREE.SphereGeometry
   bushGeo: THREE.SphereGeometry
-  flowerHeadGeo: THREE.SphereGeometry
-  flowerStemGeo: THREE.CylinderGeometry
   brickMats: THREE.MeshStandardMaterial[]
   glassMat: THREE.MeshStandardMaterial
   frameMat: THREE.MeshStandardMaterial
@@ -66,29 +53,9 @@ export interface BlockResources {
   trimMat: THREE.MeshStandardMaterial
   trunkMat: THREE.MeshStandardMaterial
   leavesMat: THREE.MeshStandardMaterial
-  pineMat: THREE.MeshStandardMaterial
   towerMat: THREE.MeshStandardMaterial
-  sailMat: THREE.MeshStandardMaterial
   markingMat: THREE.MeshStandardMaterial
   bushMat: THREE.MeshStandardMaterial
-  flowerMats: THREE.MeshStandardMaterial[]
-  tulipPetalGeo: THREE.SphereGeometry
-  // Shared factory materials (avoid per-instance creation)
-  windmillBrickMat: THREE.MeshStandardMaterial
-  windmillCapMat: THREE.MeshStandardMaterial
-  windmillDoorMat: THREE.MeshStandardMaterial
-  windmillBalconyMat: THREE.MeshStandardMaterial
-  tallGrassMat: THREE.MeshStandardMaterial
-  sunflowerYellowMat: THREE.MeshStandardMaterial
-  sunflowerCenterMat: THREE.MeshStandardMaterial
-  sunflowerLeafMat: THREE.MeshStandardMaterial
-  lakeMat: THREE.MeshStandardMaterial
-  lakeEdgeMat: THREE.MeshStandardMaterial
-  duckMat: THREE.MeshStandardMaterial
-  duckBeakMat: THREE.MeshStandardMaterial
-  cowBodyMat: THREE.MeshStandardMaterial
-  cowSpotMat: THREE.MeshStandardMaterial
-  cowPinkMat: THREE.MeshStandardMaterial
   trafficRedMat: THREE.MeshStandardMaterial
   trafficRedOnMat: THREE.MeshStandardMaterial
   trafficGreenMat: THREE.MeshStandardMaterial
@@ -96,10 +63,6 @@ export interface BlockResources {
   trafficOrangeMat: THREE.MeshStandardMaterial
   trafficOrangeOnMat: THREE.MeshStandardMaterial
   trafficHousingMat: THREE.MeshStandardMaterial
-  lakeCircleGeo: THREE.CircleGeometry
-  lakeRingGeo: THREE.RingGeometry
-  duckBodyGeo: THREE.SphereGeometry
-  duckHeadGeo: THREE.SphereGeometry
   allMaterials: THREE.Material[]
   allGeometries: THREE.BufferGeometry[]
 }
@@ -148,14 +111,8 @@ export function createBlockResources(): BlockResources & {
   const planeGeo = new THREE.PlaneGeometry(1, 1)
   const trunkGeo = new THREE.CylinderGeometry(0.1, 0.15, 1, 5)
   const canopyGeo = new THREE.SphereGeometry(1, 4, 3)
-  const pineGeo = new THREE.ConeGeometry(1, 1, 5)
-  const towerGeo = new THREE.CylinderGeometry(0.4, 0.7, 1, 5)
   const capGeo = new THREE.SphereGeometry(0.5, 3, 2)
   const bushGeo = new THREE.SphereGeometry(1, 4, 3)
-  const flowerHeadGeo = new THREE.SphereGeometry(0.07, 3, 2)
-  const flowerStemGeo = new THREE.CylinderGeometry(0.02, 0.02, 1, 3)
-  const tulipPetalGeo = new THREE.SphereGeometry(0.06, 4, 3)
-  tulipPetalGeo.scale(0.8, 1.3, 0.8)
 
   const brickMats = [
     0x4a2c2a, 0x3e2723, 0x5d4037, 0x2a2a2a, 0x1a1a1a, 0x8b4513,
@@ -172,14 +129,9 @@ export function createBlockResources(): BlockResources & {
   const trimMat = flatMat(0xeeeeee, 0.7)
   const trunkMat = flatMat(0x4a3728)
   const leavesMat = flatMat(0x2e8b57, 0.95)
-  const pineMat = flatMat(0x1a5c2a, 0.95)
   const towerMat = flatMat(0x555555)
-  const sailMat = flatMat(0xcccccc, 0.7)
   const markingMat = flatMat(0xffffff, 0.7)
   const bushMat = flatMat(0x3a7d44, 0.95)
-  const flowerMats = [0xe84393, 0xfdcb6e, 0x6c5ce7, 0xff7675, 0xffffff].map(
-    (c) => flatMat(c, 0.8),
-  )
   const grassMat = flatMat(0x6b8e23, 0.95)
   const roadMat = flatMat(0xa55145)
   const sidewalkMat = flatMat(0x888888, 0.95)
@@ -189,31 +141,9 @@ export function createBlockResources(): BlockResources & {
     planeGeo,
     trunkGeo,
     canopyGeo,
-    pineGeo,
-    towerGeo,
     capGeo,
     bushGeo,
-    flowerHeadGeo,
-    flowerStemGeo,
-    tulipPetalGeo,
   ]
-  // Factory materials — shared across all instances
-  const windmillBrickMat = flatMat(0x8b4513, 0.95)
-  const windmillCapMat = flatMat(0x2a2a2a, 0.85)
-  const windmillDoorMat = flatMat(0x1a3a1a)
-  const windmillBalconyMat = flatMat(0x3a2a1a)
-  const tallGrassMat = flatMat(0x7a9a3a, 0.95)
-  const sunflowerYellowMat = flatMat(0xffd700, 0.8)
-  const sunflowerCenterMat = flatMat(0x3a2a0a)
-  const sunflowerLeafMat = flatMat(0x4a7a2a)
-  const lakeMat = flatMat(0x3a7cbd, 0.2, { metalness: 0.3 })
-  const lakeEdgeMat = flatMat(0x5a8a50, 0.95)
-  const duckMat = flatMat(0xffffff, 0.8)
-  const duckBeakMat = flatMat(0xf5a623, 0.7)
-  const cowBodyMat = flatMat(0xf5f0e8)
-  const cowSpotMat = flatMat(0x1a1a1a)
-  const cowPinkMat = flatMat(0xf0a0a0, 0.85)
-
   // Traffic light materials
   const trafficRedMat = flatMat(0x330000, 0.7)
   const trafficRedOnMat = flatMat(0xff0000, 0.5, {
@@ -232,12 +162,6 @@ export function createBlockResources(): BlockResources & {
   })
   const trafficHousingMat = flatMat(0x1a1a1a, 0.9)
 
-  // Lake geometries — shared across all lake instances
-  const lakeCircleGeo = new THREE.CircleGeometry(1, 7)
-  const lakeRingGeo = new THREE.RingGeometry(0.92, 1.08, 7)
-  const duckBodyGeo = new THREE.SphereGeometry(0.1, 5, 4)
-  const duckHeadGeo = new THREE.SphereGeometry(0.05, 4, 3)
-
   const allMaterials: THREE.Material[] = [
     ...brickMats,
     glassMat,
@@ -248,30 +172,12 @@ export function createBlockResources(): BlockResources & {
     trimMat,
     trunkMat,
     leavesMat,
-    pineMat,
     towerMat,
-    sailMat,
     markingMat,
     bushMat,
-    ...flowerMats,
     grassMat,
     roadMat,
     sidewalkMat,
-    windmillBrickMat,
-    windmillCapMat,
-    windmillDoorMat,
-    windmillBalconyMat,
-    tallGrassMat,
-    sunflowerYellowMat,
-    sunflowerCenterMat,
-    sunflowerLeafMat,
-    lakeMat,
-    lakeEdgeMat,
-    duckMat,
-    duckBeakMat,
-    cowBodyMat,
-    cowSpotMat,
-    cowPinkMat,
     trafficRedMat,
     trafficRedOnMat,
     trafficGreenMat,
@@ -286,12 +192,8 @@ export function createBlockResources(): BlockResources & {
     planeGeo,
     trunkGeo,
     canopyGeo,
-    pineGeo,
-    towerGeo,
     capGeo,
     bushGeo,
-    flowerHeadGeo,
-    flowerStemGeo,
     brickMats,
     glassMat,
     frameMat,
@@ -301,28 +203,9 @@ export function createBlockResources(): BlockResources & {
     trimMat,
     trunkMat,
     leavesMat,
-    pineMat,
     towerMat,
-    sailMat,
     markingMat,
     bushMat,
-    flowerMats,
-    tulipPetalGeo,
-    windmillBrickMat,
-    windmillCapMat,
-    windmillDoorMat,
-    windmillBalconyMat,
-    tallGrassMat,
-    sunflowerYellowMat,
-    sunflowerCenterMat,
-    sunflowerLeafMat,
-    lakeMat,
-    lakeEdgeMat,
-    duckMat,
-    duckBeakMat,
-    cowBodyMat,
-    cowSpotMat,
-    cowPinkMat,
     trafficRedMat,
     trafficRedOnMat,
     trafficGreenMat,
@@ -330,20 +213,10 @@ export function createBlockResources(): BlockResources & {
     trafficOrangeMat,
     trafficOrangeOnMat,
     trafficHousingMat,
-    lakeCircleGeo,
-    lakeRingGeo,
-    duckBodyGeo,
-    duckHeadGeo,
     grassMat,
     roadMat,
     sidewalkMat,
-    allGeometries: [
-      ...sharedGeos,
-      lakeCircleGeo,
-      lakeRingGeo,
-      duckBodyGeo,
-      duckHeadGeo,
-    ],
+    allGeometries: sharedGeos,
     allMaterials,
   }
 }
@@ -571,171 +444,6 @@ export function createTree(res: BlockResources): THREE.Group {
   return g
 }
 
-export function createPine(res: BlockResources): THREE.Group {
-  const g = new THREE.Group()
-  const trunkH = rand(0.8, 1.5)
-  const trunk = new THREE.Mesh(res.trunkGeo, res.trunkMat)
-  trunk.scale.y = trunkH
-  trunk.position.y = trunkH / 2
-  g.add(trunk)
-
-  const layers = Math.floor(rand(2, 4))
-  const baseR = rand(0.6, 1.2)
-  const layerH = rand(1, 1.5)
-  for (let i = 0; i < layers; i++) {
-    const r = baseR * (1 - i * 0.2)
-    const cone = new THREE.Mesh(res.pineGeo, res.pineMat)
-    cone.scale.set(r, layerH, r)
-    cone.position.y = trunkH + i * layerH * 0.6 + layerH / 2
-    g.add(cone)
-  }
-
-  return g
-}
-
-export function createRandomTree(res: BlockResources): THREE.Group {
-  return Math.random() < 0.4 ? createPine(res) : createTree(res)
-}
-
-export function createWindmill(res: BlockResources): {
-  group: THREE.Group
-  sails: THREE.Group
-} {
-  const {
-    windmillBrickMat,
-    windmillCapMat,
-    windmillDoorMat,
-    windmillBalconyMat,
-  } = res
-  const g = new THREE.Group()
-  const towerH = rand(4, 6)
-  const baseR = 0.9
-  const topR = 0.5
-
-  // Tapered tower body (wider base, narrower top)
-  const towerBody = new THREE.Mesh(
-    new THREE.CylinderGeometry(topR, baseR, towerH, 8),
-    windmillBrickMat,
-  )
-  towerBody.position.y = towerH / 2
-  g.add(towerBody)
-
-  // Horizontal brick bands
-  for (let i = 1; i <= 3; i++) {
-    const bandY = towerH * (i / 4)
-    const r = baseR + (topR - baseR) * (i / 4) + 0.03
-    const band = new THREE.Mesh(res.boxGeo, res.trimMat)
-    band.scale.set(r * 2.1, 0.06, r * 2.1)
-    band.position.y = bandY
-    g.add(band)
-  }
-
-  // Onion-shaped cap (stretched sphere + cone)
-  const capBase = new THREE.Mesh(res.capGeo, windmillCapMat)
-  capBase.scale.set(topR + 0.1, 0.5, topR + 0.1)
-  capBase.position.y = towerH + 0.15
-  g.add(capBase)
-
-  const capTip = new THREE.Mesh(res.pineGeo, windmillCapMat)
-  capTip.scale.set(0.2, 0.6, 0.2)
-  capTip.position.y = towerH + 0.7
-  g.add(capTip)
-
-  // Balcony/gallery around the top
-  const balconyR = topR + 0.25
-  const balcony = new THREE.Mesh(
-    new THREE.CylinderGeometry(balconyR, balconyR, 0.06, 10),
-    windmillBalconyMat,
-  )
-  balcony.position.y = towerH - 0.1
-  g.add(balcony)
-
-  // Balcony railing posts
-  for (let i = 0; i < 8; i++) {
-    const angle = (i / 8) * Math.PI * 2
-    const post = new THREE.Mesh(res.boxGeo, windmillBalconyMat)
-    post.scale.set(0.04, 0.25, 0.04)
-    post.position.set(
-      Math.cos(angle) * balconyR,
-      towerH + 0.02,
-      Math.sin(angle) * balconyR,
-    )
-    g.add(post)
-  }
-
-  // Door at base
-  const door = new THREE.Mesh(res.boxGeo, windmillDoorMat)
-  door.scale.set(0.45, 0.8, 0.08)
-  door.position.set(0, 0.4, baseR + 0.01)
-  g.add(door)
-
-  // Door frame
-  const doorFrame = new THREE.Mesh(res.boxGeo, res.trimMat)
-  doorFrame.scale.set(0.55, 0.9, 0.06)
-  doorFrame.position.set(0, 0.4, baseR - 0.01)
-  g.add(doorFrame)
-
-  // Small windows
-  for (let i = 1; i <= 2; i++) {
-    const wy = towerH * (i / 3)
-    const wr = baseR + (topR - baseR) * (i / 3)
-    const win = new THREE.Mesh(res.boxGeo, res.glassMat)
-    win.scale.set(0.2, 0.3, 0.06)
-    win.position.set(0, wy, wr + 0.02)
-    g.add(win)
-    const winFrame = new THREE.Mesh(res.boxGeo, res.frameMat)
-    winFrame.scale.set(0.26, 0.36, 0.04)
-    winFrame.position.set(0, wy, wr)
-    g.add(winFrame)
-  }
-
-  // Sails — lattice-style with spine + cross-bars
-  const sails = new THREE.Group()
-  sails.name = 'sails'
-  sails.position.y = towerH * 0.85
-  sails.position.z = topR + 0.15
-  const sailLen = rand(2.5, 3.5)
-
-  for (let i = 0; i < 4; i++) {
-    const arm = new THREE.Group()
-    arm.rotation.z = (i * Math.PI) / 2
-
-    // Main spine
-    const spine = new THREE.Mesh(res.boxGeo, windmillBalconyMat)
-    spine.scale.set(0.08, sailLen, 0.04)
-    spine.position.y = sailLen / 2
-    arm.add(spine)
-
-    // Sail cloth (offset to one side of spine, like real windmills)
-    const clothW = sailLen * 0.22
-    const cloth = new THREE.Mesh(res.boxGeo, res.sailMat)
-    cloth.scale.set(clothW, sailLen * 0.85, 0.02)
-    cloth.position.set(clothW / 2 + 0.04, sailLen * 0.5, 0)
-    arm.add(cloth)
-
-    // Cross-bars along the spine
-    const bars = 5
-    for (let b = 0; b < bars; b++) {
-      const by = sailLen * 0.15 + (b / bars) * sailLen * 0.75
-      const bar = new THREE.Mesh(res.boxGeo, windmillBalconyMat)
-      bar.scale.set(clothW + 0.1, 0.03, 0.03)
-      bar.position.set(clothW / 2, by, 0)
-      arm.add(bar)
-    }
-
-    sails.add(arm)
-  }
-
-  // Hub at sail center
-  const hub = new THREE.Mesh(res.capGeo, windmillCapMat)
-  hub.scale.setScalar(0.15)
-  sails.add(hub)
-
-  g.add(sails)
-
-  return { group: g, sails }
-}
-
 export function createRoadMarking(res: BlockResources): THREE.Mesh {
   const marking = new THREE.Mesh(res.boxGeo, res.markingMat)
   marking.scale.set(0.15, 0.02, 1.5)
@@ -753,332 +461,6 @@ export function createBush(res: BlockResources): THREE.Group {
     mesh.position.set(rand(-0.2, 0.2), s * 0.3, rand(-0.2, 0.2))
     g.add(mesh)
   }
-  return g
-}
-
-export function createFlowerCluster(res: BlockResources): THREE.Group {
-  const g = new THREE.Group()
-  const count = Math.floor(rand(3, 7))
-  for (let i = 0; i < count; i++) {
-    const h = rand(0.2, 0.45)
-    const mat =
-      res.flowerMats[Math.floor(Math.random() * res.flowerMats.length)]
-    const stem = new THREE.Mesh(res.flowerStemGeo, res.bushMat)
-    stem.scale.y = h
-    stem.position.set(rand(-0.3, 0.3), h / 2, rand(-0.3, 0.3))
-    g.add(stem)
-    const head = new THREE.Mesh(res.flowerHeadGeo, mat)
-    head.position.set(stem.position.x, h + 0.06, stem.position.z)
-    g.add(head)
-  }
-  return g
-}
-
-export function createTulipField(
-  res: BlockResources,
-  large = false,
-): THREE.Group {
-  const g = new THREE.Group()
-  const rows = large ? Math.floor(rand(8, 13)) : Math.floor(rand(4, 7))
-  const cols = large ? Math.floor(rand(16, 25)) : Math.floor(rand(8, 15))
-  const rowSpacing = 0.25
-  const colSpacing = 0.18
-  let numColors: number
-  if (large) numColors = Math.floor(rand(2, 4))
-  else numColors = Math.random() < 0.5 ? 1 : 2
-  const colorA =
-    res.flowerMats[Math.floor(Math.random() * res.flowerMats.length)]
-  const colorB =
-    numColors >= 2
-      ? res.flowerMats[Math.floor(Math.random() * res.flowerMats.length)]
-      : colorA
-  const colorC =
-    numColors >= 3
-      ? res.flowerMats[Math.floor(Math.random() * res.flowerMats.length)]
-      : colorA
-
-  const stemGeos: THREE.BufferGeometry[] = []
-  const headsByMat = new Map<THREE.Material, THREE.BufferGeometry[]>()
-
-  for (let r = 0; r < rows; r++) {
-    const mat =
-      numColors >= 3
-        ? [colorA, colorB, colorC][r % 3]
-        : r % 2 === 0
-          ? colorA
-          : colorB
-    if (!headsByMat.has(mat)) headsByMat.set(mat, [])
-    const heads = headsByMat.get(mat) ?? []
-    for (let c = 0; c < cols; c++) {
-      const h = rand(0.3, 0.5)
-      const x = c * colSpacing - (cols * colSpacing) / 2 + rand(-0.03, 0.03)
-      const z = r * rowSpacing - (rows * rowSpacing) / 2 + rand(-0.03, 0.03)
-
-      const sg = res.flowerStemGeo.clone()
-      sg.scale(1, h, 1)
-      sg.translate(x, h / 2, z)
-      stemGeos.push(sg)
-
-      const hg = res.tulipPetalGeo.clone()
-      const m = new THREE.Matrix4()
-      m.makeRotationFromEuler(
-        new THREE.Euler(rand(-0.15, 0.15), 0, rand(-0.15, 0.15)),
-      )
-      m.setPosition(x, h + 0.08, z)
-      hg.applyMatrix4(m)
-      heads.push(hg)
-    }
-  }
-
-  if (stemGeos.length > 0)
-    g.add(
-      new THREE.Mesh(
-        BufferGeometryUtils.mergeGeometries(stemGeos),
-        res.bushMat,
-      ),
-    )
-  for (const [mat, geos] of headsByMat)
-    g.add(new THREE.Mesh(BufferGeometryUtils.mergeGeometries(geos), mat))
-  return g
-}
-
-export function createGrassTuft(res: BlockResources): THREE.Group {
-  const g = new THREE.Group()
-  const blades = Math.floor(rand(5, 12))
-  const geos: THREE.BufferGeometry[] = []
-  for (let i = 0; i < blades; i++) {
-    const h = rand(0.15, 0.4)
-    const bg = res.flowerStemGeo.clone()
-    bg.scale(1.5, h, 1.5)
-    const m = new THREE.Matrix4()
-    m.makeRotationFromEuler(
-      new THREE.Euler(rand(-0.2, 0.2), 0, rand(-0.2, 0.2)),
-    )
-    m.setPosition(rand(-0.2, 0.2), h / 2, rand(-0.2, 0.2))
-    bg.applyMatrix4(m)
-    geos.push(bg)
-  }
-  if (geos.length > 0)
-    g.add(
-      new THREE.Mesh(
-        BufferGeometryUtils.mergeGeometries(geos),
-        res.tallGrassMat,
-      ),
-    )
-  return g
-}
-
-export function createSunflowerPatch(res: BlockResources): THREE.Group {
-  const { sunflowerYellowMat, sunflowerCenterMat, sunflowerLeafMat } = res
-  const g = new THREE.Group()
-  const count = Math.floor(rand(5, 12))
-  const stemGeos: THREE.BufferGeometry[] = []
-  const petalGeos: THREE.BufferGeometry[] = []
-  const centerGeos: THREE.BufferGeometry[] = []
-  const leafGeos: THREE.BufferGeometry[] = []
-  for (let i = 0; i < count; i++) {
-    const h = rand(0.8, 1.4)
-    const sx = rand(-1.5, 1.5)
-    const sz = rand(-1.5, 1.5)
-
-    const sg = res.flowerStemGeo.clone()
-    sg.scale(2, h, 2)
-    sg.translate(sx, h / 2, sz)
-    stemGeos.push(sg)
-
-    const pg = res.flowerHeadGeo.clone()
-    pg.scale(2.5, 2.5, 0.5)
-    pg.translate(sx, h + 0.05, sz)
-    petalGeos.push(pg)
-
-    const cg = res.flowerHeadGeo.clone()
-    cg.scale(1.4, 1.4, 0.7)
-    cg.translate(sx, h + 0.06, sz)
-    centerGeos.push(cg)
-
-    if (Math.random() < 0.6) {
-      const lg = res.bushGeo.clone()
-      lg.scale(0.12, 0.06, 0.15)
-      lg.translate(sx + 0.1, h * 0.5, sz)
-      leafGeos.push(lg)
-    }
-  }
-  if (stemGeos.length > 0) {
-    g.add(
-      new THREE.Mesh(
-        BufferGeometryUtils.mergeGeometries(stemGeos.concat(leafGeos)),
-        sunflowerLeafMat,
-      ),
-    )
-    g.add(
-      new THREE.Mesh(
-        BufferGeometryUtils.mergeGeometries(petalGeos),
-        sunflowerYellowMat,
-      ),
-    )
-    g.add(
-      new THREE.Mesh(
-        BufferGeometryUtils.mergeGeometries(centerGeos),
-        sunflowerCenterMat,
-      ),
-    )
-  }
-  return g
-}
-
-export function createLake(res: BlockResources): THREE.Group {
-  const {
-    lakeMat,
-    lakeEdgeMat,
-    duckMat,
-    duckBeakMat,
-    lakeCircleGeo,
-    lakeRingGeo,
-    duckBodyGeo,
-    duckHeadGeo,
-  } = res
-
-  const g = new THREE.Group()
-  const w = rand(5, 10)
-  const d = rand(3, 7)
-
-  const water = new THREE.Mesh(lakeCircleGeo, lakeMat)
-  water.rotation.x = -Math.PI / 2
-  water.scale.set(w, d, 1)
-  water.position.y = 0.02
-  g.add(water)
-
-  const edge = new THREE.Mesh(lakeRingGeo, lakeEdgeMat)
-  edge.rotation.x = -Math.PI / 2
-  edge.scale.set(w, d, 1)
-  edge.position.y = 0.015
-  g.add(edge)
-
-  const grassCount = Math.floor(rand(3, 7))
-  for (let i = 0; i < grassCount; i++) {
-    const angle = rand(0, Math.PI * 2)
-    const bush = createBush(res)
-    bush.position.set(Math.cos(angle) * w * 0.95, 0, Math.sin(angle) * d * 0.95)
-    bush.scale.setScalar(rand(0.5, 0.8))
-    g.add(bush)
-  }
-
-  const duckCount = Math.floor(rand(2, 5))
-  const duckWhiteGeos: THREE.BufferGeometry[] = []
-  const duckBeakGeos: THREE.BufferGeometry[] = []
-  for (let i = 0; i < duckCount; i++) {
-    const dx = rand(-0.6, 0.6) * w
-    const dz = rand(-0.6, 0.6) * d
-    const dy = 0.02
-    const rot = rand(0, Math.PI * 2)
-    const cos = Math.cos(rot)
-    const sin = Math.sin(rot)
-
-    const bg = duckBodyGeo.clone()
-    bg.scale(1, 0.7, 1.3)
-    const bm = new THREE.Matrix4()
-      .makeRotationY(rot)
-      .setPosition(dx, dy + 0.05, dz)
-    bg.applyMatrix4(bm)
-    duckWhiteGeos.push(bg)
-
-    const hg = duckHeadGeo.clone()
-    const hm = new THREE.Matrix4()
-      .makeRotationY(rot)
-      .setPosition(dx + sin * 0.12, dy + 0.1, dz + cos * 0.12)
-    hg.applyMatrix4(hm)
-    duckWhiteGeos.push(hg)
-
-    const bkg = duckHeadGeo.clone()
-    bkg.scale(0.5, 0.4, 1)
-    const bkm = new THREE.Matrix4()
-      .makeRotationY(rot)
-      .setPosition(dx + sin * 0.17, dy + 0.09, dz + cos * 0.17)
-    bkg.applyMatrix4(bkm)
-    duckBeakGeos.push(bkg)
-  }
-  if (duckWhiteGeos.length > 0)
-    g.add(
-      new THREE.Mesh(
-        BufferGeometryUtils.mergeGeometries(duckWhiteGeos),
-        duckMat,
-      ),
-    )
-  if (duckBeakGeos.length > 0)
-    g.add(
-      new THREE.Mesh(
-        BufferGeometryUtils.mergeGeometries(duckBeakGeos),
-        duckBeakMat,
-      ),
-    )
-
-  return g
-}
-
-export function createCow(res: BlockResources): THREE.Group {
-  const { cowBodyMat, cowSpotMat, cowPinkMat } = res
-  const g = new THREE.Group()
-
-  const bodyGeos: THREE.BufferGeometry[] = []
-  const spotGeos: THREE.BufferGeometry[] = []
-  const pinkGeos: THREE.BufferGeometry[] = []
-
-  bodyGeos.push(scaledBoxGeo(res.boxGeo, 0.4, 0.35, 0.7, 0, 0.45, 0))
-  bodyGeos.push(scaledBoxGeo(res.boxGeo, 0.22, 0.22, 0.2, 0, 0.55, 0.4))
-
-  for (const side of [-1, 1])
-    bodyGeos.push(
-      scaledBoxGeo(res.boxGeo, 0.06, 0.06, 0.1, side * 0.14, 0.62, 0.38),
-    )
-
-  for (const xOff of [-0.12, 0.12])
-    for (const zOff of [-0.2, 0.2])
-      bodyGeos.push(
-        scaledBoxGeo(res.boxGeo, 0.08, 0.28, 0.08, xOff, 0.14, zOff),
-      )
-
-  const spots = Math.floor(rand(4, 8))
-  for (let i = 0; i < spots; i++) {
-    const sg = res.bushGeo.clone()
-    sg.scale(rand(0.1, 0.22), rand(0.08, 0.15), rand(0.12, 0.25))
-    const spotX = rand(-0.15, 0.15)
-    const spotZ = rand(-0.28, 0.28)
-    const spotY = 0.45 + rand(-0.04, 0.12)
-    sg.translate(spotX, spotY, spotZ)
-    spotGeos.push(sg)
-  }
-  if (Math.random() < 0.6) {
-    const hsg = res.bushGeo.clone()
-    hsg.scale(rand(0.06, 0.12), rand(0.05, 0.09), rand(0.06, 0.1))
-    hsg.translate(
-      rand(-0.06, 0.06),
-      0.55 + rand(0, 0.08),
-      0.4 + rand(-0.05, 0.05),
-    )
-    spotGeos.push(hsg)
-  }
-
-  const tg = res.flowerStemGeo.clone()
-  tg.scale(1, 0.3, 1)
-  const tm = new THREE.Matrix4()
-  tm.makeRotationX(rand(0.2, 0.5))
-  tm.setPosition(0, 0.5, -0.38)
-  tg.applyMatrix4(tm)
-  spotGeos.push(tg)
-
-  pinkGeos.push(scaledBoxGeo(res.boxGeo, 0.14, 0.1, 0.08, 0, 0.5, 0.5))
-
-  g.add(
-    new THREE.Mesh(BufferGeometryUtils.mergeGeometries(bodyGeos), cowBodyMat),
-  )
-  g.add(
-    new THREE.Mesh(BufferGeometryUtils.mergeGeometries(spotGeos), cowSpotMat),
-  )
-  g.add(
-    new THREE.Mesh(BufferGeometryUtils.mergeGeometries(pinkGeos), cowPinkMat),
-  )
-
-  g.rotation.y = rand(0, Math.PI * 2)
   return g
 }
 
@@ -1138,39 +520,27 @@ export function createCrossroads(res: BlockResources): {
   return { group: g, lights }
 }
 
-export function createMountainProfile(
-  segLen: number,
-  peaks: number,
-  minH: number,
-  maxH: number,
-): THREE.Shape {
-  const shape = new THREE.Shape()
-  shape.moveTo(0, -0.5)
-  shape.lineTo(0, 0)
-
-  const segWidth = segLen / peaks
-  for (let i = 0; i < peaks; i++) {
-    const x0 = i * segWidth
-    const peakX = x0 + segWidth * rand(0.3, 0.7)
-    const peakH = rand(minH, maxH)
-    const midX = x0 + segWidth * rand(0.1, 0.3)
-    const midH = rand(minH * 0.3, peakH * 0.5)
-
-    shape.lineTo(midX, midH)
-    shape.lineTo(peakX, peakH)
-    shape.lineTo(x0 + segWidth * rand(0.75, 0.9), rand(minH * 0.2, peakH * 0.4))
-  }
-
-  shape.lineTo(segLen, 0)
-  shape.lineTo(segLen, -0.5)
-  shape.lineTo(0, -0.5)
-
-  return shape
-}
-
 // ── Factory ─────────────────────────────────────────────────────────
 
-export function createBlocks(scene: THREE.Scene): BlocksState {
+function cloneBlockModel(
+  templates: THREE.Object3D[] | undefined,
+): THREE.Object3D | null {
+  if (!templates?.length) return null
+  return templates[Math.floor(Math.random() * templates.length)].clone()
+}
+
+function findMeshesByName(root: THREE.Object3D, name: string): THREE.Mesh[] {
+  const meshes: THREE.Mesh[] = []
+  root.traverse((c) => {
+    if (c instanceof THREE.Mesh && c.name === name) meshes.push(c)
+  })
+  return meshes
+}
+
+export function createBlocks(
+  scene: THREE.Scene,
+  models: LoadedBlockModels,
+): BlocksState {
   const group = new THREE.Group()
   group.position.y = GROUND_Y
   group.rotation.y = ROAD_ROTATION_Y
@@ -1202,47 +572,6 @@ export function createBlocks(scene: THREE.Scene): BlocksState {
   }
 
   scene.add(group)
-
-  // ── Parallax mountains ────────────────────────────────────────
-
-  interface MountainLayer {
-    meshL: THREE.Mesh
-    meshR: THREE.Mesh
-    speed: number
-  }
-
-  const mountainLayers: MountainLayer[] = []
-  const mtSegLen = groundLen * 2
-
-  const layerConfigs = [
-    { z: 35, minH: 3, maxH: 7, color: 0x6878a0, speed: 0.04, peaks: 8 },
-    { z: 26, minH: 2, maxH: 5, color: 0x4a6050, speed: 0.08, peaks: 10 },
-    { z: 20, minH: 1.5, maxH: 3.5, color: 0x3a5040, speed: 0.14, peaks: 14 },
-  ]
-
-  for (const cfg of layerConfigs) {
-    const mat = new THREE.MeshStandardMaterial({
-      color: cfg.color,
-      flatShading: true,
-      roughness: 0.95,
-      side: THREE.DoubleSide,
-      fog: false,
-    })
-    res.allMaterials.push(mat)
-
-    const shapeGeo = new THREE.ShapeGeometry(
-      createMountainProfile(mtSegLen, cfg.peaks, cfg.minH, cfg.maxH),
-    )
-    const meshL = new THREE.Mesh(shapeGeo, mat)
-    const meshR = new THREE.Mesh(shapeGeo, mat)
-    meshL.position.set(-mtSegLen / 2, GROUND_Y - 0.5, -cfg.z)
-    meshR.position.set(-mtSegLen / 2, GROUND_Y - 0.5, cfg.z)
-    meshL.renderOrder = -cfg.z
-    meshR.renderOrder = -cfg.z
-    scene.add(meshL, meshR)
-
-    mountainLayers.push({ meshL, meshR, speed: cfg.speed })
-  }
 
   // ── Lighting ────────────────────────────────────────────────────
 
@@ -1312,66 +641,59 @@ export function createBlocks(scene: THREE.Scene): BlocksState {
   function spawn(
     obj: THREE.Object3D,
     type: SpawnedObject['type'],
-    sails?: THREE.Group,
+    isGlbClone = false,
   ) {
     group.add(obj)
-    spawned.push({ group: obj, type, ...(sails && { sails }) })
+    spawned.push({ group: obj, type, isGlbClone })
   }
 
   function spawnMirrored(
     obj: THREE.Object3D,
     type: SpawnedObject['type'],
-    sails?: THREE.Group,
+    isGlbClone = false,
   ) {
-    spawn(obj, type, sails)
+    spawn(obj, type, isGlbClone)
     const mirror = obj.clone()
     mirror.position.x = -mirror.position.x
     mirror.rotation.y = Math.PI - mirror.rotation.y
-    const mirrorSails = sails
-      ? (mirror.getObjectByName('sails') as THREE.Group)
-      : undefined
-    spawn(mirror, type, mirrorSails)
+    spawn(mirror, type, isGlbClone)
   }
 
   function disposeObject(obj: SpawnedObject) {
     group.remove(obj.group)
-    obj.group.traverse((child) => {
-      if (child instanceof THREE.Mesh) child.geometry.dispose()
-    })
+    if (!obj.isGlbClone)
+      obj.group.traverse((child) => {
+        if (child instanceof THREE.Mesh) child.geometry.dispose()
+      })
+  }
+
+  function spawnClone(
+    category: keyof LoadedBlockModels,
+    type: SpawnedObject['type'],
+    x: number,
+    z: number,
+    mirror = true,
+  ) {
+    const obj = cloneBlockModel(models[category])
+    if (!obj) return
+    obj.position.set(x, 0, z)
+    if (mirror) spawnMirrored(obj, type, true)
+    else spawn(obj, type, true)
   }
 
   function spawnRow(z: number, zone: Zone) {
     if (zone === 'city' || zone === 'transition') {
-      if (zone === 'city' || Math.random() < 0.5) {
-        const house = createHouse(res)
-        house.position.set(rand(-4.5, -4.0), 0, z)
-        spawnMirrored(house, 'house')
-      }
+      if (zone === 'city' || Math.random() < 0.5)
+        spawnClone('house', 'house', rand(-4.5, -4.0), z)
 
-      if (zone === 'city' || Math.random() < 0.3) {
-        const house = createHouse(res)
-        house.position.set(rand(-11.5, -11.0), 0, z + rand(1.5, 3.5))
-        spawnMirrored(house, 'house')
-      }
+      if (zone === 'city' || Math.random() < 0.3)
+        spawnClone('house', 'house', rand(-11.5, -11.0), z + rand(1.5, 3.5))
 
-      if (Math.random() < 0.4) {
-        const tree = createTree(res)
-        tree.position.set(-rand(2.0, 6.0), 0, z + SPAWN_INTERVAL * 0.5)
-        spawnMirrored(tree, 'tree')
-      }
+      if (Math.random() < 0.4)
+        spawnClone('tree', 'tree', -rand(2.0, 6.0), z + SPAWN_INTERVAL * 0.5)
 
-      if (Math.random() < 0.08) {
-        const bush = createBush(res)
-        bush.position.set(-rand(2.0, 3.0), 0, z + rand(0, SPAWN_INTERVAL))
-        spawnMirrored(bush, 'bush')
-      }
-
-      if (Math.random() < 0.4) {
-        const flowers = createFlowerCluster(res)
-        flowers.position.set(-rand(2.5, 3.5), 0, z + rand(0, SPAWN_INTERVAL))
-        flowers.scale.setScalar(0.6)
-        spawnMirrored(flowers, 'flower')
-      }
+      if (Math.random() < 0.08)
+        spawnClone('bush', 'bush', -rand(2.0, 3.0), z + rand(0, SPAWN_INTERVAL))
     }
 
     const marking = createRoadMarking(res)
@@ -1379,110 +701,35 @@ export function createBlocks(scene: THREE.Scene): BlocksState {
     spawn(marking, 'marking')
 
     if (zone === 'nature' || zone === 'transition') {
-      // Trees near road
       if (zone === 'nature' || Math.random() < 0.5) {
         const count = Math.floor(rand(1, 3))
-        for (let i = 0; i < count; i++) {
-          const tree = createRandomTree(res)
-          tree.position.set(-rand(2.5, 8.0), 0, z + rand(0, SPAWN_INTERVAL) * i)
-          spawnMirrored(tree, 'tree')
-        }
+        for (let i = 0; i < count; i++)
+          spawnClone(
+            'tree',
+            'tree',
+            -rand(2.5, 8.0),
+            z + rand(0, SPAWN_INTERVAL) * i,
+          )
       }
 
-      // Bushes near road
       if (Math.random() < 0.8) {
         const bushCount = Math.floor(rand(1, 3))
-        for (let i = 0; i < bushCount; i++) {
-          const bush = createBush(res)
-          bush.position.set(-rand(2.0, 8.0), 0, z + rand(0, SPAWN_INTERVAL))
-          spawnMirrored(bush, 'bush')
-        }
+        for (let i = 0; i < bushCount; i++)
+          spawnClone(
+            'bush',
+            'bush',
+            -rand(2.0, 8.0),
+            z + rand(0, SPAWN_INTERVAL),
+          )
       }
 
-      // Trees and bushes beyond back roads
       if (zone === 'nature') {
         const treeCount = Math.floor(rand(2, 4))
-        for (let i = 0; i < treeCount; i++) {
-          const tree = createRandomTree(res)
-          tree.position.set(-rand(11, 22), 0, z + rand(0, SPAWN_INTERVAL))
-          spawnMirrored(tree, 'tree')
-        }
+        for (let i = 0; i < treeCount; i++)
+          spawnClone('tree', 'tree', -rand(11, 22), z + rand(0, SPAWN_INTERVAL))
         const bushCount = Math.floor(rand(2, 3))
-        for (let i = 0; i < bushCount; i++) {
-          const bush = createBush(res)
-          bush.position.set(-rand(11, 20), 0, z + rand(0, SPAWN_INTERVAL))
-          spawnMirrored(bush, 'bush')
-        }
-      }
-
-      // Sunflower patches
-      if (zone === 'nature' && Math.random() < 0.23) {
-        const patch = createSunflowerPatch(res)
-        patch.position.set(-rand(5, 18), 0, z + rand(0, SPAWN_INTERVAL))
-        spawnMirrored(patch, 'flower')
-      }
-
-      // Grass tufts
-      if (zone === 'nature') {
-        const tufts = Math.floor(rand(3, 5))
-        for (let i = 0; i < tufts; i++) {
-          const grass = createGrassTuft(res)
-          grass.position.set(-rand(2, 22), 0, z + rand(0, SPAWN_INTERVAL))
-          spawnMirrored(grass, 'bush')
-        }
-      }
-
-      // Flowers
-      if (zone === 'nature' && Math.random() < 0.65) {
-        const flowers = createFlowerCluster(res)
-        flowers.position.set(-rand(2.0, 6.0), 0, z + rand(0, SPAWN_INTERVAL))
-        spawnMirrored(flowers, 'flower')
-      }
-
-      // Tulip fields near road
-      if (zone === 'nature' && Math.random() < 0.13) {
-        const field = createTulipField(res)
-        field.position.set(-rand(3, 8), 0, z + rand(0, SPAWN_INTERVAL))
-        field.rotation.y = rand(-0.15, 0.15)
-        spawnMirrored(field, 'tulipfield')
-      }
-
-      // Large tulip fields beyond back roads
-      if (zone === 'nature' && Math.random() < 0.2) {
-        const field = createTulipField(res, true)
-        field.position.set(-rand(12, 20), 0, z + rand(0, SPAWN_INTERVAL))
-        field.rotation.y = rand(-0.15, 0.15)
-        spawnMirrored(field, 'tulipfield')
-      }
-
-      // Lakes
-      if (zone === 'nature' && Math.random() < 0.2) {
-        const lake = createLake(res)
-        lake.position.set(-rand(14, 22), 0, z + rand(0, SPAWN_INTERVAL))
-        lake.rotation.y = rand(0, Math.PI)
-        spawnMirrored(lake, 'lake')
-      }
-
-      // Cows in small herds
-      if (zone === 'nature' && Math.random() < 0.35) {
-        const herd = new THREE.Group()
-        const herdSize = Math.floor(rand(2, 4))
-        const baseX = -rand(12, 19)
-        const baseZ = z + rand(0, SPAWN_INTERVAL)
-        for (let i = 0; i < herdSize; i++) {
-          const cow = createCow(res)
-          cow.position.set(baseX + rand(-2, 2), 0, baseZ + rand(-2, 2))
-          herd.add(cow)
-        }
-        spawnMirrored(herd, 'cow')
-      }
-
-      // Rare windmills
-      if (zone === 'nature' && Math.random() < 0.08) {
-        const wm = createWindmill(res)
-        wm.group.position.set(-rand(6.0, 10.0), 0, z)
-        wm.group.rotation.y = Math.PI
-        spawnMirrored(wm.group, 'windmill', wm.sails)
+        for (let i = 0; i < bushCount; i++)
+          spawnClone('bush', 'bush', -rand(11, 20), z + rand(0, SPAWN_INTERVAL))
       }
     }
   }
@@ -1528,11 +775,25 @@ export function createBlocks(scene: THREE.Scene): BlocksState {
       cycleOffset >= CROSSROADS_SPAWN_OFFSET
     ) {
       crossroadsSpawned = true
-      const cr = createCrossroads(res)
-      cr.group.position.set(0, 0, SPAWN_Z)
-      spawn(cr.group, 'crossroads')
-      crossroadsGroup = cr.group
-      crossroadsLights = cr.lights
+      if (models.crossroads?.length) {
+        const clone = cloneBlockModel(models.crossroads)
+        if (clone) {
+          clone.position.set(0, 0, SPAWN_Z)
+          spawn(clone, 'crossroads', true)
+          crossroadsGroup = clone as THREE.Group
+          crossroadsLights = {
+            red: findMeshesByName(clone, 'red'),
+            yellow: findMeshesByName(clone, 'yellow'),
+            green: findMeshesByName(clone, 'green'),
+          }
+        }
+      } else {
+        const cr = createCrossroads(res)
+        cr.group.position.set(0, 0, SPAWN_Z)
+        spawn(cr.group, 'crossroads')
+        crossroadsGroup = cr.group
+        crossroadsLights = cr.lights
+      }
     }
     prevCycleOffset = cycleOffset
 
@@ -1623,20 +884,6 @@ export function createBlocks(scene: THREE.Scene): BlocksState {
       }
     }
 
-    for (const obj of spawned) {
-      if (obj.sails) obj.sails.rotation.z += delta * 1.0
-    }
-
-    for (const { meshL, meshR, speed } of mountainLayers) {
-      const mdx = roadSpeed * speed * delta
-      meshL.position.x += mdx
-      meshR.position.x += mdx
-      if (meshL.position.x < -mtSegLen) {
-        meshL.position.x += mtSegLen
-        meshR.position.x += mtSegLen
-      }
-    }
-
     // Pedaling bob & vibration — scale with speed
     const speedRatio = Math.abs(roadSpeed / DEFAULT_ROAD_SPEED)
     const vibrationX =
@@ -1676,14 +923,20 @@ export function createBlocks(scene: THREE.Scene): BlocksState {
       s.light.castShadow = s.castShadow
     }
 
-    for (const { meshL, meshR } of mountainLayers) {
-      scene.remove(meshL, meshR)
-      meshL.geometry.dispose()
-      meshR.geometry.dispose()
-    }
-
     for (const geo of res.allGeometries) geo.dispose()
     for (const mat of res.allMaterials) mat.dispose()
+
+    for (const templates of Object.values(models))
+      for (const tpl of templates as THREE.Object3D[])
+        tpl.traverse((child) => {
+          if (child instanceof THREE.Mesh) {
+            child.geometry.dispose()
+            const mats = Array.isArray(child.material)
+              ? child.material
+              : [child.material]
+            for (const m of mats) m.dispose()
+          }
+        })
 
     scene.remove(group)
   }
