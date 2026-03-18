@@ -19,7 +19,7 @@ export const scenes: Record<string, SceneConfig> = {
     models: [
       {
         path: `${base}assets/scenes/low_poly_bicycle.glb`,
-        position: [0, -0.9, 0],
+        position: [0.4, -2.0, 0],
         rotation: [0, 1.25, 0],
       },
     ],
