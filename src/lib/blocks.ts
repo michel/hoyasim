@@ -4,18 +4,18 @@ import type { LoadedBlockModels } from '@/lib/blockModelLoader'
 
 // ── Constants ────────────────────────────────────────────────────────
 
-const SPAWN_Z = 100
-const CULL_Z = -60
-const VISIBLE_Z = 90
-const GROUND_Y = -0.9
+const SPAWN_Z = 350
+const CULL_Z = -210
+const VISIBLE_Z = 315
+const GROUND_Y = -3.15
 const ROAD_ROTATION_Y = 1.25
-const DEFAULT_ROAD_SPEED = -5.0
-const SPEED_STEP = 1.0
-const MIN_ROAD_SPEED = -10.0
-const MAX_ROAD_SPEED = -1.0
-const SPAWN_INTERVAL = 6
-const CYCLE_LENGTH = 150
-const CROSSROADS_SPAWN_OFFSET = 24
+const DEFAULT_ROAD_SPEED = -17.5
+const SPEED_STEP = 3.5
+const MIN_ROAD_SPEED = -35
+const MAX_ROAD_SPEED = -3.5
+const SPAWN_INTERVAL = 30
+const CYCLE_LENGTH = 525
+const CROSSROADS_SPAWN_OFFSET = 84
 const STOP_DURATION = 10
 const BRAKE_DURATION = 1.5
 const ACCEL_DURATION = 2.0
@@ -446,8 +446,8 @@ export function createTree(res: BlockResources): THREE.Group {
 
 export function createRoadMarking(res: BlockResources): THREE.Mesh {
   const marking = new THREE.Mesh(res.boxGeo, res.markingMat)
-  marking.scale.set(0.15, 0.02, 1.5)
-  marking.position.set(0, 0.01, 0)
+  marking.scale.set(0.525, 0.07, 5.25)
+  marking.position.set(0, 0.035, 0)
   return marking
 }
 
@@ -481,39 +481,39 @@ export function createCrossroads(res: BlockResources): {
   const g = new THREE.Group()
   const lights: TrafficLights = { red: [], yellow: [], green: [] }
 
-  for (const x of [2.2, -2.2]) {
+  for (const x of [7.7, -7.7]) {
     const pole = new THREE.Mesh(res.boxGeo, res.towerMat)
-    pole.scale.set(0.08, 2, 0.08)
-    pole.position.set(x, 1, 0)
+    pole.scale.set(0.28, 7, 0.28)
+    pole.position.set(x, 3.5, 0)
     g.add(pole)
 
     const housing = new THREE.Mesh(res.boxGeo, res.trafficHousingMat)
-    housing.scale.set(0.4, 0.9, 0.25)
-    housing.position.set(x, 2.2, 0)
+    housing.scale.set(1.4, 3.15, 0.875)
+    housing.position.set(x, 7.7, 0)
     g.add(housing)
 
     const light = (mat: THREE.Material, y: number) => {
       const mesh = new THREE.Mesh(res.capGeo, mat)
-      mesh.scale.setScalar(0.1)
-      mesh.position.set(x, y, -0.13)
+      mesh.scale.setScalar(0.35)
+      mesh.position.set(x, y, -0.455)
       g.add(mesh)
       return mesh
     }
 
-    lights.red.push(light(res.trafficRedMat, 2.48))
-    lights.yellow.push(light(res.trafficOrangeMat, 2.2))
-    lights.green.push(light(res.trafficGreenOnMat, 1.92))
+    lights.red.push(light(res.trafficRedMat, 8.68))
+    lights.yellow.push(light(res.trafficOrangeMat, 7.7))
+    lights.green.push(light(res.trafficGreenOnMat, 6.72))
   }
 
   // Zebra crossing — white stripes across road width
   const stripeCount = 7
-  const roadWidth = 3
-  const stripeWidth = 1.0
+  const roadWidth = 10.5
+  const stripeWidth = 3.5
   const gap = roadWidth / stripeCount
   for (let i = 0; i < stripeCount; i++) {
     const stripe = new THREE.Mesh(res.boxGeo, res.markingMat)
-    stripe.scale.set(gap * 0.7, 0.02, stripeWidth)
-    stripe.position.set(-roadWidth / 2 + gap * (i + 0.5), 0.015, 0)
+    stripe.scale.set(gap * 0.7, 0.07, stripeWidth)
+    stripe.position.set(-roadWidth / 2 + gap * (i + 0.5), 0.0525, 0)
     g.add(stripe)
   }
 
@@ -550,22 +550,22 @@ export function createBlocks(
   // ── Static ground geometry ──────────────────────────────────────
 
   const staticMeshes: THREE.Mesh[] = []
-  const groundLen = 400
+  const groundLen = 1400
 
   const groundStrips: [number, THREE.Material, number, number][] = [
-    [60, res.grassMat, 0, -0.01],
-    [3, res.roadMat, 0, 0],
-    [0.6, res.sidewalkMat, -1.8, 0.001],
-    [0.6, res.sidewalkMat, 1.8, 0.001],
-    [2, res.roadMat, 9, 0],
-    [2, res.roadMat, -9, 0],
-    [0.5, res.sidewalkMat, 10.3, 0.001],
-    [0.5, res.sidewalkMat, -10.3, 0.001],
+    [210, res.grassMat, 0, -0.035],
+    [10.5, res.roadMat, 0, 0],
+    [2.1, res.sidewalkMat, -6.3, 0.0035],
+    [2.1, res.sidewalkMat, 6.3, 0.0035],
+    [7, res.roadMat, 31.5, 0],
+    [7, res.roadMat, -31.5, 0],
+    [1.75, res.sidewalkMat, 36.05, 0.0035],
+    [1.75, res.sidewalkMat, -36.05, 0.0035],
   ]
   for (const [width, mat, x, y] of groundStrips) {
     const mesh = new THREE.Mesh(new THREE.PlaneGeometry(width, groundLen), mat)
     mesh.rotation.x = -Math.PI / 2
-    mesh.position.set(x, y, 30)
+    mesh.position.set(x, y, 105)
     if (y < 0) mesh.receiveShadow = true
     group.add(mesh)
     staticMeshes.push(mesh)
@@ -605,12 +605,12 @@ export function createBlocks(
       child.intensity = 0.8
       child.castShadow = true
       child.shadow.mapSize.set(128, 128)
-      child.shadow.camera.left = -15
-      child.shadow.camera.right = 15
-      child.shadow.camera.top = 15
-      child.shadow.camera.bottom = -15
+      child.shadow.camera.left = -52.5
+      child.shadow.camera.right = 52.5
+      child.shadow.camera.top = 52.5
+      child.shadow.camera.bottom = -52.5
       child.shadow.camera.near = 0.1
-      child.shadow.camera.far = 30
+      child.shadow.camera.far = 105
     }
   })
 
@@ -684,16 +684,21 @@ export function createBlocks(
   function spawnRow(z: number, zone: Zone) {
     if (zone === 'city' || zone === 'transition') {
       if (zone === 'city' || Math.random() < 0.5)
-        spawnClone('house', 'house', rand(-4.5, -4.0), z)
+        spawnClone('house', 'house', rand(-15.75, -14.0), z)
 
       if (zone === 'city' || Math.random() < 0.3)
-        spawnClone('house', 'house', rand(-11.5, -11.0), z + rand(1.5, 3.5))
+        spawnClone('house', 'house', rand(-40.25, -38.5), z + rand(5.25, 12.25))
 
       if (Math.random() < 0.4)
-        spawnClone('tree', 'tree', -rand(2.0, 6.0), z + SPAWN_INTERVAL * 0.5)
+        spawnClone('tree', 'tree', -rand(10.0, 21.0), z + SPAWN_INTERVAL * 0.5)
 
       if (Math.random() < 0.08)
-        spawnClone('bush', 'bush', -rand(2.0, 3.0), z + rand(0, SPAWN_INTERVAL))
+        spawnClone(
+          'bush',
+          'bush',
+          -rand(7.0, 10.5),
+          z + rand(0, SPAWN_INTERVAL),
+        )
     }
 
     const marking = createRoadMarking(res)
@@ -707,7 +712,7 @@ export function createBlocks(
           spawnClone(
             'tree',
             'tree',
-            -rand(2.5, 8.0),
+            -rand(12.0, 28.0),
             z + rand(0, SPAWN_INTERVAL) * i,
           )
       }
@@ -718,7 +723,7 @@ export function createBlocks(
           spawnClone(
             'bush',
             'bush',
-            -rand(2.0, 8.0),
+            -rand(7.0, 28.0),
             z + rand(0, SPAWN_INTERVAL),
           )
       }
@@ -726,10 +731,20 @@ export function createBlocks(
       if (zone === 'nature') {
         const treeCount = Math.floor(rand(2, 4))
         for (let i = 0; i < treeCount; i++)
-          spawnClone('tree', 'tree', -rand(11, 22), z + rand(0, SPAWN_INTERVAL))
+          spawnClone(
+            'tree',
+            'tree',
+            -rand(38.5, 77.0),
+            z + rand(0, SPAWN_INTERVAL),
+          )
         const bushCount = Math.floor(rand(2, 3))
         for (let i = 0; i < bushCount; i++)
-          spawnClone('bush', 'bush', -rand(11, 20), z + rand(0, SPAWN_INTERVAL))
+          spawnClone(
+            'bush',
+            'bush',
+            -rand(38.5, 70.0),
+            z + rand(0, SPAWN_INTERVAL),
+          )
       }
     }
   }
@@ -802,7 +817,7 @@ export function createBlocks(
       roadSpeed = targetSpeed
       if (crossroadsGroup) {
         const dynamicBrakeThreshold =
-          (Math.abs(targetSpeed) * BRAKE_DURATION) / 2 + 3
+          (Math.abs(targetSpeed) * BRAKE_DURATION) / 2 + 10.5
         if (crossroadsGroup.position.z < dynamicBrakeThreshold) {
           crossroadsState = 'braking'
           speedAtBrakeStart = roadSpeed
@@ -868,7 +883,7 @@ export function createBlocks(
       if (
         obj.type === 'marking' &&
         crossroadsGroup &&
-        Math.abs(obj.group.position.z - crossroadsGroup.position.z) < 1.0
+        Math.abs(obj.group.position.z - crossroadsGroup.position.z) < 3.5
       )
         obj.group.visible = false
     }
