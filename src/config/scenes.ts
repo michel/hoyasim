@@ -21,6 +21,7 @@ export const scenes: Record<string, SceneConfig> = {
         path: `${base}assets/scenes/low_poly_bicycle.glb`,
         position: [0.4, -3.15, 0],
         rotation: [0, 1.25, 0],
+        scale: 2.0,
       },
     ],
     effects: { blocks: true },
