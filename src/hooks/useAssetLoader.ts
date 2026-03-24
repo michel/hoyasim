@@ -2,9 +2,9 @@ import { useEffect, useRef, useState } from 'react'
 import * as THREE from 'three'
 import { EXRLoader } from 'three/addons/loaders/EXRLoader.js'
 import { RGBELoader } from 'three/addons/loaders/RGBELoader.js'
-import { blockModelManifest } from '@/config/blockModels'
+import { landscapeSequence } from '@/config/blockModels'
 import type { SceneConfig, SceneModel } from '@/config/scenes'
-import { loadBlockModels } from '@/lib/blockModelLoader'
+import { loadLandscapeBlocks } from '@/lib/blockModelLoader'
 import { type BlocksState, createBlocks } from '@/lib/blocks'
 import { type GlassesState, loadGlasses } from '@/lib/glasses'
 import { gltfLoader } from '@/lib/loaders'
@@ -61,7 +61,7 @@ export function useAssetLoader(
         }
         texture.mapping = THREE.EquirectangularReflectionMapping
         scene.background = texture
-        if (hasBlocks) scene.fog = new THREE.Fog(0x5da6e6, 40, 120)
+        if (hasBlocks) scene.fog = new THREE.Fog(0x5da6e6, 80, 250)
         resolve()
       }
       const onError = () => reject(new Error('Failed to load scene texture'))
@@ -122,7 +122,7 @@ export function useAssetLoader(
     })
 
     const blockModelsPromise = hasBlocks
-      ? loadBlockModels(blockModelManifest)
+      ? loadLandscapeBlocks(landscapeSequence)
       : Promise.resolve(undefined)
 
     const assetPromise = Promise.all([

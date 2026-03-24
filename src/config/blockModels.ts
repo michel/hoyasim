@@ -1,26 +1,43 @@
-export type BlockCategory = 'house' | 'tree' | 'bush' | 'crossroads'
-
-export interface BlockModelEntry {
+export interface LandscapeBlock {
   path: string
-  scale?: number | [number, number, number]
-  yOffset?: number
-  rotationY?: number
+  side: 'left' | 'right'
 }
-
-export type BlockModelManifest = Partial<
-  Record<BlockCategory, BlockModelEntry[]>
->
 
 const base = import.meta.env.BASE_URL
 
-export const blockModelManifest: BlockModelManifest = {
-  house: [{ path: `${base}assets/blocks/buildings/house1.glb` }],
-  tree: [
-    { path: `${base}assets/blocks/trees/tree1.glb`, scale: 1.5 },
-    { path: `${base}assets/blocks/trees/tree2.glb`, scale: 3.5 },
-  ],
-  bush: [
-    { path: `${base}assets/blocks/bushes/bush1.glb`, scale: 3.5 },
-    { path: `${base}assets/blocks/bushes/bush2.glb`, scale: 3.5 },
-  ],
-}
+// Ordered sequence: city (3 pairs) → city_nature (1 pair) → nature (3 pairs) → nature_city (1 pair)
+// Each pair is [left, right]. The sequence loops.
+export const landscapeSequence: LandscapeBlock[] = [
+  // City
+  { path: `${base}assets/blocks/landscape/city_left1.glb`, side: 'left' },
+  { path: `${base}assets/blocks/landscape/city_right1.glb`, side: 'right' },
+  { path: `${base}assets/blocks/landscape/city_left2.glb`, side: 'left' },
+  { path: `${base}assets/blocks/landscape/city_right2.glb`, side: 'right' },
+  { path: `${base}assets/blocks/landscape/city_left3.glb`, side: 'left' },
+  { path: `${base}assets/blocks/landscape/city_right3.glb`, side: 'right' },
+  // City → Nature
+  {
+    path: `${base}assets/blocks/landscape/city_nature_left1.glb`,
+    side: 'left',
+  },
+  {
+    path: `${base}assets/blocks/landscape/city_nature_right1.glb`,
+    side: 'right',
+  },
+  // Nature
+  { path: `${base}assets/blocks/landscape/nature_left1.glb`, side: 'left' },
+  { path: `${base}assets/blocks/landscape/nature_right1.glb`, side: 'right' },
+  { path: `${base}assets/blocks/landscape/nature_left2.glb`, side: 'left' },
+  { path: `${base}assets/blocks/landscape/nature_right2.glb`, side: 'right' },
+  { path: `${base}assets/blocks/landscape/nature_left3.glb`, side: 'left' },
+  { path: `${base}assets/blocks/landscape/nature_right3.glb`, side: 'right' },
+  // Nature → City
+  {
+    path: `${base}assets/blocks/landscape/nature_city_left1.glb`,
+    side: 'left',
+  },
+  {
+    path: `${base}assets/blocks/landscape/nature_city_right1.glb`,
+    side: 'right',
+  },
+]

@@ -1,23 +1,8 @@
 import type * as THREE from 'three'
-import type {
-  BlockCategory,
-  BlockModelEntry,
-  BlockModelManifest,
-} from '@/config/blockModels'
+import type { LandscapeBlock } from '@/config/blockModels'
 import { gltfLoader } from '@/lib/loaders'
 
-export type LoadedBlockModels = Partial<Record<BlockCategory, THREE.Object3D[]>>
-
-function applyEntry(obj: THREE.Object3D, entry: BlockModelEntry) {
-  if (entry.scale != null) {
-    const s = Array.isArray(entry.scale)
-      ? entry.scale
-      : [entry.scale, entry.scale, entry.scale]
-    obj.scale.set(...(s as [number, number, number]))
-  }
-  if (entry.yOffset != null) obj.position.y = entry.yOffset
-  if (entry.rotationY != null) obj.rotation.y = entry.rotationY
-}
+export type LoadedLandscapeBlocks = THREE.Object3D[]
 
 function loadOne(path: string): Promise<THREE.Object3D> {
   return new Promise((resolve, reject) => {
@@ -30,32 +15,18 @@ function loadOne(path: string): Promise<THREE.Object3D> {
   })
 }
 
-export async function loadBlockModels(
-  manifest: BlockModelManifest,
-): Promise<LoadedBlockModels> {
-  const result: LoadedBlockModels = {}
-  const entries = Object.entries(manifest) as [
-    BlockCategory,
-    NonNullable<BlockModelManifest[BlockCategory]>,
-  ][]
+export async function loadLandscapeBlocks(
+  sequence: LandscapeBlock[],
+): Promise<LoadedLandscapeBlocks> {
+  const tasks = sequence.map(async (entry) => {
+    try {
+      return await loadOne(entry.path)
+    } catch (e) {
+      console.warn(`[blockModelLoader] Skipping: ${(e as Error).message}`)
+      return null
+    }
+  })
 
-  if (entries.length === 0) return result
-
-  const tasks = entries.flatMap(([category, models]) =>
-    models.map(async (entry) => {
-      try {
-        const obj = await loadOne(entry.path)
-        applyEntry(obj, entry)
-        result[category] ??= []
-        result[category].push(obj)
-      } catch (e) {
-        console.warn(
-          `[blockModelLoader] Skipping ${category}: ${(e as Error).message}`,
-        )
-      }
-    }),
-  )
-
-  await Promise.all(tasks)
-  return result
+  const results = await Promise.all(tasks)
+  return results.filter((r): r is THREE.Object3D => r !== null)
 }
