@@ -12,9 +12,11 @@ const DEFAULT_ROAD_SPEED = -17.5
 const SPEED_STEP = 3.5
 const MIN_ROAD_SPEED = -35
 const MAX_ROAD_SPEED = -3.5
-const SPAWN_INTERVAL = 30
+const BLOCK_DEPTH = 27
 const BLOCK_SCALE = 2.0
-const SIDEWALK_EDGE = 7.35
+const SPAWN_INTERVAL = BLOCK_DEPTH * BLOCK_SCALE
+// Offset to align scaled block inner edge (x=3) with sidewalk outer edge (x=7.35)
+const EDGE_SHIFT = 1.35
 
 // ── Types ────────────────────────────────────────────────────────────
 
@@ -73,7 +75,11 @@ export function createBlocks(
   const staticMeshes: THREE.Mesh[] = []
   const groundLen = 1400
 
+  const grassMat = flatMat(0x6b8e23)
+  allMaterials.push(grassMat)
+
   const roadStrips: [number, THREE.Material, number, number][] = [
+    [300, grassMat, 0, -0.01],
     [10.5, roadMat, 0, 0],
     [2.1, sidewalkMat, -6.3, 0.0035],
     [2.1, sidewalkMat, 6.3, 0.0035],
@@ -136,7 +142,6 @@ export function createBlocks(
   // ── Speed control ─────────────────────────────────────────────
 
   let targetSpeed = DEFAULT_ROAD_SPEED
-  let roadSpeed = DEFAULT_ROAD_SPEED
 
   function onSpeedKey(e: KeyboardEvent) {
     if (e.key === 'ArrowUp') {
@@ -183,20 +188,17 @@ export function createBlocks(
     const rightIdx = leftIdx + 1
     sequenceIndex = (sequenceIndex + 1) % pairCount
 
-    // Shift blocks inward so their grass edge meets the sidewalk after scaling
-    const edgeShift = SIDEWALK_EDGE * (BLOCK_SCALE - 1)
-
     if (leftIdx < templates.length) {
       const left = templates[leftIdx].clone()
       left.scale.setScalar(BLOCK_SCALE)
-      left.position.set(edgeShift, 0, z)
+      left.position.set(EDGE_SHIFT, 0, z)
       spawn(left, 'landscape')
     }
 
     if (rightIdx < templates.length) {
       const right = templates[rightIdx].clone()
       right.scale.setScalar(BLOCK_SCALE)
-      right.position.set(-edgeShift, 0, z)
+      right.position.set(-EDGE_SHIFT, 0, z)
       spawn(right, 'landscape')
     }
 
@@ -221,11 +223,9 @@ export function createBlocks(
   function update(delta: number): CameraOffset {
     if (delta > 1) return { x: 0, y: 0 }
     elapsed += delta
-    roadSpeed = targetSpeed
 
-    const dz = roadSpeed * delta
-    const dist = Math.abs(dz)
-    spawnAccumulator += dist
+    const dz = targetSpeed * delta
+    spawnAccumulator += Math.abs(dz)
 
     while (spawnAccumulator >= SPAWN_INTERVAL) {
       spawnAccumulator -= SPAWN_INTERVAL
@@ -249,7 +249,7 @@ export function createBlocks(
     }
 
     // Pedaling bob & vibration — scale with speed
-    const speedRatio = Math.abs(roadSpeed / DEFAULT_ROAD_SPEED)
+    const speedRatio = Math.abs(targetSpeed / DEFAULT_ROAD_SPEED)
     const vibrationX =
       (Math.sin(elapsed * 47) * 0.0008 + Math.sin(elapsed * 31) * 0.0005) *
       speedRatio
