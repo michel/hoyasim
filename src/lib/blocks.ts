@@ -1,4 +1,5 @@
 import * as THREE from 'three'
+import { landscapeSequence } from '@/config/blockModels'
 import type { LoadedLandscapeBlocks } from '@/lib/blockModelLoader'
 
 // ── Constants ────────────────────────────────────────────────────────
@@ -33,6 +34,8 @@ export interface BlocksState {
 interface SpawnedObject {
   group: THREE.Object3D
   type: 'landscape' | 'marking'
+  name?: string
+  debugHue?: number
 }
 
 // ── Helpers ──────────────────────────────────────────────────────────
@@ -83,10 +86,6 @@ export function createBlocks(
     [10.5, roadMat, 0, 0],
     [2.1, sidewalkMat, -6.3, 0.0035],
     [2.1, sidewalkMat, 6.3, 0.0035],
-    [7, roadMat, 31.5, 0],
-    [7, roadMat, -31.5, 0],
-    [1.75, sidewalkMat, 36.05, 0.0035],
-    [1.75, sidewalkMat, -36.05, 0.0035],
   ]
   for (const [width, mat, x, y] of roadStrips) {
     const mesh = new THREE.Mesh(new THREE.PlaneGeometry(width, groundLen), mat)
@@ -155,13 +154,158 @@ export function createBlocks(
 
   window.addEventListener('keydown', onSpeedKey)
 
+  // ── Block name lookup ──────────────────────────────────────────
+
+  const blockNames = landscapeSequence.map(
+    (b) => b.path.split('/').pop()?.replace('.glb', '') ?? 'unknown',
+  )
+
+  // ── Debug color mode (Ctrl+D) ─────────────────────────────────
+
+  let debugMode = false
+  const debugMaterials: THREE.MeshStandardMaterial[] = []
+  const originalMaterials = new Map<
+    THREE.Mesh,
+    THREE.Material | THREE.Material[]
+  >()
+
+  function applyDebugMaterial(
+    obj: THREE.Object3D,
+    entry: SpawnedObject,
+    hue: number,
+  ) {
+    entry.debugHue = hue
+    const mat = new THREE.MeshStandardMaterial({
+      color: new THREE.Color().setHSL(hue, 0.8, 0.5),
+      flatShading: true,
+      side: THREE.DoubleSide,
+    })
+    debugMaterials.push(mat)
+    obj.traverse((child) => {
+      if (child instanceof THREE.Mesh) {
+        if (!originalMaterials.has(child))
+          originalMaterials.set(child, child.material)
+        child.material = mat
+      }
+    })
+  }
+
+  function logTemplateBounds() {
+    const box = new THREE.Box3()
+    const size = new THREE.Vector3()
+    templates.forEach((tpl, i) => {
+      box.setFromObject(tpl)
+      box.getSize(size)
+      const name = blockNames[i] ?? `block_${i}`
+      const ok =
+        Math.abs(size.z - BLOCK_DEPTH) < 0.5 && Math.abs(box.min.z) < 0.5
+      console.log(
+        `%c${name.padEnd(24)} size: ${size.x.toFixed(1)}×${size.z.toFixed(1)} z: ${box.min.z.toFixed(1)}→${box.max.z.toFixed(1)}${ok ? '' : ` ⚠️ WRONG — expected depth ${BLOCK_DEPTH}, z: 0→${BLOCK_DEPTH}`}`,
+        ok ? 'color: green' : 'color: red; font-weight: bold',
+      )
+    })
+  }
+
+  function applyDebugColors() {
+    let pairIdx = 0
+    for (const obj of spawned) {
+      if (obj.type !== 'landscape') continue
+      applyDebugMaterial(obj.group, obj, (pairIdx * 0.13) % 1)
+      pairIdx++
+    }
+  }
+
+  function clearDebugColors() {
+    for (const [mesh, mat] of originalMaterials) mesh.material = mat
+    originalMaterials.clear()
+    for (const mat of debugMaterials) mat.dispose()
+    debugMaterials.length = 0
+  }
+
+  let debugOverlay: HTMLDivElement | null = null
+
+  function createDebugOverlay() {
+    debugOverlay = document.createElement('div')
+    Object.assign(debugOverlay.style, {
+      position: 'fixed',
+      top: '12px',
+      left: '12px',
+      padding: '10px 14px',
+      background: 'rgba(0,0,0,0.8)',
+      color: '#fff',
+      fontFamily: 'monospace',
+      fontSize: '13px',
+      lineHeight: '1.6',
+      borderRadius: '6px',
+      zIndex: '9999',
+      pointerEvents: 'none',
+      whiteSpace: 'pre',
+    })
+    document.body.appendChild(debugOverlay)
+  }
+
+  function removeDebugOverlay() {
+    if (!debugOverlay) return
+    debugOverlay.remove()
+    debugOverlay = null
+  }
+
+  const debugColor = new THREE.Color()
+
+  function updateDebugOverlay() {
+    if (!debugOverlay) return
+    debugOverlay.textContent = ''
+    const header = document.createElement('div')
+    header.textContent = `speed: ${Math.abs(targetSpeed).toFixed(1)}`
+    header.style.marginBottom = '8px'
+    debugOverlay.appendChild(header)
+
+    const visible = spawned
+      .filter((o) => o.type === 'landscape' && o.group.visible)
+      .sort((a, b) => a.group.position.z - b.group.position.z)
+    for (const o of visible) {
+      const line = document.createElement('div')
+      line.textContent = `${(o.name ?? '?').padEnd(22)} z: ${o.group.position.z.toFixed(0)}`
+      if (o.debugHue != null)
+        line.style.color = `#${debugColor.setHSL(o.debugHue, 0.8, 0.6).getHexString()}`
+      debugOverlay.appendChild(line)
+    }
+  }
+
+  function onDebugKey(e: KeyboardEvent) {
+    if (e.ctrlKey && e.key === 'd') {
+      e.preventDefault()
+      debugMode = !debugMode
+      if (debugMode) {
+        logTemplateBounds()
+        applyDebugColors()
+        createDebugOverlay()
+      } else {
+        clearDebugColors()
+        removeDebugOverlay()
+      }
+    }
+  }
+
+  window.addEventListener('keydown', onDebugKey)
+
   // ── Spawned objects tracking ────────────────────────────────────
 
   const spawned: SpawnedObject[] = []
 
-  function spawn(obj: THREE.Object3D, type: SpawnedObject['type']) {
+  function spawn(
+    obj: THREE.Object3D,
+    type: SpawnedObject['type'],
+    name?: string,
+  ) {
     group.add(obj)
-    spawned.push({ group: obj, type })
+    const entry: SpawnedObject = { group: obj, type, name }
+    spawned.push(entry)
+    if (debugMode && type === 'landscape') {
+      const hue =
+        (spawned.filter((s) => s.type === 'landscape').length * 0.13) % 1
+      applyDebugMaterial(obj, entry, hue)
+    }
   }
 
   function disposeObject(obj: SpawnedObject) {
@@ -192,14 +336,14 @@ export function createBlocks(
       const left = templates[leftIdx].clone()
       left.scale.setScalar(BLOCK_SCALE)
       left.position.set(EDGE_SHIFT, 0, z)
-      spawn(left, 'landscape')
+      spawn(left, 'landscape', blockNames[leftIdx])
     }
 
     if (rightIdx < templates.length) {
       const right = templates[rightIdx].clone()
       right.scale.setScalar(BLOCK_SCALE)
       right.position.set(-EDGE_SHIFT, 0, z)
-      spawn(right, 'landscape')
+      spawn(right, 'landscape', blockNames[rightIdx])
     }
 
     // Road marking
@@ -248,6 +392,8 @@ export function createBlocks(
       }
     }
 
+    if (debugMode) updateDebugOverlay()
+
     // Pedaling bob & vibration — scale with speed
     const speedRatio = Math.abs(targetSpeed / DEFAULT_ROAD_SPEED)
     const vibrationX =
@@ -276,6 +422,9 @@ export function createBlocks(
     }
 
     window.removeEventListener('keydown', onSpeedKey)
+    window.removeEventListener('keydown', onDebugKey)
+    clearDebugColors()
+    removeDebugOverlay()
 
     scene.remove(hemiLight)
     hemiLight.dispose()
