@@ -26,16 +26,6 @@ export const scenes: Record<string, SceneConfig> = {
     ],
     effects: { blocks: true },
   },
-  office: {
-    image: `${base}assets/scenes/office_1k.hdr`,
-    models: [
-      {
-        path: `${base}assets/scenes/desk.glb`,
-        position: [1.15, -1.1, 0],
-        rotation: [0, -1.6, 0],
-      },
-    ],
-  },
 }
 
 export const sceneNames = Object.keys(scenes)

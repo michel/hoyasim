@@ -190,22 +190,6 @@ export function createBlocks(
     })
   }
 
-  function logTemplateBounds() {
-    const box = new THREE.Box3()
-    const size = new THREE.Vector3()
-    templates.forEach((tpl, i) => {
-      box.setFromObject(tpl)
-      box.getSize(size)
-      const name = blockNames[i] ?? `block_${i}`
-      const ok =
-        Math.abs(size.z - BLOCK_DEPTH) < 0.5 && Math.abs(box.min.z) < 0.5
-      console.log(
-        `%c${name.padEnd(24)} size: ${size.x.toFixed(1)}×${size.z.toFixed(1)} z: ${box.min.z.toFixed(1)}→${box.max.z.toFixed(1)}${ok ? '' : ` ⚠️ WRONG — expected depth ${BLOCK_DEPTH}, z: 0→${BLOCK_DEPTH}`}`,
-        ok ? 'color: green' : 'color: red; font-weight: bold',
-      )
-    })
-  }
-
   function applyDebugColors() {
     let pairIdx = 0
     for (const obj of spawned) {
@@ -277,7 +261,6 @@ export function createBlocks(
       e.preventDefault()
       debugMode = !debugMode
       if (debugMode) {
-        logTemplateBounds()
         applyDebugColors()
         createDebugOverlay()
       } else {

@@ -5,14 +5,7 @@ import { GlassesControls } from '@/components/GlassesControls'
 import { LandscapeGuard } from '@/components/LandscapeGuard'
 import ThreeView from '@/components/ThreeView'
 import { Button } from '@/components/ui/button'
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select'
-import { sceneNames, scenes } from '@/config/scenes'
+import { scenes } from '@/config/scenes'
 
 export default function Scene() {
   const { scene } = useParams<{ scene: string }>()
@@ -54,23 +47,6 @@ export default function Scene() {
             onGyroActiveChange={setGyroActive}
             onGlassesReady={setGlassesControls}
           />
-          <div className="absolute top-4 right-4 z-30">
-            <Select
-              value={scene}
-              onValueChange={(value) => navigate(`/scenes/${value}`)}
-            >
-              <SelectTrigger className="w-32">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {sceneNames.map((name) => (
-                  <SelectItem key={name} value={name}>
-                    {name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
           {glassesControls && (
             <GlassesControls
               onSwapLeft={glassesControls.swapLeft}

@@ -1,14 +1,15 @@
 #!/usr/bin/env node
+
 // Validates landscape block ground planes are the correct tiling size.
 // The ground plane is identified as the mesh with exactly 4 vertices (a simple quad).
 // Width X (left-right) and Depth Z (front-back) must match the target.
 // Height Y (up-down) can vary.
 
+import { readdirSync } from 'node:fs'
+import { join } from 'node:path'
 import { NodeIO } from '@gltf-transform/core'
 import { ALL_EXTENSIONS } from '@gltf-transform/extensions'
 import draco3d from 'draco3dgltf'
-import { readdirSync } from 'fs'
-import { join, basename } from 'path'
 
 const DIR = 'public/assets/blocks/landscape'
 const TARGET_WIDTH = 57
@@ -20,7 +21,9 @@ const io = new NodeIO()
     'draco3d.decoder': await draco3d.createDecoderModule(),
     'draco3d.encoder': await draco3d.createEncoderModule(),
   })
-const files = readdirSync(DIR).filter(f => f.endsWith('.glb')).sort()
+const files = readdirSync(DIR)
+  .filter((f) => f.endsWith('.glb'))
+  .sort()
 const errors = []
 
 for (const file of files) {
@@ -29,13 +32,16 @@ for (const file of files) {
 
   // Find ground plane: node named "ground*" or "Plane*" (lowest index)
   // City blocks use "Plane.*" node names, nature/transition blocks use "ground.*"
-  let groundNode = nodes.find(n => n.getName().startsWith('ground'))
-    || nodes.find(n => n.getName().startsWith('Plane'))
+  const groundNode =
+    nodes.find((n) => n.getName().startsWith('ground')) ||
+    nodes.find((n) => n.getName().startsWith('Plane'))
 
   const groundMesh = groundNode?.getMesh()
   if (!groundNode || !groundMesh) {
     console.log(`${file}`)
-    console.log(`  (no ground plane found — no node named "ground*" or "Plane*")`)
+    console.log(
+      `  (no ground plane found — no node named "ground*" or "Plane*")`,
+    )
     errors.push({ file, reasons: ['No ground plane found'] })
     continue
   }
@@ -51,15 +57,20 @@ for (const file of files) {
 
   if (!allPositions.length) {
     console.log(`${file}`)
-    console.log(`  (ground plane node "${groundNode.getName()}" has no position data)`)
+    console.log(
+      `  (ground plane node "${groundNode.getName()}" has no position data)`,
+    )
     errors.push({ file, reasons: ['Ground plane has no geometry'] })
     continue
   }
 
   const nodeName = groundNode.getName()
-  let minX = Infinity, maxX = -Infinity
-  let minY = Infinity, maxY = -Infinity
-  let minZ = Infinity, maxZ = -Infinity
+  let minX = Infinity,
+    maxX = -Infinity
+  let minY = Infinity,
+    maxY = -Infinity
+  let minZ = Infinity,
+    maxZ = -Infinity
 
   for (let i = 0; i < allPositions.length; i++) {
     const v = allPositions[i]
@@ -82,15 +93,21 @@ for (const file of files) {
 
   const reasons = []
   if (Math.abs(w - TARGET_WIDTH) > 0.01)
-    reasons.push(`Width X (left-right) is ${w.toFixed(2)}, should be ${TARGET_WIDTH}`)
+    reasons.push(
+      `Width X (left-right) is ${w.toFixed(2)}, should be ${TARGET_WIDTH}`,
+    )
   if (Math.abs(d - TARGET_DEPTH) > 0.01)
-    reasons.push(`Depth Z (front-back) is ${d.toFixed(2)}, should be ${TARGET_DEPTH}`)
+    reasons.push(
+      `Depth Z (front-back) is ${d.toFixed(2)}, should be ${TARGET_DEPTH}`,
+    )
   if (reasons.length) errors.push({ file, reasons })
 }
 
 console.log('')
 console.log('==========================================')
-console.log(`Target: Width X (left-right) = ${TARGET_WIDTH}, Depth Z (front-back) = ${TARGET_DEPTH}`)
+console.log(
+  `Target: Width X (left-right) = ${TARGET_WIDTH}, Depth Z (front-back) = ${TARGET_DEPTH}`,
+)
 console.log('==========================================')
 
 if (errors.length) {
