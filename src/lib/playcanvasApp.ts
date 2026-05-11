@@ -7,7 +7,11 @@ const PROJECT_PREFIX = `${import.meta.env.BASE_URL}playcanvas/`
 const CONFIG_FILENAME = `${PROJECT_PREFIX}config.json`
 const SCENE_PATH = `${PROJECT_PREFIX}2483428.json`
 
-const MAX_PIXEL_RATIO = 1.5
+// Mobile GPUs scale quadratically with pixel count; gsplat fill is the bottleneck.
+// Touch devices render below CSS pixels and rely on browser upscaling; the
+// lens already softens half the screen so the loss is hard to spot.
+const MAX_PIXEL_RATIO_TOUCH = 0.75
+const MAX_PIXEL_RATIO_DESKTOP = 1.5
 
 const START_Z = 11
 const LOOP_PERIOD = 43.24
@@ -89,7 +93,10 @@ export async function bootApp(
 
   app.init(createOptions)
 
-  device.maxPixelRatio = Math.min(window.devicePixelRatio || 1, MAX_PIXEL_RATIO)
+  const maxPixelRatio = pc.platform.touch
+    ? MAX_PIXEL_RATIO_TOUCH
+    : MAX_PIXEL_RATIO_DESKTOP
+  device.maxPixelRatio = Math.min(window.devicePixelRatio || 1, maxPixelRatio)
 
   registerLookCamera(app, lookState)
   registerCycleForward(app)
@@ -110,6 +117,17 @@ export async function bootApp(
 
           const bike = app.root.findByName(BIKE_ENTITY_NAME)
           if (bike instanceof pc.Entity) bike.setLocalScale(0.25, 0.25, 0.25)
+
+          // The gsplat bakes lighting; dynamic shadows add cost without
+          // visible benefit. Strip shadow flags from every render component
+          // and every light in the scene before the first frame.
+          for (const r of app.root.findComponents('render') as pc.RenderComponent[]) {
+            r.castShadows = false
+            r.receiveShadows = false
+          }
+          for (const l of app.root.findComponents('light') as pc.LightComponent[]) {
+            l.castShadows = false
+          }
 
           const innerSplat = app.root.findByGuid(INNER_SPLAT_GUID)
           if (innerSplat instanceof pc.Entity) {
@@ -166,6 +184,22 @@ export async function bootApp(
             setupGlasses(app, cam).catch((err) => {
               console.error('Glasses setup failed:', err)
             })
+
+          // Per-frame gsplat culling. Each gsplat's sort is GPU-expensive even
+          // when its rasterized output is fully clipped. When a tile drifts
+          // beyond one full loop period from the camera, disable the entity so
+          // the sort is skipped entirely.
+          const tiles = [outerSplat, innerSplat].filter(
+            (e): e is pc.Entity => e instanceof pc.Entity,
+          )
+          const cullThreshold = LOOP_PERIOD * 0.9
+          if (cam instanceof pc.Entity && tiles.length > 0) {
+            app.on('update', () => {
+              const camZ = cam.getPosition().z
+              for (const tile of tiles)
+                tile.enabled = Math.abs(tile.getPosition().z - camZ) < cullThreshold
+            })
+          }
 
           resolve()
         })
