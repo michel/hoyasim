@@ -1,17 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
-import * as THREE from 'three'
-
-// ── Constants ────────────────────────────────────────────────────────
-
-// -90 degrees around X axis to align Three.js camera with device orientation
-export const WORLD_CORRECTION_QUATERNION = new THREE.Quaternion(
-  -Math.sqrt(0.5),
-  0,
-  0,
-  Math.sqrt(0.5),
-)
-
-// ── Types ────────────────────────────────────────────────────────────
+import * as pc from 'playcanvas'
+import type { LookState } from '@/lib/scripts/lookCamera'
 
 interface DeviceOrientationEventiOS extends DeviceOrientationEvent {
   requestPermission?: () => Promise<'granted' | 'denied'>
@@ -24,10 +13,32 @@ const DeviceOrientationEventiOS =
 
 const isIOS = typeof DeviceOrientationEventiOS.requestPermission === 'function'
 
-// ── Hook ─────────────────────────────────────────────────────────────
+// -90 degrees around X axis, aligns the camera frame with the device frame.
+const WORLD_CORRECTION = new pc.Quat(-Math.sqrt(0.5), 0, 0, Math.sqrt(0.5))
+
+const DEG_TO_RAD = Math.PI / 180
+
+// Three.js' Euler(beta, alpha, -gamma, 'YXZ') as a raw quaternion.
+function eulerYXZToQuat(
+  out: pc.Quat,
+  betaRad: number,
+  alphaRad: number,
+  gammaRad: number,
+) {
+  const c1 = Math.cos(betaRad / 2)
+  const s1 = Math.sin(betaRad / 2)
+  const c2 = Math.cos(alphaRad / 2)
+  const s2 = Math.sin(alphaRad / 2)
+  const c3 = Math.cos(-gammaRad / 2)
+  const s3 = Math.sin(-gammaRad / 2)
+  out.x = s1 * c2 * c3 + c1 * s2 * s3
+  out.y = c1 * s2 * c3 - s1 * c2 * s3
+  out.z = c1 * c2 * s3 - s1 * s2 * c3
+  out.w = c1 * c2 * c3 + s1 * s2 * s3
+}
 
 export function useDeviceOrientation(
-  camera: THREE.PerspectiveCamera | null,
+  lookState: LookState,
   gyroActive: boolean,
   onGyroActiveChange: (active: boolean) => void,
 ) {
@@ -35,34 +46,19 @@ export function useDeviceOrientation(
   const onGyroActiveChangeRef = useRef(onGyroActiveChange)
   onGyroActiveChangeRef.current = onGyroActiveChange
 
-  // Check if iOS permission prompt is needed
   useEffect(() => {
     setShowEnableButton(isIOS)
   }, [])
 
-  // Apply device orientation to camera when gyro is active
   useEffect(() => {
-    if (!gyroActive || !camera) return
+    if (!gyroActive) {
+      lookState.gyroActive = false
+      return
+    }
 
-    const zee = new THREE.Vector3(0, 0, 1)
-    const euler = new THREE.Euler()
-    const q0 = new THREE.Quaternion()
-
+    const screen = new pc.Quat()
     let alphaOffset = 0
     let hasInitialized = false
-
-    const setObjectQuaternion = (
-      quaternion: THREE.Quaternion,
-      alpha: number,
-      beta: number,
-      gamma: number,
-      orient: number,
-    ) => {
-      euler.set(beta, alpha, -gamma, 'YXZ')
-      quaternion.setFromEuler(euler)
-      quaternion.multiply(WORLD_CORRECTION_QUATERNION)
-      quaternion.multiply(q0.setFromAxisAngle(zee, -orient))
-    }
 
     const onDeviceOrientation = (event: DeviceOrientationEvent) => {
       if (event.alpha === null || event.beta === null || event.gamma === null)
@@ -73,31 +69,32 @@ export function useDeviceOrientation(
         hasInitialized = true
       }
 
-      const alpha = THREE.MathUtils.degToRad(event.alpha + alphaOffset)
-      const beta = THREE.MathUtils.degToRad(event.beta)
-      const gamma = THREE.MathUtils.degToRad(event.gamma)
-      const orient = THREE.MathUtils.degToRad(screen.orientation?.angle || 0)
+      const alpha = (event.alpha + alphaOffset) * DEG_TO_RAD
+      const beta = event.beta * DEG_TO_RAD
+      const gamma = event.gamma * DEG_TO_RAD
+      const orient = (window.screen?.orientation?.angle || 0) * DEG_TO_RAD
 
-      setObjectQuaternion(camera.quaternion, alpha, beta, gamma, orient)
+      eulerYXZToQuat(lookState.gyroQuat, beta, alpha, gamma)
+      lookState.gyroQuat.mul(WORLD_CORRECTION)
+      screen.set(0, 0, Math.sin(-orient / 2), Math.cos(-orient / 2))
+      lookState.gyroQuat.mul(screen)
+      lookState.gyroActive = true
     }
 
     window.addEventListener('deviceorientation', onDeviceOrientation)
-
     return () => {
       window.removeEventListener('deviceorientation', onDeviceOrientation)
+      lookState.gyroActive = false
     }
-  }, [gyroActive, camera])
+  }, [gyroActive, lookState])
 
-  // For non-iOS devices, auto-detect gyro availability
   useEffect(() => {
     if (isIOS) return
-
     const testOrientation = (event: DeviceOrientationEvent) => {
       if (event.alpha !== null) onGyroActiveChangeRef.current(true)
       window.removeEventListener('deviceorientation', testOrientation)
     }
     window.addEventListener('deviceorientation', testOrientation)
-
     return () =>
       window.removeEventListener('deviceorientation', testOrientation)
   }, [])

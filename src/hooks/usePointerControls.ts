@@ -1,41 +1,24 @@
-import { useEffect, useRef } from 'react'
+import { useEffect } from 'react'
+import type { LookState } from '@/lib/scripts/lookCamera'
 
-// ── Constants ────────────────────────────────────────────────────────
-
-export const DRAG_SENSITIVITY = 0.1
-export const LAT_MIN = -85
-export const LAT_MAX = 85
-
-// ── Hook ─────────────────────────────────────────────────────────────
-
-interface PointerState {
-  active: boolean
-  startX: number
-  startY: number
-  startLon: number
-  startLat: number
-}
+const DRAG_SENSITIVITY = 0.1
 
 export function usePointerControls(
-  rendererElement: HTMLCanvasElement | null,
-  lonRef: React.RefObject<number>,
-  latRef: React.RefObject<number>,
+  canvas: HTMLCanvasElement | null,
+  lookState: LookState,
   gyroActive: boolean,
 ) {
-  const stateRef = useRef<PointerState>({
-    active: false,
-    startX: 0,
-    startY: 0,
-    startLon: 0,
-    startLat: 0,
-  })
-
   useEffect(() => {
-    if (!rendererElement || gyroActive) return
+    if (!canvas || gyroActive) return
 
-    function getXY(
+    let startX = 0
+    let startY = 0
+    let startLon = 0
+    let startLat = 0
+
+    const getXY = (
       e: MouseEvent | TouchEvent,
-    ): { x: number; y: number } | null {
+    ): { x: number; y: number } | null => {
       if ('touches' in e) {
         if (e.touches.length === 0) return null
         return { x: e.touches[0].clientX, y: e.touches[0].clientY }
@@ -43,49 +26,43 @@ export function usePointerControls(
       return { x: e.clientX, y: e.clientY }
     }
 
-    const onPointerDown = (e: MouseEvent | TouchEvent) => {
+    const onMove = (e: MouseEvent | TouchEvent) => {
       const pos = getXY(e)
       if (!pos) return
-      const s = stateRef.current
-      s.active = true
-      s.startX = pos.x
-      s.startY = pos.y
-      s.startLon = lonRef.current
-      s.startLat = latRef.current
+      lookState.lon = (startX - pos.x) * DRAG_SENSITIVITY + startLon
+      lookState.lat = (pos.y - startY) * DRAG_SENSITIVITY + startLat
     }
 
-    const onPointerMove = (e: MouseEvent | TouchEvent) => {
-      const s = stateRef.current
-      if (!s.active) return
+    const onUp = () => {
+      window.removeEventListener('mousemove', onMove)
+      window.removeEventListener('mouseup', onUp)
+      window.removeEventListener('touchmove', onMove)
+      window.removeEventListener('touchend', onUp)
+    }
+
+    const onDown = (e: MouseEvent | TouchEvent) => {
       const pos = getXY(e)
       if (!pos) return
-      const { x, y } = pos
-      lonRef.current = (s.startX - x) * DRAG_SENSITIVITY + s.startLon
-      latRef.current = (y - s.startY) * DRAG_SENSITIVITY + s.startLat
+      startX = pos.x
+      startY = pos.y
+      startLon = lookState.lon
+      startLat = lookState.lat
+      if ('touches' in e) {
+        window.addEventListener('touchmove', onMove, { passive: false })
+        window.addEventListener('touchend', onUp)
+      } else {
+        window.addEventListener('mousemove', onMove)
+        window.addEventListener('mouseup', onUp)
+      }
     }
 
-    const onPointerUp = () => {
-      stateRef.current.active = false
-    }
-
-    rendererElement.addEventListener('mousedown', onPointerDown)
-    rendererElement.addEventListener('mousemove', onPointerMove)
-    rendererElement.addEventListener('mouseup', onPointerUp)
-    rendererElement.addEventListener('touchstart', onPointerDown, {
-      passive: false,
-    })
-    rendererElement.addEventListener('touchmove', onPointerMove, {
-      passive: false,
-    })
-    rendererElement.addEventListener('touchend', onPointerUp)
+    canvas.addEventListener('mousedown', onDown)
+    canvas.addEventListener('touchstart', onDown, { passive: false })
 
     return () => {
-      rendererElement.removeEventListener('mousedown', onPointerDown)
-      rendererElement.removeEventListener('mousemove', onPointerMove)
-      rendererElement.removeEventListener('mouseup', onPointerUp)
-      rendererElement.removeEventListener('touchstart', onPointerDown)
-      rendererElement.removeEventListener('touchmove', onPointerMove)
-      rendererElement.removeEventListener('touchend', onPointerUp)
+      canvas.removeEventListener('mousedown', onDown)
+      canvas.removeEventListener('touchstart', onDown)
+      onUp()
     }
-  }, [rendererElement, lonRef, latRef, gyroActive])
+  }, [canvas, lookState, gyroActive])
 }
