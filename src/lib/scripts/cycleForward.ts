@@ -29,7 +29,9 @@ export function registerCycleForward(app: pc.AppBase) {
       const keyboard = this.app.keyboard
       if (keyboard) {
         const onKey = () => {
-          this.speed = keyboard.isPressed(pc.KEY_SHIFT) ? base * SHIFT_MULT : base
+          this.speed = keyboard.isPressed(pc.KEY_SHIFT)
+            ? base * SHIFT_MULT
+            : base
         }
         keyboard.on(pc.EVENT_KEYDOWN, onKey)
         keyboard.on(pc.EVENT_KEYUP, onKey)

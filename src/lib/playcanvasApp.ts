@@ -1,6 +1,9 @@
 import * as pc from 'playcanvas'
 import { setupGlasses } from './glasses-pc'
-import { CYCLE_FORWARD_BASE_SPEED, registerCycleForward } from './scripts/cycleForward'
+import {
+  CYCLE_FORWARD_BASE_SPEED,
+  registerCycleForward,
+} from './scripts/cycleForward'
 import { type LookState, registerLookCamera } from './scripts/lookCamera'
 
 const PROJECT_PREFIX = `${import.meta.env.BASE_URL}playcanvas/`
@@ -121,11 +124,15 @@ export async function bootApp(
           // The gsplat bakes lighting; dynamic shadows add cost without
           // visible benefit. Strip shadow flags from every render component
           // and every light in the scene before the first frame.
-          for (const r of app.root.findComponents('render') as pc.RenderComponent[]) {
+          for (const r of app.root.findComponents(
+            'render',
+          ) as pc.RenderComponent[]) {
             r.castShadows = false
             r.receiveShadows = false
           }
-          for (const l of app.root.findComponents('light') as pc.LightComponent[]) {
+          for (const l of app.root.findComponents(
+            'light',
+          ) as pc.LightComponent[]) {
             l.castShadows = false
           }
 
@@ -197,7 +204,8 @@ export async function bootApp(
             app.on('update', () => {
               const camZ = cam.getPosition().z
               for (const tile of tiles)
-                tile.enabled = Math.abs(tile.getPosition().z - camZ) < cullThreshold
+                tile.enabled =
+                  Math.abs(tile.getPosition().z - camZ) < cullThreshold
             })
           }
 

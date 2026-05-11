@@ -1,5 +1,5 @@
-import { useEffect, useRef, useState } from 'react'
 import * as pc from 'playcanvas'
+import { useEffect, useRef, useState } from 'react'
 import type { LookState } from '@/lib/scripts/lookCamera'
 
 interface DeviceOrientationEventiOS extends DeviceOrientationEvent {
