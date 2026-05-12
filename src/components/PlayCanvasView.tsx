@@ -16,8 +16,27 @@ export default function PlayCanvasView({
   onGyroActiveChange,
 }: PlayCanvasViewProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null)
+  const fpsRef = useRef<HTMLDivElement>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+
+  useEffect(() => {
+    let raf = 0
+    let last = performance.now()
+    let ema = 0
+    const tick = (now: number) => {
+      const dt = now - last
+      last = now
+      if (dt > 0) {
+        const fps = 1000 / dt
+        ema = ema === 0 ? fps : ema * 0.9 + fps * 0.1
+        if (fpsRef.current) fpsRef.current.textContent = `${ema.toFixed(0)} fps`
+      }
+      raf = requestAnimationFrame(tick)
+    }
+    raf = requestAnimationFrame(tick)
+    return () => cancelAnimationFrame(raf)
+  }, [])
 
   const lookState = useMemo(createLookState, [])
 
@@ -58,6 +77,10 @@ export default function PlayCanvasView({
         ref={canvasRef}
         id="application-canvas"
         style={{ display: 'block', width: '100%', height: '100%' }}
+      />
+      <div
+        ref={fpsRef}
+        className="pointer-events-none absolute top-2 left-2 z-30 rounded bg-black/50 px-2 py-1 font-mono text-xs text-white tabular-nums"
       />
       {loading && !error && (
         <div className="absolute inset-0 z-20 flex flex-col items-center justify-center gap-4 bg-gradient-to-br from-slate-950 via-slate-900 to-zinc-900">

@@ -13,7 +13,7 @@ const SCENE_PATH = `${PROJECT_PREFIX}2483428.json`
 // Mobile GPUs scale quadratically with pixel count; gsplat fill is the bottleneck.
 // Touch devices render below CSS pixels and rely on browser upscaling; the
 // lens already softens half the screen so the loss is hard to spot.
-const MAX_PIXEL_RATIO_TOUCH = 0.75
+const MAX_PIXEL_RATIO_TOUCH = 0.5
 const MAX_PIXEL_RATIO_DESKTOP = 1.5
 
 const START_Z = 11
@@ -118,8 +118,17 @@ export async function bootApp(
           if (sceneErr) return reject(new Error(String(sceneErr)))
           app.start()
 
+          const params = new URLSearchParams(window.location.search)
+          const lensEnabled = params.get('lens') !== '0'
+          const singleTile = params.get('singletile') === '1'
+          const noSplat = params.get('nosplat') === '1'
+          const noBike = params.get('nobike') === '1'
+
           const bike = app.root.findByName(BIKE_ENTITY_NAME)
-          if (bike instanceof pc.Entity) bike.setLocalScale(0.25, 0.25, 0.25)
+          if (bike instanceof pc.Entity) {
+            bike.setLocalScale(0.25, 0.25, 0.25)
+            if (noBike) bike.enabled = false
+          }
 
           // The gsplat bakes lighting; dynamic shadows add cost without
           // visible benefit. Strip shadow flags from every render component
@@ -143,18 +152,25 @@ export async function bootApp(
           }
 
           const outerSplat = app.root.findByGuid(OUTER_SPLAT_GUID)
+          // Modern unified pipeline: globally LOD-balance both tiles to stay
+          // under a target splat count. Mobile is fill-bound, so it gets a
+          // tighter budget than desktop.
+          app.scene.gsplat.splatBudget = pc.platform.touch ? 500_000 : 4_000_000
+          if (pc.platform.touch) app.scene.gsplat.lodRangeMin = 1
           for (const e of [outerSplat, innerSplat]) {
             if (!(e instanceof pc.Entity) || !e.gsplat) continue
+            if (noSplat) {
+              e.enabled = false
+              continue
+            }
+            e.gsplat.unified = true
             // Cheaper Z-axis SH approximation. Edge gaussians lose some view-
             // dependent shading; usually unnoticeable, big GPU win on mobile.
             e.gsplat.highQualitySH = false
-            const mat = e.gsplat.material as
-              | (pc.ShaderMaterial & { useFog?: boolean; useTonemap?: boolean })
-              | undefined
-            if (mat) {
-              mat.useFog = false
-              mat.useTonemap = false
-            }
+            // Drop quality faster with distance — the trailing tile is usually
+            // far from the camera as it loops around behind.
+            e.gsplat.lodBaseDistance = 1
+            e.gsplat.lodMultiplier = 1.5
           }
 
           const occluderMat = new pc.StandardMaterial()
@@ -187,10 +203,13 @@ export async function bootApp(
           }
 
           const cam = app.root.findByName(CAMERA_ENTITY_NAME)
-          if (cam instanceof pc.Entity)
+          if (cam instanceof pc.Entity && lensEnabled)
             setupGlasses(app, cam).catch((err) => {
               console.error('Glasses setup failed:', err)
             })
+
+          if (singleTile && innerSplat instanceof pc.Entity)
+            innerSplat.enabled = false
 
           // Per-frame gsplat culling. Each gsplat's sort is GPU-expensive even
           // when its rasterized output is fully clipped. When a tile drifts
@@ -200,7 +219,12 @@ export async function bootApp(
             (e): e is pc.Entity => e instanceof pc.Entity,
           )
           const cullThreshold = LOOP_PERIOD * 0.9
-          if (cam instanceof pc.Entity && tiles.length > 0) {
+          if (
+            cam instanceof pc.Entity &&
+            tiles.length > 0 &&
+            !singleTile &&
+            !noSplat
+          ) {
             app.on('update', () => {
               const camZ = cam.getPosition().z
               for (const tile of tiles)
