@@ -126,10 +126,7 @@ void main(void) {
   float alpha = 1.0 - smoothstep(0.0, 0.05, outAmount);
 
   sampleUV = clamp(sampleUV, vec2(0.001), vec2(0.999));
-  // Sample from mip 1 instead of mip 0. The grab target is mipmapped already,
-  // so this costs nothing extra but halves the bandwidth of the lens sample
-  // and adds a slight optical softness (a real progressive lens isn't crisp).
-  pcFragColor0 = vec4(textureLod(uSceneColorMap, sampleUV, 1.0).rgb, alpha);
+  pcFragColor0 = vec4(texture(uSceneColorMap, sampleUV).rgb, alpha);
 }
 `
 
