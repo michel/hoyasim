@@ -17,8 +17,10 @@ export default function PlayCanvasView({
 }: PlayCanvasViewProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const fpsRef = useRef<HTMLDivElement>(null)
+  const bootedAppRef = useRef<BootedApp | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [leftLensActive, setLeftLensActive] = useState(false)
 
   useEffect(() => {
     let raf = 0
@@ -43,7 +45,6 @@ export default function PlayCanvasView({
   useEffect(() => {
     if (!canvasRef.current) return
     let alive = true
-    let bootedApp: BootedApp | null = null
 
     bootApp(canvasRef.current, lookState)
       .then((app) => {
@@ -51,7 +52,7 @@ export default function PlayCanvasView({
           app.dispose()
           return
         }
-        bootedApp = app
+        bootedAppRef.current = app
         setLoading(false)
       })
       .catch((err: Error) => {
@@ -60,9 +61,14 @@ export default function PlayCanvasView({
 
     return () => {
       alive = false
-      bootedApp?.dispose()
+      bootedAppRef.current?.dispose()
+      bootedAppRef.current = null
     }
   }, [lookState])
+
+  useEffect(() => {
+    bootedAppRef.current?.setLeftLensActive(leftLensActive)
+  }, [leftLensActive])
 
   usePointerControls(canvasRef.current, lookState, gyroActive)
   const { showEnableButton, enableMotionControls } = useDeviceOrientation(
@@ -103,6 +109,17 @@ export default function PlayCanvasView({
         <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-10">
           <Button variant="glass" size="lg" onClick={enableMotionControls}>
             Tap to Enable Motion Controls
+          </Button>
+        </div>
+      )}
+      {!loading && !error && (
+        <div className="absolute bottom-8 left-1/4 -translate-x-1/2 z-10">
+          <Button
+            variant="glass"
+            size="lg"
+            onClick={() => setLeftLensActive((v) => !v)}
+          >
+            {leftLensActive ? 'Remove Left Lens' : 'Try Left Lens'}
           </Button>
         </div>
       )}

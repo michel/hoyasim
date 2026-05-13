@@ -1,5 +1,5 @@
 import * as pc from 'playcanvas'
-import { setupGlasses } from './glasses-pc'
+import { type GlassesController, setupGlasses } from './glasses-pc'
 import {
   CYCLE_FORWARD_BASE_SPEED,
   registerCycleForward,
@@ -41,6 +41,7 @@ pc.dracoInitialize({
 export interface BootedApp {
   app: pc.AppBase
   dispose: () => void
+  setLeftLensActive: (active: boolean) => void
 }
 
 export async function bootApp(
@@ -106,6 +107,8 @@ export async function bootApp(
 
   app.setCanvasFillMode(pc.FILLMODE_FILL_WINDOW)
   app.setCanvasResolution(pc.RESOLUTION_AUTO)
+
+  let glasses: GlassesController | null = null
 
   const onResize = () => app.resizeCanvas()
   window.addEventListener('resize', onResize)
@@ -204,9 +207,13 @@ export async function bootApp(
 
           const cam = app.root.findByName(CAMERA_ENTITY_NAME)
           if (cam instanceof pc.Entity && lensEnabled)
-            setupGlasses(app, cam).catch((err) => {
-              console.error('Glasses setup failed:', err)
-            })
+            setupGlasses(app, cam)
+              .then((g) => {
+                glasses = g
+              })
+              .catch((err: unknown) => {
+                console.error('Glasses setup failed:', err)
+              })
 
           if (singleTile && innerSplat instanceof pc.Entity)
             innerSplat.enabled = false
@@ -245,5 +252,6 @@ export async function bootApp(
       window.removeEventListener('resize', onResize)
       app.destroy()
     },
+    setLeftLensActive: (active) => glasses?.setLeftLensActive(active),
   }
 }

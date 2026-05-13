@@ -282,7 +282,14 @@ const SIDES: SideConfig[] = [
   },
 ]
 
-export async function setupGlasses(app: pc.AppBase, cameraEntity: pc.Entity) {
+export interface GlassesController {
+  setLeftLensActive(active: boolean): void
+}
+
+export async function setupGlasses(
+  app: pc.AppBase,
+  cameraEntity: pc.Entity,
+): Promise<GlassesController> {
   if (cameraEntity.camera) cameraEntity.camera.renderSceneColorMap = true
   reorderLayersForGrab(app.scene.layers)
   setupImpairedVisionOverlay(app)
@@ -295,6 +302,7 @@ export async function setupGlasses(app: pc.AppBase, cameraEntity: pc.Entity) {
   )
 
   const frameMat = createFrameMaterial()
+  let leftLens: pc.Entity | null = null
 
   for (let i = 0; i < SIDES.length; i++) {
     const side = SIDES[i]
@@ -323,5 +331,16 @@ export async function setupGlasses(app: pc.AppBase, cameraEntity: pc.Entity) {
     group.setLocalPosition(side.position)
     group.setLocalScale(LENS_SCALE)
     cameraEntity.addChild(group)
+
+    if (side.name === 'GlassesLeft') {
+      leftLens = lens
+      lens.enabled = false
+    }
+  }
+
+  return {
+    setLeftLensActive(active: boolean) {
+      if (leftLens) leftLens.enabled = active
+    },
   }
 }
