@@ -122,12 +122,12 @@ void main(void) {
 
   // Minification (factor > 0) pushes sampleUV outside [0, 1] near the screen
   // edges. Hard-clamping there repeats the edge texel and shows as stripes.
-  // Instead, fade the lens alpha to 0 in the out-of-bounds region — the lens
-  // becomes transparent, revealing the underlying un-distorted scene rendered
-  // by the world layer. Smooth and artifact-free.
-  vec2 outDist = max(max(-sampleUV, sampleUV - 1.0), 0.0);
-  float outAmount = max(outDist.x, outDist.y);
-  float alpha = 1.0 - smoothstep(0.0, 0.05, outAmount);
+  // Fade alpha based on distance to the boundary from INSIDE, so alpha is
+  // already 0 before we'd ever sample a clamped pixel — revealing the
+  // (blurred) underlying world layer artifact-free.
+  vec2 edgeDist = min(sampleUV, 1.0 - sampleUV);
+  float minEdge = min(edgeDist.x, edgeDist.y);
+  float alpha = smoothstep(0.0, 0.05, minEdge);
 
   sampleUV = clamp(sampleUV, vec2(0.001), vec2(0.999));
   pcFragColor0 = vec4(texture(uSceneColorMap, sampleUV).rgb, alpha);
@@ -146,23 +146,35 @@ uniform vec4 uScreenSize;
 uniform float uBlurRadius;
 uniform float uChroma;
 uniform float uStrength;
+
+// Weight a blur tap to 0 if its UV is out of [0,1], so edge texels are not
+// repeated into the kernel sum — that's what produces axis-aligned streaks
+// near the screen boundary.
+float inBounds(vec2 uv) {
+  vec2 m = step(vec2(0.0), uv) * step(uv, vec2(1.0));
+  return m.x * m.y;
+}
+
 void main(void) {
   vec2 uv = gl_FragCoord.xy * uScreenSize.zw;
   vec2 px = uScreenSize.zw * uBlurRadius;
   vec3 c = vec3(0.0);
-  c += texture(uSceneColorMap, uv).rgb * 0.227027;
-  c += texture(uSceneColorMap, uv + vec2( px.x, 0.0)).rgb * 0.1945946;
-  c += texture(uSceneColorMap, uv + vec2(-px.x, 0.0)).rgb * 0.1945946;
-  c += texture(uSceneColorMap, uv + vec2(0.0,  px.y)).rgb * 0.1216216;
-  c += texture(uSceneColorMap, uv + vec2(0.0, -px.y)).rgb * 0.1216216;
-  c += texture(uSceneColorMap, uv + px).rgb * 0.054054;
-  c += texture(uSceneColorMap, uv - px).rgb * 0.054054;
-  c += texture(uSceneColorMap, uv + vec2( px.x, -px.y)).rgb * 0.054054;
-  c += texture(uSceneColorMap, uv + vec2(-px.x,  px.y)).rgb * 0.054054;
+  float wsum = 0.0;
+  #define TAP(O, W) { vec2 s = uv + (O); float k = (W) * inBounds(s); c += texture(uSceneColorMap, s).rgb * k; wsum += k; }
+  TAP(vec2(0.0, 0.0), 0.227027)
+  TAP(vec2( px.x, 0.0), 0.1945946)
+  TAP(vec2(-px.x, 0.0), 0.1945946)
+  TAP(vec2(0.0,  px.y), 0.1216216)
+  TAP(vec2(0.0, -px.y), 0.1216216)
+  TAP(vec2( px.x,  px.y), 0.054054)
+  TAP(vec2(-px.x, -px.y), 0.054054)
+  TAP(vec2( px.x, -px.y), 0.054054)
+  TAP(vec2(-px.x,  px.y), 0.054054)
+  c /= max(wsum, 1e-4);
   vec2 dir = uv - vec2(0.5);
   vec2 off = dir * uChroma;
-  float r = texture(uSceneColorMap, uv + off).r;
-  float b = texture(uSceneColorMap, uv - off).b;
+  float r = texture(uSceneColorMap, clamp(uv + off, vec2(0.0), vec2(1.0))).r;
+  float b = texture(uSceneColorMap, clamp(uv - off, vec2(0.0), vec2(1.0))).b;
   vec3 impaired = vec3(r, c.g, b);
   vec3 sharp = texture(uSceneColorMap, uv).rgb;
   pcFragColor0 = vec4(mix(sharp, impaired, uStrength), 1.0);
