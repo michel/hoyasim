@@ -118,7 +118,14 @@ void main(void) {
   float factor = (0.5 - lensY) * 2.0 * uPower;
 
   vec2 center = vec2(0.5);
-  vec2 sampleUV = center + (screenUV - center) * (1.0 + factor);
+  // Per-axis tanh asymptote: the displacement from screen center smoothly
+  // caps at ±0.499 so sampleUV stays inside [0.001, 0.999] regardless of how
+  // hard we minify. Without this, factor > 0 at the screen corners would push
+  // sampleUV past the edge and texel clamping would draw axis-aligned streaks.
+  vec2 d = (screenUV - center) * (1.0 + factor);
+  d.x = 0.499 * tanh(d.x / 0.499);
+  d.y = 0.499 * tanh(d.y / 0.499);
+  vec2 sampleUV = center + d;
 
   // Minification (factor > 0) pushes sampleUV outside [0, 1] near the screen
   // edges. Hard-clamping there repeats the edge texel and shows as stripes.
