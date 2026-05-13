@@ -13,6 +13,10 @@ const LENS_RIGHT_POS = new pc.Vec3(0.39375, 0, -0.4875)
 
 const PROGRESSIVE_POWER = 0.45
 
+const IMPAIRED_BLUR_RADIUS_PX = 16.0
+const IMPAIRED_CHROMA_STRENGTH = 0.004
+const IMPAIRED_FADE_IN_SEC = 1.0
+
 type AssetType = ConstructorParameters<typeof pc.Asset>[1]
 
 function loadAsset(
@@ -130,6 +134,85 @@ void main(void) {
 }
 `
 
+const IMPAIRED_VERTEX_GLSL = `
+in vec3 vertex_position;
+void main(void) { gl_Position = vec4(vertex_position.xy, 0.0, 1.0); }
+`
+
+const IMPAIRED_FRAGMENT_GLSL = `
+precision highp float;
+uniform sampler2D uSceneColorMap;
+uniform vec4 uScreenSize;
+uniform float uBlurRadius;
+uniform float uChroma;
+uniform float uStrength;
+void main(void) {
+  vec2 uv = gl_FragCoord.xy * uScreenSize.zw;
+  vec2 px = uScreenSize.zw * uBlurRadius;
+  vec3 c = vec3(0.0);
+  c += texture(uSceneColorMap, uv).rgb * 0.227027;
+  c += texture(uSceneColorMap, uv + vec2( px.x, 0.0)).rgb * 0.1945946;
+  c += texture(uSceneColorMap, uv + vec2(-px.x, 0.0)).rgb * 0.1945946;
+  c += texture(uSceneColorMap, uv + vec2(0.0,  px.y)).rgb * 0.1216216;
+  c += texture(uSceneColorMap, uv + vec2(0.0, -px.y)).rgb * 0.1216216;
+  c += texture(uSceneColorMap, uv + px).rgb * 0.054054;
+  c += texture(uSceneColorMap, uv - px).rgb * 0.054054;
+  c += texture(uSceneColorMap, uv + vec2( px.x, -px.y)).rgb * 0.054054;
+  c += texture(uSceneColorMap, uv + vec2(-px.x,  px.y)).rgb * 0.054054;
+  vec2 dir = uv - vec2(0.5);
+  vec2 off = dir * uChroma;
+  float r = texture(uSceneColorMap, uv + off).r;
+  float b = texture(uSceneColorMap, uv - off).b;
+  vec3 impaired = vec3(r, c.g, b);
+  vec3 sharp = texture(uSceneColorMap, uv).rgb;
+  pcFragColor0 = vec4(mix(sharp, impaired, uStrength), 1.0);
+}
+`
+
+function setupImpairedVisionOverlay(app: pc.AppBase) {
+  const device = app.graphicsDevice
+  const mesh = new pc.Mesh(device)
+  mesh.setPositions([-1, -1, 0, 1, -1, 0, -1, 1, 0, 1, 1, 0])
+  mesh.setIndices([0, 1, 2, 1, 3, 2])
+  mesh.update()
+
+  const material = new pc.ShaderMaterial({
+    uniqueName: 'impaired-vision-overlay',
+    vertexGLSL: IMPAIRED_VERTEX_GLSL,
+    fragmentGLSL: IMPAIRED_FRAGMENT_GLSL,
+    attributes: { vertex_position: pc.SEMANTIC_POSITION },
+  })
+  material.setParameter('uBlurRadius', IMPAIRED_BLUR_RADIUS_PX)
+  material.setParameter('uChroma', IMPAIRED_CHROMA_STRENGTH)
+  material.setParameter('uStrength', 0)
+  material.depthWrite = false
+  material.depthTest = false
+  material.blendType = pc.BLEND_NONE
+  material.update()
+
+  const entity = new pc.Entity('ImpairedVision')
+  app.root.addChild(entity)
+  const meshInstance = new pc.MeshInstance(mesh, material, entity)
+  meshInstance.cull = false
+  meshInstance.drawOrder = -1
+  entity.addComponent('render')
+  if (entity.render) {
+    entity.render.meshInstances = [meshInstance]
+    entity.render.layers = [pc.LAYERID_IMMEDIATE]
+    entity.render.castShadows = false
+    entity.render.receiveShadows = false
+  }
+
+  const startTime = performance.now() / 1000
+  app.on('update', () => {
+    const t = Math.min(
+      1,
+      (performance.now() / 1000 - startTime) / IMPAIRED_FADE_IN_SEC,
+    )
+    material.setParameter('uStrength', t)
+  })
+}
+
 function createLensMaterial(yMin: number, yMax: number): pc.ShaderMaterial {
   const m = new pc.ShaderMaterial({
     uniqueName: `progressive-lens-${yMin}-${yMax}`,
@@ -183,6 +266,7 @@ const SIDES: SideConfig[] = [
 export async function setupGlasses(app: pc.AppBase, cameraEntity: pc.Entity) {
   if (cameraEntity.camera) cameraEntity.camera.renderSceneColorMap = true
   reorderLayersForGrab(app.scene.layers)
+  setupImpairedVisionOverlay(app)
 
   const assets = await Promise.all(
     SIDES.flatMap((s) => [
