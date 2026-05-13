@@ -14,7 +14,7 @@ const LENS_RIGHT_POS = new pc.Vec3(0.39375, 0, -0.4875)
 const PROGRESSIVE_POWER = 0.45
 
 const IMPAIRED_BLUR_RADIUS_PX = 16.0
-const IMPAIRED_CHROMA_STRENGTH = 0.004
+const IMPAIRED_CHROMA_STRENGTH = 0.001
 const IMPAIRED_FADE_IN_SEC = 1.0
 
 type AssetType = ConstructorParameters<typeof pc.Asset>[1]
@@ -162,27 +162,35 @@ float inBounds(vec2 uv) {
   return m.x * m.y;
 }
 
+vec3 blur9(vec2 base, vec2 px) {
+  vec3 c = vec3(0.0);
+  float wsum = 0.0;
+  vec2 s; float k;
+  s = base + vec2( 0.0,  0.0); k = 0.227027 * inBounds(s); c += texture(uSceneColorMap, s).rgb * k; wsum += k;
+  s = base + vec2( px.x, 0.0); k = 0.1945946 * inBounds(s); c += texture(uSceneColorMap, s).rgb * k; wsum += k;
+  s = base + vec2(-px.x, 0.0); k = 0.1945946 * inBounds(s); c += texture(uSceneColorMap, s).rgb * k; wsum += k;
+  s = base + vec2( 0.0,  px.y); k = 0.1216216 * inBounds(s); c += texture(uSceneColorMap, s).rgb * k; wsum += k;
+  s = base + vec2( 0.0, -px.y); k = 0.1216216 * inBounds(s); c += texture(uSceneColorMap, s).rgb * k; wsum += k;
+  s = base + vec2( px.x,  px.y); k = 0.054054 * inBounds(s); c += texture(uSceneColorMap, s).rgb * k; wsum += k;
+  s = base + vec2(-px.x, -px.y); k = 0.054054 * inBounds(s); c += texture(uSceneColorMap, s).rgb * k; wsum += k;
+  s = base + vec2( px.x, -px.y); k = 0.054054 * inBounds(s); c += texture(uSceneColorMap, s).rgb * k; wsum += k;
+  s = base + vec2(-px.x,  px.y); k = 0.054054 * inBounds(s); c += texture(uSceneColorMap, s).rgb * k; wsum += k;
+  return c / max(wsum, 1e-4);
+}
+
 void main(void) {
   vec2 uv = gl_FragCoord.xy * uScreenSize.zw;
   vec2 px = uScreenSize.zw * uBlurRadius;
-  vec3 c = vec3(0.0);
-  float wsum = 0.0;
-  #define TAP(O, W) { vec2 s = uv + (O); float k = (W) * inBounds(s); c += texture(uSceneColorMap, s).rgb * k; wsum += k; }
-  TAP(vec2(0.0, 0.0), 0.227027)
-  TAP(vec2( px.x, 0.0), 0.1945946)
-  TAP(vec2(-px.x, 0.0), 0.1945946)
-  TAP(vec2(0.0,  px.y), 0.1216216)
-  TAP(vec2(0.0, -px.y), 0.1216216)
-  TAP(vec2( px.x,  px.y), 0.054054)
-  TAP(vec2(-px.x, -px.y), 0.054054)
-  TAP(vec2( px.x, -px.y), 0.054054)
-  TAP(vec2(-px.x,  px.y), 0.054054)
-  c /= max(wsum, 1e-4);
+  // Chromatic aberration: blur each channel at a slightly offset base UV. R
+  // and B shift radially in opposite directions; G stays centered. Since all
+  // three reads are blurred (not sharp), there's no fringing when uChroma = 0
+  // — the offset just collapses and all three sample the same place.
   vec2 dir = uv - vec2(0.5);
   vec2 off = dir * uChroma;
-  float r = texture(uSceneColorMap, clamp(uv + off, vec2(0.0), vec2(1.0))).r;
-  float b = texture(uSceneColorMap, clamp(uv - off, vec2(0.0), vec2(1.0))).b;
-  vec3 impaired = vec3(r, c.g, b);
+  vec3 cR = blur9(uv + off, px);
+  vec3 cG = blur9(uv, px);
+  vec3 cB = blur9(uv - off, px);
+  vec3 impaired = vec3(cR.r, cG.g, cB.b);
   vec3 sharp = texture(uSceneColorMap, uv).rgb;
   pcFragColor0 = vec4(mix(sharp, impaired, uStrength), 1.0);
 }
