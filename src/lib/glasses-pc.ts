@@ -11,8 +11,6 @@ const LENS_SCALE = new pc.Vec3(
 const LENS_LEFT_POS = new pc.Vec3(-0.39375, 0, -0.4875)
 const LENS_RIGHT_POS = new pc.Vec3(0.39375, 0, -0.4875)
 
-const PROGRESSIVE_POWER = 0.45
-
 const IMPAIRED_BLUR_RADIUS_PX = 16.0
 const IMPAIRED_CHROMA_STRENGTH = 0.001
 const IMPAIRED_FADE_IN_SEC = 1.0
@@ -100,6 +98,8 @@ precision highp float;
 uniform sampler2D uSceneColorMap;
 uniform vec4 uScreenSize;
 uniform float uPower;
+uniform float uCenterY;
+uniform float uSensityDarkness;
 uniform float uMinY;
 uniform float uMaxY;
 in vec3 vLocalPos;
@@ -111,11 +111,14 @@ void main(void) {
   // lensY = 0 at the visual top of the lens, lensY = 1 at the visual bottom.
   float lensY = clamp((vLocalPos.z - uMinY) / (uMaxY - uMinY), 0.0, 1.0);
 
-  // Multifocal progressive:
-  //   top (lensY = 0)    → factor = +uPower → minify (zoom out)
-  //   center (lensY=0.5) → factor = 0       → no distortion
-  //   bottom (lensY = 1) → factor = -uPower → magnify (zoom in)
-  float factor = (0.5 - lensY) * 2.0 * uPower;
+  // Multifocal progressive. uCenterY = the lensY at which the lens is "neutral"
+  // (no distortion). For everyday designs this sits at 0.5; the WorkStyle desk
+  // lens shifts it upward so the intermediate-distance band lands in the upper
+  // middle of the lens.
+  //   lensY < uCenterY  → factor > 0 → minify (zoom out)
+  //   lensY = uCenterY  → factor = 0 → no distortion
+  //   lensY > uCenterY  → factor < 0 → magnify (zoom in)
+  float factor = (uCenterY - lensY) * 2.0 * uPower;
 
   vec2 center = vec2(0.5);
   // Per-axis tanh asymptote: the displacement from screen center smoothly
@@ -137,7 +140,11 @@ void main(void) {
   float alpha = smoothstep(0.0, 0.05, minEdge);
 
   sampleUV = clamp(sampleUV, vec2(0.001), vec2(0.999));
-  pcFragColor0 = vec4(texture(uSceneColorMap, sampleUV).rgb, alpha);
+  vec3 color = texture(uSceneColorMap, sampleUV).rgb;
+  // Sensity photochromic darken. Pushes to ~12 % brightness at full darkness
+  // so the contrast with non-Sensity lenses is unmistakable in a sales demo.
+  color *= mix(1.0, 0.12, uSensityDarkness);
+  pcFragColor0 = vec4(color, alpha);
 }
 `
 
@@ -243,6 +250,49 @@ function setupImpairedVisionOverlay(app: pc.AppBase) {
   return { entity, onUpdate }
 }
 
+// Each Hoya product is the same shader with a different uniform profile.
+// `power` controls how strongly the progressive zoom diverges from neutral.
+// `centerY` places the no-distortion zone on the lens (0 = top, 1 = bottom).
+// `sensity` marks the lens as photochromic so the per-frame update tick
+// pushes a darkness uniform to it.
+export type LensProduct =
+  | 'iD MyStyle 3'
+  | 'iD WorkStyle 3'
+  | 'iD LifeStyle 3'
+  | 'Sensity'
+
+interface LensProductProfile {
+  power: number
+  centerY: number
+  sensity: boolean
+}
+
+const LENS_PRODUCTS: Record<LensProduct, LensProductProfile> = {
+  // Hero. Near-flat clarity across the lens — almost no swim.
+  'iD MyStyle 3': { power: 0.02, centerY: 0.5, sensity: false },
+  // Mid-tier. Strong visible swim so the customer feels the gap to MyStyle.
+  'iD LifeStyle 3': { power: 0.35, centerY: 0.5, sensity: false },
+  // Desk / screen. Sharp zone shifted way up so the intermediate band lands
+  // in the upper-middle; distance (top of lens) is dramatically distorted.
+  'iD WorkStyle 3': { power: 0.45, centerY: 0.2, sensity: false },
+  // Photochromic. Same optical curve as MyStyle plus the darkness uniform.
+  Sensity: { power: 0.02, centerY: 0.5, sensity: true },
+}
+
+export const LENS_PRODUCT_ORDER: LensProduct[] = [
+  'iD MyStyle 3',
+  'iD WorkStyle 3',
+  'iD LifeStyle 3',
+  'Sensity',
+]
+
+function applyProductUniforms(m: pc.ShaderMaterial, product: LensProduct) {
+  const p = LENS_PRODUCTS[product]
+  m.setParameter('uPower', p.power)
+  m.setParameter('uCenterY', p.centerY)
+  if (!p.sensity) m.setParameter('uSensityDarkness', 0)
+}
+
 function createLensMaterial(yMin: number, yMax: number): pc.ShaderMaterial {
   const m = new pc.ShaderMaterial({
     uniqueName: `progressive-lens-${yMin}-${yMax}`,
@@ -250,9 +300,10 @@ function createLensMaterial(yMin: number, yMax: number): pc.ShaderMaterial {
     fragmentGLSL: FRAGMENT_GLSL,
     attributes: { vertex_position: pc.SEMANTIC_POSITION },
   })
-  m.setParameter('uPower', PROGRESSIVE_POWER)
   m.setParameter('uMinY', yMin)
   m.setParameter('uMaxY', yMax)
+  m.setParameter('uSensityDarkness', 0)
+  applyProductUniforms(m, 'iD MyStyle 3')
   // Transparent so the lens renders AFTER the scene-color grab pass and can
   // sample uSceneColorMap.
   m.blendType = pc.BLEND_NORMAL
@@ -297,7 +348,10 @@ export interface ImpairedVisionController {
   destroy(): void
 }
 
+export type LensSide = 'left' | 'right'
+
 export interface GlassesController {
+  setLensProduct(side: LensSide, product: LensProduct): void
   destroy(): void
 }
 
@@ -320,12 +374,18 @@ export function setupImpairedVision(
   }
 }
 
+// Sensity damping. Darkening is faster than clearing — matches the
+// asymmetric behaviour of real photochromic lenses.
+const SENSITY_DARKEN_TC = 1.2 // seconds to reach ~63 % of target when darkening
+const SENSITY_CLEAR_TC = 3.0 // seconds to reach ~63 % of target when clearing
+
 // Adds the lens + frame meshes as children of the camera. Each lens samples
 // the pre-overlay scene grab so the area it covers reads back as sharp; the
 // impaired overlay remains visible everywhere outside the lens geometry.
 export async function setupLenses(
   app: pc.AppBase,
   cameraEntity: pc.Entity,
+  sunEntity: pc.Entity,
 ): Promise<GlassesController> {
   const assets = await Promise.all(
     SIDES.flatMap((s) => [
@@ -336,19 +396,37 @@ export async function setupLenses(
 
   const frameMat = createFrameMaterial()
   const glassesGroups: pc.Entity[] = []
+  // Per-side: the lens entity (so we can enable / disable), the material (so
+  // we can swap product uniforms), and the currently selected product (so
+  // the Sensity tick knows whether to run).
+  const sides = {
+    left: null as null | {
+      lens: pc.Entity
+      material: pc.ShaderMaterial
+      product: LensProduct
+      sensityCurrent: number
+    },
+    right: null as null | {
+      lens: pc.Entity
+      material: pc.ShaderMaterial
+      product: LensProduct
+      sensityCurrent: number
+    },
+  }
 
   for (let i = 0; i < SIDES.length; i++) {
-    const side = SIDES[i]
+    const cfg = SIDES[i]
     const lensAsset = assets[i * 2]
     const frameAsset = assets[i * 2 + 1]
 
-    const group = new pc.Entity(side.name)
+    const group = new pc.Entity(cfg.name)
 
     const lens = (
       lensAsset.resource as pc.ContainerResource
     ).instantiateRenderEntity()
     const { min, max } = localZRange(lens)
-    applyMaterial(lens, createLensMaterial(min, max))
+    const material = createLensMaterial(min, max)
+    applyMaterial(lens, material)
     setLayer(lens, pc.LAYERID_IMMEDIATE)
 
     const frame = (
@@ -361,16 +439,62 @@ export async function setupLenses(
 
     group.addChild(lens)
     group.addChild(frame)
-    group.setLocalPosition(side.position)
+    group.setLocalPosition(cfg.position)
     group.setLocalScale(LENS_SCALE)
     cameraEntity.addChild(group)
     glassesGroups.push(group)
 
-    if (side.name === 'GlassesLeft') lens.enabled = false
+    const key: LensSide = cfg.name === 'GlassesLeft' ? 'left' : 'right'
+    sides[key] = {
+      lens,
+      material,
+      product: 'iD MyStyle 3',
+      sensityCurrent: 0,
+    }
   }
 
+  // Per-frame Sensity ramp. Early-out when neither eye has Sensity selected
+  // so non-photochromic configurations cost nothing.
+  const _sunDir = new pc.Vec3()
+  const onUpdate = (dt: number) => {
+    const left = sides.left
+    const right = sides.right
+    if (!left || !right) return
+    if (left.product !== 'Sensity' && right.product !== 'Sensity') return
+
+    _sunDir
+      .sub2(sunEntity.getPosition(), cameraEntity.getPosition())
+      .normalize()
+    const inView = Math.max(0, cameraEntity.forward.dot(_sunDir))
+    // Ramps in across a wide arc so the customer doesn't need to stare
+    // directly at the sun to see Sensity work. 0.1 → starts, 0.7 → maxed.
+    const target = pc.math.smoothstep(0.1, 0.7, inView)
+
+    for (const s of [left, right]) {
+      if (s.product !== 'Sensity') continue
+      const tc =
+        target > s.sensityCurrent ? SENSITY_DARKEN_TC : SENSITY_CLEAR_TC
+      s.sensityCurrent += (target - s.sensityCurrent) * (dt / tc)
+      s.material.setParameter('uSensityDarkness', s.sensityCurrent)
+    }
+  }
+  app.on('update', onUpdate)
+
   return {
+    setLensProduct(side, product) {
+      const s = sides[side]
+      if (!s || s.product === product) return
+      s.product = product
+      applyProductUniforms(s.material, product)
+      // Reset Sensity ramp when switching to / from photochromic so leftover
+      // darkness from a previous Sensity session doesn't bleed into MyStyle.
+      if (product !== 'Sensity') {
+        s.sensityCurrent = 0
+        s.material.setParameter('uSensityDarkness', 0)
+      }
+    },
     destroy() {
+      app.off('update', onUpdate)
       for (const g of glassesGroups) g.destroy()
     },
   }

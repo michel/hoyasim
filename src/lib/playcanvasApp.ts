@@ -1,6 +1,8 @@
 import * as pc from 'playcanvas'
 import {
   type GlassesController,
+  type LensProduct,
+  type LensSide,
   setupImpairedVision,
   setupLenses,
 } from './glasses-pc'
@@ -9,6 +11,7 @@ import {
   registerCycleForward,
 } from './scripts/cycleForward'
 import { type LookState, registerLookCamera } from './scripts/lookCamera'
+import { addSun } from './scripts/sun'
 
 const PROJECT_PREFIX = `${import.meta.env.BASE_URL}playcanvas/`
 const CONFIG_FILENAME = `${PROJECT_PREFIX}config.json`
@@ -47,6 +50,7 @@ export interface BootedApp {
   dispose: () => void
   putOnGlasses: () => Promise<void>
   takeOffGlasses: () => void
+  setLensProduct: (side: LensSide, product: LensProduct) => void
 }
 
 export async function bootApp(
@@ -116,6 +120,7 @@ export async function bootApp(
   // Captured once the scene has loaded so putOnGlasses can lazily run
   // setupGlasses after the user clicks the in-scene button.
   let cameraEntity: pc.Entity | null = null
+  let sunEntity: pc.Entity | null = null
   let putOnGlassesPromise: Promise<void> | null = null
   let glasses: GlassesController | null = null
 
@@ -256,6 +261,7 @@ export async function bootApp(
           if (cam instanceof pc.Entity && lensEnabled) {
             cameraEntity = cam
             setupImpairedVision(app, cam)
+            sunEntity = addSun(app, cam).entity
           }
 
           if (singleTile && innerSplat instanceof pc.Entity)
@@ -296,9 +302,9 @@ export async function bootApp(
       app.destroy()
     },
     putOnGlasses: () => {
-      if (!cameraEntity) return Promise.resolve()
+      if (!cameraEntity || !sunEntity) return Promise.resolve()
       if (putOnGlassesPromise) return putOnGlassesPromise
-      putOnGlassesPromise = setupLenses(app, cameraEntity)
+      putOnGlassesPromise = setupLenses(app, cameraEntity, sunEntity)
         .then((g) => {
           glasses = g
         })
@@ -312,6 +318,9 @@ export async function bootApp(
       glasses?.destroy()
       glasses = null
       putOnGlassesPromise = null
+    },
+    setLensProduct: (side, product) => {
+      glasses?.setLensProduct(side, product)
     },
   }
 }
