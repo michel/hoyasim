@@ -158,9 +158,7 @@ export default function PlayCanvasView({
             onClick={putOnGlasses}
             disabled={puttingOnGlasses}
           >
-            {puttingOnGlasses && (
-              <Loader2 className="h-5 w-5 animate-spin" />
-            )}
+            {puttingOnGlasses && <Loader2 className="h-5 w-5 animate-spin" />}
             <span>{puttingOnGlasses ? 'Experiencing' : 'Experience'}</span>
             <img
               src={hoyaLogo}

@@ -11,7 +11,6 @@ import {
   registerCycleForward,
 } from './scripts/cycleForward'
 import { type LookState, registerLookCamera } from './scripts/lookCamera'
-import { addSun } from './scripts/sun'
 
 const PROJECT_PREFIX = `${import.meta.env.BASE_URL}playcanvas/`
 const CONFIG_FILENAME = `${PROJECT_PREFIX}config.json`
@@ -120,7 +119,6 @@ export async function bootApp(
   // Captured once the scene has loaded so putOnGlasses can lazily run
   // setupGlasses after the user clicks the in-scene button.
   let cameraEntity: pc.Entity | null = null
-  let sunEntity: pc.Entity | null = null
   let putOnGlassesPromise: Promise<void> | null = null
   let glasses: GlassesController | null = null
 
@@ -228,21 +226,6 @@ export async function bootApp(
             e.gsplat.lodMultiplier = pc.platform.touch ? 2 : 1.5
           }
 
-          const occluderMat = new pc.StandardMaterial()
-          occluderMat.diffuse = new pc.Color(0, 0, 0)
-          occluderMat.useLighting = false
-          occluderMat.update()
-          const occluder = new pc.Entity('GroundOccluder')
-          occluder.addComponent('render', { type: 'plane' })
-          if (occluder.render) {
-            occluder.render.material = occluderMat
-            occluder.render.castShadows = false
-            occluder.render.receiveShadows = false
-          }
-          occluder.setLocalScale(100, 1, 100)
-          occluder.setLocalPosition(0, -0.02, 0)
-          app.root.addChild(occluder)
-
           const rig = app.root.findByName(RIG_ENTITY_NAME)
           if (rig instanceof pc.Entity) {
             rig.addComponent('script')
@@ -261,7 +244,6 @@ export async function bootApp(
           if (cam instanceof pc.Entity && lensEnabled) {
             cameraEntity = cam
             setupImpairedVision(app, cam)
-            sunEntity = addSun(app, cam).entity
           }
 
           if (singleTile && innerSplat instanceof pc.Entity)
@@ -302,9 +284,9 @@ export async function bootApp(
       app.destroy()
     },
     putOnGlasses: () => {
-      if (!cameraEntity || !sunEntity) return Promise.resolve()
+      if (!cameraEntity) return Promise.resolve()
       if (putOnGlassesPromise) return putOnGlassesPromise
-      putOnGlassesPromise = setupLenses(app, cameraEntity, sunEntity)
+      putOnGlassesPromise = setupLenses(app, cameraEntity)
         .then((g) => {
           glasses = g
         })

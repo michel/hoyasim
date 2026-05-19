@@ -1,4 +1,5 @@
 import * as pc from 'playcanvas'
+import { SUN_DIRECTION, sunInView } from './scripts/sun'
 
 const ASSETS_PATH = `${window.location.origin}${import.meta.env.BASE_URL}assets/glasses/`
 
@@ -141,9 +142,11 @@ void main(void) {
 
   sampleUV = clamp(sampleUV, vec2(0.001), vec2(0.999));
   vec3 color = texture(uSceneColorMap, sampleUV).rgb;
-  // Sensity photochromic darken. Pushes to ~12 % brightness at full darkness
-  // so the contrast with non-Sensity lenses is unmistakable in a sales demo.
-  color *= mix(1.0, 0.12, uSensityDarkness);
+  // Sensity photochromic darken. ~30 % brightness retained at full
+  // darkness — cat-3 sunglass tint. The activation curve only reaches
+  // 1.0 when the customer is staring directly at the sun, so day-to-day
+  // gameplay sits closer to a 50–60 % retained tint.
+  color *= mix(1.0, 0.3, uSensityDarkness);
   pcFragColor0 = vec4(color, alpha);
 }
 `
@@ -160,6 +163,8 @@ uniform vec4 uScreenSize;
 uniform float uBlurRadius;
 uniform float uChroma;
 uniform float uStrength;
+uniform float uBlind;
+uniform vec2 uSunUV;
 
 // Weight a blur tap to 0 if its UV is out of [0,1], so edge texels are not
 // repeated into the kernel sum — that's what produces axis-aligned streaks
@@ -199,11 +204,32 @@ void main(void) {
   vec3 cB = blur9(uv - off, px);
   vec3 impaired = vec3(cR.r, cG.g, cB.b);
   vec3 sharp = texture(uSceneColorMap, uv).rgb;
-  pcFragColor0 = vec4(mix(sharp, impaired, uStrength), 1.0);
+  vec3 base = mix(sharp, impaired, uStrength);
+
+  // Radial halo: pixels near the sun's screen-space position wash toward
+  // white. Falloff radius is in UV space (~25 % of the shorter screen
+  // axis).
+  vec2 toSun = uv - uSunUV;
+  float distToSun = length(toSun);
+  float halo = smoothstep(0.25, 0.0, distToSun);
+
+  // God rays: angular streaks radiating from the sun. A high-frequency
+  // sin in the polar angle gives spokes; raising to a power sharpens
+  // the streaks so they read as discrete rays instead of a smooth
+  // gradient. Modulated by distance so they fade close to the disc
+  // and out at the band edge.
+  float angle = atan(toSun.y, toSun.x);
+  float spokes = pow(0.5 + 0.5 * sin(angle * 11.0), 6.0);
+  float rayBand = smoothstep(0.45, 0.05, distToSun)
+                * smoothstep(0.0, 0.03, distToSun);
+  float rays = spokes * rayBand * 0.5;
+
+  base = mix(base, vec3(1.0), uBlind * (halo + rays));
+  pcFragColor0 = vec4(base, 1.0);
 }
 `
 
-function setupImpairedVisionOverlay(app: pc.AppBase) {
+function setupImpairedVisionOverlay(app: pc.AppBase, cameraEntity: pc.Entity) {
   const device = app.graphicsDevice
   const mesh = new pc.Mesh(device)
   mesh.setPositions([-1, -1, 0, 1, -1, 0, -1, 1, 0, 1, 1, 0])
@@ -219,6 +245,8 @@ function setupImpairedVisionOverlay(app: pc.AppBase) {
   material.setParameter('uBlurRadius', IMPAIRED_BLUR_RADIUS_PX)
   material.setParameter('uChroma', IMPAIRED_CHROMA_STRENGTH)
   material.setParameter('uStrength', 0)
+  material.setParameter('uBlind', 0)
+  material.setParameter('uSunUV', [10, 10]) // off-screen until sun is in view
   material.depthWrite = false
   material.depthTest = false
   material.blendType = pc.BLEND_NONE
@@ -237,12 +265,38 @@ function setupImpairedVisionOverlay(app: pc.AppBase) {
     entity.render.receiveShadows = false
   }
 
+  // Persistent scratch vec3s for the per-frame sun-projection calculation,
+  // so onUpdate never allocates.
+  const sunFar = SUN_DIRECTION.clone().mulScalar(10000)
+  const sunScreen = new pc.Vec3()
+  const sunUV: [number, number] = [10, 10]
+
   const startTime = performance.now() / 1000
   const onUpdate = () => {
     const t = Math.min(
       1,
       (performance.now() / 1000 - startTime) / IMPAIRED_FADE_IN_SEC,
     )
+    // Blind ramps non-linearly across the full sun-in-view range so the
+    // effect is subtle in passing glances and dramatic when the user is
+    // staring straight into the sun. pow(smoothstep, 2) keeps the lower
+    // half gentle and accelerates near the peak.
+    const inView = sunInView(cameraEntity)
+    const ramp = pc.math.smoothstep(0.5, 1.0, inView)
+    material.setParameter('uBlind', ramp * ramp * 0.85)
+
+    // Project the sun (at effective infinity along SUN_DIRECTION) into
+    // screen UV. worldToScreen returns CSS-pixel Y-down coords (using
+    // graphicsDevice.clientRect), so divide by clientRect dims — not the
+    // DPR-scaled buffer dims — and flip Y for the shader which uses
+    // gl_FragCoord (Y-up).
+    if (cameraEntity.camera) {
+      cameraEntity.camera.worldToScreen(sunFar, sunScreen)
+      const { width: w, height: h } = app.graphicsDevice.clientRect
+      sunUV[0] = sunScreen.x / w
+      sunUV[1] = 1 - sunScreen.y / h
+      material.setParameter('uSunUV', sunUV)
+    }
     material.setParameter('uStrength', t)
   }
   app.on('update', onUpdate)
@@ -364,7 +418,7 @@ export function setupImpairedVision(
 ): ImpairedVisionController {
   if (cameraEntity.camera) cameraEntity.camera.renderSceneColorMap = true
   reorderLayersForGrab(app.scene.layers)
-  const impaired = setupImpairedVisionOverlay(app)
+  const impaired = setupImpairedVisionOverlay(app, cameraEntity)
   return {
     destroy() {
       impaired.entity.destroy()
@@ -385,7 +439,6 @@ const SENSITY_CLEAR_TC = 3.0 // seconds to reach ~63 % of target when clearing
 export async function setupLenses(
   app: pc.AppBase,
   cameraEntity: pc.Entity,
-  sunEntity: pc.Entity,
 ): Promise<GlassesController> {
   const assets = await Promise.all(
     SIDES.flatMap((s) => [
@@ -455,20 +508,16 @@ export async function setupLenses(
 
   // Per-frame Sensity ramp. Early-out when neither eye has Sensity selected
   // so non-photochromic configurations cost nothing.
-  const _sunDir = new pc.Vec3()
   const onUpdate = (dt: number) => {
     const left = sides.left
     const right = sides.right
     if (!left || !right) return
     if (left.product !== 'Sensity' && right.product !== 'Sensity') return
 
-    _sunDir
-      .sub2(sunEntity.getPosition(), cameraEntity.getPosition())
-      .normalize()
-    const inView = Math.max(0, cameraEntity.forward.dot(_sunDir))
-    // Ramps in across a wide arc so the customer doesn't need to stare
-    // directly at the sun to see Sensity work. 0.1 → starts, 0.7 → maxed.
-    const target = pc.math.smoothstep(0.1, 0.7, inView)
+    // Wide activation so the lens already shows a clear tint during
+    // normal forward gameplay (camera dot ~0.78), and reaches full
+    // darkness when the customer looks straight at the sun.
+    const target = pc.math.smoothstep(0.4, 0.95, sunInView(cameraEntity))
 
     for (const s of [left, right]) {
       if (s.product !== 'Sensity') continue

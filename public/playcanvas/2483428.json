@@ -37,7 +37,7 @@
       "lightingShadowAtlasResolution": 2048,
       "skyboxMip": 0,
       "lightmapSizeMultiplier": 16,
-      "skyboxRotation": [0, 0, 0],
+      "skyboxRotation": [0, 180, 0],
       "skyType": "infinite",
       "skyMeshPosition": [0, 0, 0],
       "skyMeshRotation": [0, 0, 0],
