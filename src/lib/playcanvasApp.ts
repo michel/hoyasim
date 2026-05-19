@@ -1,6 +1,8 @@
 import * as pc from 'playcanvas'
 import {
   type GlassesController,
+  type LensProduct,
+  type LensSide,
   setupImpairedVision,
   setupLenses,
 } from './glasses-pc'
@@ -47,6 +49,7 @@ export interface BootedApp {
   dispose: () => void
   putOnGlasses: () => Promise<void>
   takeOffGlasses: () => void
+  setLensProduct: (side: LensSide, product: LensProduct) => void
 }
 
 export async function bootApp(
@@ -223,21 +226,6 @@ export async function bootApp(
             e.gsplat.lodMultiplier = pc.platform.touch ? 2 : 1.5
           }
 
-          const occluderMat = new pc.StandardMaterial()
-          occluderMat.diffuse = new pc.Color(0, 0, 0)
-          occluderMat.useLighting = false
-          occluderMat.update()
-          const occluder = new pc.Entity('GroundOccluder')
-          occluder.addComponent('render', { type: 'plane' })
-          if (occluder.render) {
-            occluder.render.material = occluderMat
-            occluder.render.castShadows = false
-            occluder.render.receiveShadows = false
-          }
-          occluder.setLocalScale(100, 1, 100)
-          occluder.setLocalPosition(0, -0.02, 0)
-          app.root.addChild(occluder)
-
           const rig = app.root.findByName(RIG_ENTITY_NAME)
           if (rig instanceof pc.Entity) {
             rig.addComponent('script')
@@ -312,6 +300,9 @@ export async function bootApp(
       glasses?.destroy()
       glasses = null
       putOnGlassesPromise = null
+    },
+    setLensProduct: (side, product) => {
+      glasses?.setLensProduct(side, product)
     },
   }
 }

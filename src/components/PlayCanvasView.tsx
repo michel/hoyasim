@@ -1,11 +1,81 @@
-import { Glasses, Loader2, Smartphone } from 'lucide-react'
+import { ChevronRight, Glasses, Loader2, Smartphone } from 'lucide-react'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import hoyaLogo from '@/assets/hoya-logo.svg'
 import { Button } from '@/components/ui/button'
 import { useDeviceOrientation } from '@/hooks/useDeviceOrientation'
 import { usePointerControls } from '@/hooks/usePointerControls'
+import {
+  LENS_PRODUCT_ORDER,
+  type LensProduct,
+  type LensSide,
+} from '@/lib/glasses-pc'
 import { type BootedApp, bootApp } from '@/lib/playcanvasApp'
 import { createLookState } from '@/lib/scripts/lookCamera'
+
+function nextProduct(current: LensProduct): LensProduct {
+  const idx = LENS_PRODUCT_ORDER.indexOf(current)
+  return LENS_PRODUCT_ORDER[(idx + 1) % LENS_PRODUCT_ORDER.length]
+}
+
+const LENS_TAGLINES: Record<LensProduct, string> = {
+  'iD MyStyle 3': 'Premium progressive',
+  'iD WorkStyle 3': 'Desk + screens',
+  'iD LifeStyle 3': 'Everyday progressive',
+  Sensity: 'Photochromic',
+}
+
+function LensSelector({
+  side,
+  active,
+  onCycle,
+  position,
+}: {
+  side: LensSide
+  active: LensProduct
+  onCycle: () => void
+  position: 'left' | 'right'
+}) {
+  const anchor =
+    position === 'left'
+      ? 'left-[28%] -translate-x-1/2'
+      : 'right-[28%] translate-x-1/2'
+  return (
+    <button
+      type="button"
+      aria-label={`Swap ${side} lens (currently ${active}). Tap to cycle.`}
+      onClick={onCycle}
+      className={`group absolute bottom-8 ${anchor} z-10 flex items-stretch overflow-hidden rounded-xl bg-hoya-blue text-white shadow-md shadow-black/30 active:scale-[0.98] transition-transform duration-150`}
+    >
+      <span className="flex flex-col items-start gap-1 py-2.5 pl-4 pr-3">
+        <span className="text-[10px] font-semibold uppercase tracking-[0.16em] text-white/80 leading-none">
+          {LENS_TAGLINES[active]}
+        </span>
+        <span className="text-sm font-semibold tracking-tight leading-none">
+          {active}
+        </span>
+        <span className="mt-1 flex items-center gap-1">
+          {LENS_PRODUCT_ORDER.map((p) => {
+            const isActive = p === active
+            return (
+              <span
+                key={p}
+                className={`h-1 rounded-full transition-all duration-200 ${
+                  isActive ? 'w-5 bg-white' : 'w-2 bg-white/35'
+                }`}
+              />
+            )
+          })}
+        </span>
+      </span>
+      <span className="flex items-center justify-center px-3.5 bg-hoya-blue-active text-white group-hover:bg-black/20 transition-colors">
+        <ChevronRight
+          className="h-5 w-5 transition-transform group-active:translate-x-0.5"
+          aria-hidden="true"
+        />
+      </span>
+    </button>
+  )
+}
 
 interface PlayCanvasViewProps {
   gyroActive: boolean
@@ -23,6 +93,8 @@ export default function PlayCanvasView({
   const [error, setError] = useState<string | null>(null)
   const [glassesOn, setGlassesOn] = useState(false)
   const [puttingOnGlasses, setPuttingOnGlasses] = useState(false)
+  const [leftProduct, setLeftProduct] = useState<LensProduct>('iD MyStyle 3')
+  const [rightProduct, setRightProduct] = useState<LensProduct>('iD MyStyle 3')
 
   useEffect(() => {
     let raf = 0
@@ -72,6 +144,8 @@ export default function PlayCanvasView({
     if (glassesOn || puttingOnGlasses || !bootedAppRef.current) return
     setPuttingOnGlasses(true)
     await bootedAppRef.current.putOnGlasses()
+    bootedAppRef.current.setLensProduct('left', leftProduct)
+    bootedAppRef.current.setLensProduct('right', rightProduct)
     setGlassesOn(true)
     setPuttingOnGlasses(false)
   }
@@ -79,6 +153,14 @@ export default function PlayCanvasView({
   const takeOffGlasses = () => {
     bootedAppRef.current?.takeOffGlasses()
     setGlassesOn(false)
+  }
+
+  const cycleSide = (side: LensSide) => {
+    const next =
+      side === 'left' ? nextProduct(leftProduct) : nextProduct(rightProduct)
+    if (side === 'left') setLeftProduct(next)
+    else setRightProduct(next)
+    bootedAppRef.current?.setLensProduct(side, next)
   }
 
   usePointerControls(canvasRef.current, lookState, gyroActive)
@@ -97,7 +179,7 @@ export default function PlayCanvasView({
       />
       <div
         ref={fpsRef}
-        className="pointer-events-none absolute top-2 left-2 z-30 rounded bg-hoya-dark/70 px-2 py-1 font-mono text-xs text-white tabular-nums"
+        className="pointer-events-none absolute top-2 left-2 z-30 rounded bg-hoya-dark/70 px-2 py-1 font-mono text-xs text-white tabular-nums shadow-md shadow-black/30"
       />
       {loading && !error && (
         <div className="absolute inset-0 z-20 flex flex-col items-center justify-center gap-4 bg-white">
@@ -132,9 +214,7 @@ export default function PlayCanvasView({
             onClick={putOnGlasses}
             disabled={puttingOnGlasses}
           >
-            {puttingOnGlasses && (
-              <Loader2 className="h-5 w-5 animate-spin" />
-            )}
+            {puttingOnGlasses && <Loader2 className="h-5 w-5 animate-spin" />}
             <span>{puttingOnGlasses ? 'Experiencing' : 'Experience'}</span>
             <img
               src={hoyaLogo}
@@ -146,16 +226,30 @@ export default function PlayCanvasView({
         </div>
       )}
       {!loading && !error && glassesOn && (
-        <div className="absolute bottom-8 right-8 z-10">
-          <Button
-            variant="glass"
-            size="icon"
-            aria-label="Take off glasses"
-            onClick={takeOffGlasses}
-          >
-            <Glasses className="h-5 w-5" />
-          </Button>
-        </div>
+        <>
+          <LensSelector
+            side="left"
+            active={leftProduct}
+            onCycle={() => cycleSide('left')}
+            position="left"
+          />
+          <LensSelector
+            side="right"
+            active={rightProduct}
+            onCycle={() => cycleSide('right')}
+            position="right"
+          />
+          <div className="absolute bottom-6 right-6 z-10">
+            <Button
+              variant="glass"
+              size="icon"
+              aria-label="Take off glasses"
+              onClick={takeOffGlasses}
+            >
+              <Glasses className="h-5 w-5" />
+            </Button>
+          </div>
+        </>
       )}
     </>
   )
