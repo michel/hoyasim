@@ -231,13 +231,16 @@ function setupImpairedVisionOverlay(app: pc.AppBase) {
   }
 
   const startTime = performance.now() / 1000
-  app.on('update', () => {
+  const onUpdate = () => {
     const t = Math.min(
       1,
       (performance.now() / 1000 - startTime) / IMPAIRED_FADE_IN_SEC,
     )
     material.setParameter('uStrength', t)
-  })
+  }
+  app.on('update', onUpdate)
+
+  return { entity, onUpdate }
 }
 
 function createLensMaterial(yMin: number, yMax: number): pc.ShaderMaterial {
@@ -290,18 +293,40 @@ const SIDES: SideConfig[] = [
   },
 ]
 
-export interface GlassesController {
-  setLeftLensActive(active: boolean): void
+export interface ImpairedVisionController {
+  destroy(): void
 }
 
-export async function setupGlasses(
+export interface GlassesController {
+  destroy(): void
+}
+
+// Sets up the blurred / chromatic-aberration overlay that simulates needing
+// glasses. Stays active for the whole session — putting on glasses doesn't
+// remove the blur, it just locally corrects it within the lens geometry.
+export function setupImpairedVision(
+  app: pc.AppBase,
+  cameraEntity: pc.Entity,
+): ImpairedVisionController {
+  if (cameraEntity.camera) cameraEntity.camera.renderSceneColorMap = true
+  reorderLayersForGrab(app.scene.layers)
+  const impaired = setupImpairedVisionOverlay(app)
+  return {
+    destroy() {
+      impaired.entity.destroy()
+      app.off('update', impaired.onUpdate)
+      if (cameraEntity.camera) cameraEntity.camera.renderSceneColorMap = false
+    },
+  }
+}
+
+// Adds the lens + frame meshes as children of the camera. Each lens samples
+// the pre-overlay scene grab so the area it covers reads back as sharp; the
+// impaired overlay remains visible everywhere outside the lens geometry.
+export async function setupLenses(
   app: pc.AppBase,
   cameraEntity: pc.Entity,
 ): Promise<GlassesController> {
-  if (cameraEntity.camera) cameraEntity.camera.renderSceneColorMap = true
-  reorderLayersForGrab(app.scene.layers)
-  setupImpairedVisionOverlay(app)
-
   const assets = await Promise.all(
     SIDES.flatMap((s) => [
       loadAsset(app, s.lensFile, 'container', `${ASSETS_PATH}${s.lensFile}`),
@@ -310,7 +335,7 @@ export async function setupGlasses(
   )
 
   const frameMat = createFrameMaterial()
-  let leftLens: pc.Entity | null = null
+  const glassesGroups: pc.Entity[] = []
 
   for (let i = 0; i < SIDES.length; i++) {
     const side = SIDES[i]
@@ -339,16 +364,14 @@ export async function setupGlasses(
     group.setLocalPosition(side.position)
     group.setLocalScale(LENS_SCALE)
     cameraEntity.addChild(group)
+    glassesGroups.push(group)
 
-    if (side.name === 'GlassesLeft') {
-      leftLens = lens
-      lens.enabled = false
-    }
+    if (side.name === 'GlassesLeft') lens.enabled = false
   }
 
   return {
-    setLeftLensActive(active: boolean) {
-      if (leftLens) leftLens.enabled = active
+    destroy() {
+      for (const g of glassesGroups) g.destroy()
     },
   }
 }

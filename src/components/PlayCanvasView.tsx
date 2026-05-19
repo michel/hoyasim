@@ -1,4 +1,4 @@
-import { Loader2 } from 'lucide-react'
+import { Glasses, Loader2 } from 'lucide-react'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import hoyaLogo from '@/assets/hoya-logo.svg'
 import { Button } from '@/components/ui/button'
@@ -21,7 +21,8 @@ export default function PlayCanvasView({
   const bootedAppRef = useRef<BootedApp | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
-  const [leftLensActive, setLeftLensActive] = useState(false)
+  const [glassesOn, setGlassesOn] = useState(false)
+  const [puttingOnGlasses, setPuttingOnGlasses] = useState(false)
 
   useEffect(() => {
     let raf = 0
@@ -67,9 +68,18 @@ export default function PlayCanvasView({
     }
   }, [lookState])
 
-  useEffect(() => {
-    bootedAppRef.current?.setLeftLensActive(leftLensActive)
-  }, [leftLensActive])
+  const putOnGlasses = async () => {
+    if (glassesOn || puttingOnGlasses || !bootedAppRef.current) return
+    setPuttingOnGlasses(true)
+    await bootedAppRef.current.putOnGlasses()
+    setGlassesOn(true)
+    setPuttingOnGlasses(false)
+  }
+
+  const takeOffGlasses = () => {
+    bootedAppRef.current?.takeOffGlasses()
+    setGlassesOn(false)
+  }
 
   usePointerControls(canvasRef.current, lookState, gyroActive)
   const { showEnableButton, enableMotionControls } = useDeviceOrientation(
@@ -113,14 +123,27 @@ export default function PlayCanvasView({
           </Button>
         </div>
       )}
-      {!loading && !error && (
-        <div className="absolute bottom-8 left-1/4 -translate-x-1/2 z-10">
+      {!loading && !error && !glassesOn && !showEnableButton && (
+        <div className="absolute bottom-8 left-1/2 -translate-x-1/2 z-10">
           <Button
             variant="glass"
             size="lg"
-            onClick={() => setLeftLensActive((v) => !v)}
+            onClick={putOnGlasses}
+            disabled={puttingOnGlasses}
           >
-            {leftLensActive ? 'Remove Left Lens' : 'Try Left Lens'}
+            {puttingOnGlasses ? 'Putting on glasses…' : 'Put on glasses'}
+          </Button>
+        </div>
+      )}
+      {!loading && !error && glassesOn && (
+        <div className="absolute bottom-8 right-8 z-10">
+          <Button
+            variant="glass"
+            size="icon"
+            aria-label="Take off glasses"
+            onClick={takeOffGlasses}
+          >
+            <Glasses className="h-5 w-5" />
           </Button>
         </div>
       )}

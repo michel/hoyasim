@@ -1,5 +1,9 @@
 import * as pc from 'playcanvas'
-import { type GlassesController, setupGlasses } from './glasses-pc'
+import {
+  type GlassesController,
+  setupImpairedVision,
+  setupLenses,
+} from './glasses-pc'
 import {
   CYCLE_FORWARD_BASE_SPEED,
   registerCycleForward,
@@ -41,7 +45,8 @@ pc.dracoInitialize({
 export interface BootedApp {
   app: pc.AppBase
   dispose: () => void
-  setLeftLensActive: (active: boolean) => void
+  putOnGlasses: () => Promise<void>
+  takeOffGlasses: () => void
 }
 
 export async function bootApp(
@@ -108,6 +113,10 @@ export async function bootApp(
   app.setCanvasFillMode(pc.FILLMODE_FILL_WINDOW)
   app.setCanvasResolution(pc.RESOLUTION_AUTO)
 
+  // Captured once the scene has loaded so putOnGlasses can lazily run
+  // setupGlasses after the user clicks the in-scene button.
+  let cameraEntity: pc.Entity | null = null
+  let putOnGlassesPromise: Promise<void> | null = null
   let glasses: GlassesController | null = null
 
   const onResize = () => app.resizeCanvas()
@@ -244,14 +253,10 @@ export async function bootApp(
           }
 
           const cam = app.root.findByName(CAMERA_ENTITY_NAME)
-          if (cam instanceof pc.Entity && lensEnabled)
-            setupGlasses(app, cam)
-              .then((g) => {
-                glasses = g
-              })
-              .catch((err: unknown) => {
-                console.error('Glasses setup failed:', err)
-              })
+          if (cam instanceof pc.Entity && lensEnabled) {
+            cameraEntity = cam
+            setupImpairedVision(app, cam)
+          }
 
           if (singleTile && innerSplat instanceof pc.Entity)
             innerSplat.enabled = false
@@ -290,6 +295,23 @@ export async function bootApp(
       window.removeEventListener('resize', onResize)
       app.destroy()
     },
-    setLeftLensActive: (active) => glasses?.setLeftLensActive(active),
+    putOnGlasses: () => {
+      if (!cameraEntity) return Promise.resolve()
+      if (putOnGlassesPromise) return putOnGlassesPromise
+      putOnGlassesPromise = setupLenses(app, cameraEntity)
+        .then((g) => {
+          glasses = g
+        })
+        .catch((err: unknown) => {
+          console.error('Lens setup failed:', err)
+          putOnGlassesPromise = null
+        })
+      return putOnGlassesPromise
+    },
+    takeOffGlasses: () => {
+      glasses?.destroy()
+      glasses = null
+      putOnGlassesPromise = null
+    },
   }
 }
