@@ -19,9 +19,9 @@ const buttonVariants = cva(
         ghost: 'text-hoya-dark hover:bg-secondary hover:text-hoya-blue',
         link: 'text-hoya-blue underline-offset-4 hover:underline',
         glass:
-          'glass-hoya text-white hover:bg-hoya-blue-hover active:bg-hoya-blue-active shadow-lg',
+          'glass-hoya text-white hover:bg-hoya-blue-hover active:bg-hoya-blue-active shadow-md shadow-black/30',
         'glass-dark':
-          'glass-dark text-white hover:bg-hoya-dark/70 active:bg-hoya-dark/80 shadow-lg',
+          'glass-dark text-white hover:bg-hoya-dark/70 active:bg-hoya-dark/80 shadow-md shadow-black/30',
       },
       size: {
         default: 'h-9 px-4 py-2 has-[>svg]:px-3',

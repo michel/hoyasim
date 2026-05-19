@@ -183,9 +183,7 @@
     border: 1px solid rgba(255, 255, 255, 0.08);
   }
   .glass-hoya {
-    background: rgba(0, 85, 196, 0.85);
-    backdrop-filter: blur(20px);
-    -webkit-backdrop-filter: blur(20px);
+    background: #0055c4;
     border: 1px solid rgba(255, 255, 255, 0.15);
   }
 }

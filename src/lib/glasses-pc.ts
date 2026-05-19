@@ -3,14 +3,17 @@ import { SUN_DIRECTION, sunInView } from './scripts/sun'
 
 const ASSETS_PATH = `${window.location.origin}${import.meta.env.BASE_URL}assets/glasses/`
 
-const LENS_SCALE_MULT = 1.08
+const LENS_SCALE_MULT = 1.4
 const LENS_SCALE = new pc.Vec3(
   0.16875 * LENS_SCALE_MULT,
   0.16875 * LENS_SCALE_MULT,
   0.28125 * LENS_SCALE_MULT,
 )
-const LENS_LEFT_POS = new pc.Vec3(-0.39375, 0, -0.4875)
-const LENS_RIGHT_POS = new pc.Vec3(0.39375, 0, -0.4875)
+// Spread the lenses outward proportionally so the larger glasses still
+// frame each eye with a clear bridge between, rather than crowding the
+// centre of the screen.
+const LENS_LEFT_POS = new pc.Vec3(-0.5, 0, -0.4875)
+const LENS_RIGHT_POS = new pc.Vec3(0.5, 0, -0.4875)
 
 const IMPAIRED_BLUR_RADIUS_PX = 16.0
 const IMPAIRED_CHROMA_STRENGTH = 0.001
