@@ -83,6 +83,40 @@ src/
 └── test/              # Test setup
 ```
 
+## Regenerating the Splat LOD Bundle
+
+The Gaussian splat is served as a streamed LOD bundle (`public/playcanvas/assets/splat/`). Each visible chunk picks an LOD level at runtime based on screen-space size and the per-frame splat budget — on desktop the engine can pick any tier; on mobile the floor is LOD 1 (50% density) with a 750K splat budget.
+
+The bundle is generated from the source `.ply` with [`@playcanvas/splat-transform`](https://github.com/playcanvas/splat-transform). Re-run it whenever you have a newer capture:
+
+```bash
+PLY="/path/to/new_splat.ply"
+OUT="public/playcanvas/assets/splat"
+
+rm -rf "$OUT"
+mkdir -p "$OUT"
+
+bunx @playcanvas/splat-transform -w \
+  "$PLY" -l 0 \
+  "$PLY" --decimate 50%  -l 1 \
+  "$PLY" --decimate 25%  -l 2 \
+  "$PLY" --decimate 12.5% -l 3 \
+  "$OUT/lod-meta.json"
+```
+
+This produces `lod-meta.json` plus per-chunk subdirectories (`0_0/`, `1_0/`, etc.) — keep the existing chunk-folder naming, it's referenced from inside the manifest. Decimation runs on each input independently, so this takes ~3–5 minutes on a 2.8M-gaussian splat.
+
+After regenerating, update the manifest's size and hash in `public/playcanvas/config.json` under asset `287139133` so PlayCanvas's cache-buster picks up the new bundle:
+
+```bash
+echo "size:" && stat -f "%z" public/playcanvas/assets/splat/lod-meta.json
+echo "hash:" && md5 -q  public/playcanvas/assets/splat/lod-meta.json
+```
+
+Then edit the `file: { size, hash }` fields for `287139133` in `config.json` to match. The `url` (`assets/splat/lod-meta.json`) stays the same.
+
+If you need different LOD counts or sizes, tune the `-l N` levels and `--decimate` percentages above — runtime LOD selection (`splatBudget`, `lodRangeMin`, `lodBaseDistance`, `lodMultiplier`) lives in `src/lib/playcanvasApp.ts`.
+
 ## Tech Stack
 
 React 19, Three.js, TypeScript, Vite, Tailwind CSS 4, Biome, Vitest

@@ -158,7 +158,14 @@ export async function bootApp(
           // Modern unified pipeline: globally LOD-balance both tiles to stay
           // under a target splat count. Mobile is fill-bound, so it gets a
           // tighter budget than desktop.
-          app.scene.gsplat.splatBudget = pc.platform.touch ? 500_000 : 4_000_000
+          // Mobile budget sized so the nearest chunk can be LOD 1 (~470K splats)
+          // while the rest fall through LOD 2/3 — under 250K the engine was
+          // forced down to LOD 3 (12.5%) for everything, defeating the point
+          // of having extra tiers.
+          app.scene.gsplat.splatBudget = pc.platform.touch ? 750_000 : 4_000_000
+          // Mobile: skip LOD 0; LOD 1 (50%) is the floor for nearby chunks,
+          // and the engine can fall through LOD 2 (25%) to LOD 3 (12.5%) for
+          // distant ones so the per-frame total still fits the budget.
           if (pc.platform.touch) app.scene.gsplat.lodRangeMin = 1
           for (const e of [outerSplat, innerSplat]) {
             if (!(e instanceof pc.Entity) || !e.gsplat) continue
@@ -171,9 +178,10 @@ export async function bootApp(
             // dependent shading; usually unnoticeable, big GPU win on mobile.
             e.gsplat.highQualitySH = false
             // Drop quality faster with distance — the trailing tile is usually
-            // far from the camera as it loops around behind.
-            e.gsplat.lodBaseDistance = 1
-            e.gsplat.lodMultiplier = 1.5
+            // far from the camera as it loops around behind. Touch devices
+            // get an even steeper falloff so mid-distance splats coarsen fast.
+            e.gsplat.lodBaseDistance = pc.platform.touch ? 0.5 : 1
+            e.gsplat.lodMultiplier = pc.platform.touch ? 2 : 1.5
           }
 
           const occluderMat = new pc.StandardMaterial()

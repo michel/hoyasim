@@ -57,7 +57,7 @@
         "filename": "sky.png",
         "size": 147883,
         "hash": "9a07d61f34e67a5e96fb6e579ce5c813",
-        "url": "files/assets/287139122/1/sky.png"
+        "url": "assets/skybox/sky.png"
       },
       "data": {
         "name": "New Cubemap",
@@ -82,7 +82,7 @@
         "hash": "2be10e522c5e12bc0b791b48181895b9",
         "size": 147065,
         "variants": {},
-        "url": "files/assets/287139123/1/sky_negz.png"
+        "url": "assets/skybox/sky_negz.png"
       },
       "data": {
         "addressu": "repeat",
@@ -107,7 +107,7 @@
         "hash": "53a9aab04b23a2e8f7be2d99115ca09d",
         "size": 198593,
         "variants": {},
-        "url": "files/assets/287139124/1/sky_posz.png"
+        "url": "assets/skybox/sky_posz.png"
       },
       "data": {
         "addressu": "repeat",
@@ -132,7 +132,7 @@
         "hash": "f11af8966b2e0fe99e343108d777403d",
         "size": 170046,
         "variants": {},
-        "url": "files/assets/287139125/1/sky_posy.png"
+        "url": "assets/skybox/sky_posy.png"
       },
       "data": {
         "addressu": "repeat",
@@ -157,7 +157,7 @@
         "hash": "ff5cfefbc0d5d485bf9a0b9a31b25810",
         "size": 152642,
         "variants": {},
-        "url": "files/assets/287139126/1/sky_negy.png"
+        "url": "assets/skybox/sky_negy.png"
       },
       "data": {
         "addressu": "repeat",
@@ -182,7 +182,7 @@
         "hash": "bb45a6c2eed8c3763777eaed6f44527f",
         "size": 172680,
         "variants": {},
-        "url": "files/assets/287139127/1/sky_posx.png"
+        "url": "assets/skybox/sky_posx.png"
       },
       "data": {
         "addressu": "repeat",
@@ -207,7 +207,7 @@
         "hash": "34f64e48aa3125598094e24eeb02d574",
         "size": 155167,
         "variants": {},
-        "url": "files/assets/287139128/1/sky_negx.png"
+        "url": "assets/skybox/sky_negx.png"
       },
       "data": {
         "addressu": "repeat",
@@ -228,10 +228,10 @@
       "name": "Splat.sog",
       "type": "gsplat",
       "file": {
-        "filename": "Splat.sog",
-        "size": 35355225,
-        "hash": "e5c29aad59ea468c423116d5195e55fd",
-        "url": "files/assets/287139133/1/Splat.sog"
+        "filename": "lod-meta.json",
+        "size": 34499,
+        "hash": "40166f44531fa7d845aad8fde3b80116",
+        "url": "assets/splat/lod-meta.json"
       },
       "data": null,
       "preload": true,
@@ -308,7 +308,7 @@
         "filename": "bike.mtl",
         "size": 3506,
         "hash": "4aaef8eac44fe7b3cf7a4688b3e9e15c",
-        "url": "files/assets/287159652/1/bike.mtl"
+        "url": "assets/models/bike.mtl"
       },
       "data": null,
       "preload": false,
@@ -323,7 +323,7 @@
         "hash": "360eebeb2fc1db6e6d7810346aa122e3",
         "size": 1659496,
         "filename": "bike.glb",
-        "url": "files/assets/287159655/1/bike.glb"
+        "url": "assets/models/bike.glb"
       },
       "data": {},
       "preload": true,
