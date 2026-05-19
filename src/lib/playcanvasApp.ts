@@ -158,15 +158,45 @@ export async function bootApp(
           // Modern unified pipeline: globally LOD-balance both tiles to stay
           // under a target splat count. Mobile is fill-bound, so it gets a
           // tighter budget than desktop.
-          // Mobile budget sized so the nearest chunk can be LOD 1 (~470K splats)
-          // while the rest fall through LOD 2/3 — under 250K the engine was
-          // forced down to LOD 3 (12.5%) for everything, defeating the point
-          // of having extra tiers.
-          app.scene.gsplat.splatBudget = pc.platform.touch ? 750_000 : 4_000_000
-          // Mobile: skip LOD 0; LOD 1 (50%) is the floor for nearby chunks,
-          // and the engine can fall through LOD 2 (25%) to LOD 3 (12.5%) for
-          // distant ones so the per-frame total still fits the budget.
-          if (pc.platform.touch) app.scene.gsplat.lodRangeMin = 1
+          // iOS gets the tightest budget because thermal throttling kicks in
+          // after a couple of loop cycles — less per-frame GPU work = slower
+          // heat buildup = stable FPS for longer.
+          app.scene.gsplat.splatBudget = pc.platform.ios
+            ? 200_000
+            : pc.platform.touch
+              ? 500_000
+              : 4_000_000
+          // Mobile clamps to LOD 2/3. iOS Safari additionally pins to a single
+          // LOD because Metal's WebGL texture allocator doesn't reclaim freed
+          // chunks promptly — repeated load/evict cycles compound into FPS
+          // drift over time on iPhone (not reproducible in desktop Chrome).
+          // Pinning to LOD 3 means the same 3 chunk files are uploaded once
+          // and never churned, eliminating the GPU memory pressure entirely.
+          if (pc.platform.ios) {
+            app.scene.gsplat.lodRangeMin = 3
+            app.scene.gsplat.lodRangeMax = 3
+          } else if (pc.platform.touch) {
+            app.scene.gsplat.lodRangeMin = 2
+          }
+          // LOD streaming tuning:
+          //   - underfill: draw a coarser cached LOD while the desired tier
+          //     streams in (no stalls during wrap, just brief blur).
+          //   - cooldownTicks ~2s: evict off-screen chunks aggressively so
+          //     panning around doesn't accumulate GPU memory. Higher values
+          //     (60s to span the loop) caused steady FPS decay; 10s also
+          //     felt worse on device than 2s.
+          //   - behindPenalty: trailing-tile chunks coarsen pre-emptively so
+          //     the post-wrap LOD upgrade jump is smaller.
+          //   - lodUpdateDistance: re-evaluate LOD only every 3m of camera
+          //     motion (default 1m). Cuts LOD selection cost during cycling.
+          //   - radialSorting: matches PlayCanvas's streamed-gsplat walk-mode
+          //     sample — cheaper sort that stays stable as the camera rotates
+          //     in place (which is exactly what mobile head-look does).
+          app.scene.gsplat.lodUnderfillLimit = 2
+          app.scene.gsplat.cooldownTicks = 120
+          app.scene.gsplat.lodBehindPenalty = 3
+          app.scene.gsplat.lodUpdateDistance = 3
+          app.scene.gsplat.radialSorting = true
           for (const e of [outerSplat, innerSplat]) {
             if (!(e instanceof pc.Entity) || !e.gsplat) continue
             if (noSplat) {

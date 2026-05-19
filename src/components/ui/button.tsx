@@ -5,24 +5,23 @@ import type * as React from 'react'
 import { cn } from '@/lib/utils'
 
 const buttonVariants = cva(
-  "inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-2xl text-sm font-medium transition-all duration-200 disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg:not([class*='size-'])]:size-4 shrink-0 [&_svg]:shrink-0 outline-none focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px] aria-invalid:ring-destructive/20 dark:aria-invalid:ring-destructive/40 aria-invalid:border-destructive",
+  "inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-full text-sm font-medium tracking-wide transition-all duration-200 disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg:not([class*='size-'])]:size-4 shrink-0 [&_svg]:shrink-0 outline-none focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px] aria-invalid:ring-destructive/20 aria-invalid:border-destructive",
   {
     variants: {
       variant: {
-        default: 'bg-primary text-primary-foreground hover:bg-primary/90',
+        default:
+          'bg-hoya-blue text-white hover:bg-hoya-blue-hover active:bg-hoya-blue-active shadow-sm',
         destructive:
-          'bg-destructive text-white hover:bg-destructive/90 focus-visible:ring-destructive/20 dark:focus-visible:ring-destructive/40 dark:bg-destructive/60',
+          'bg-destructive text-white hover:bg-destructive/90 focus-visible:ring-destructive/20',
         outline:
-          'border bg-background shadow-xs hover:bg-accent hover:text-accent-foreground dark:bg-input/30 dark:border-input dark:hover:bg-input/50',
-        secondary:
-          'bg-secondary text-secondary-foreground hover:bg-secondary/80',
-        ghost:
-          'hover:bg-accent hover:text-accent-foreground dark:hover:bg-accent/50',
-        link: 'text-primary underline-offset-4 hover:underline',
+          'border border-hoya-border bg-white text-hoya-dark shadow-xs hover:bg-secondary hover:text-hoya-blue',
+        secondary: 'bg-secondary text-hoya-dark hover:bg-secondary/80',
+        ghost: 'text-hoya-dark hover:bg-secondary hover:text-hoya-blue',
+        link: 'text-hoya-blue underline-offset-4 hover:underline',
         glass:
-          'glass text-white hover:bg-white/20 active:bg-white/25 shadow-lg',
+          'glass-hoya text-white hover:bg-hoya-blue-hover active:bg-hoya-blue-active shadow-lg',
         'glass-dark':
-          'glass-dark text-white hover:bg-black/35 active:bg-black/40 shadow-lg',
+          'glass-dark text-white hover:bg-hoya-dark/70 active:bg-hoya-dark/80 shadow-lg',
       },
       size: {
         default: 'h-9 px-4 py-2 has-[>svg]:px-3',

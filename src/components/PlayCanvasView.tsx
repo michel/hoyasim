@@ -1,5 +1,6 @@
 import { Loader2 } from 'lucide-react'
 import { useEffect, useMemo, useRef, useState } from 'react'
+import hoyaLogo from '@/assets/hoya-logo.svg'
 import { Button } from '@/components/ui/button'
 import { useDeviceOrientation } from '@/hooks/useDeviceOrientation'
 import { usePointerControls } from '@/hooks/usePointerControls'
@@ -86,22 +87,22 @@ export default function PlayCanvasView({
       />
       <div
         ref={fpsRef}
-        className="pointer-events-none absolute top-2 left-2 z-30 rounded bg-black/50 px-2 py-1 font-mono text-xs text-white tabular-nums"
+        className="pointer-events-none absolute top-2 left-2 z-30 rounded bg-hoya-dark/70 px-2 py-1 font-mono text-xs text-white tabular-nums"
       />
       {loading && !error && (
-        <div className="absolute inset-0 z-20 flex flex-col items-center justify-center gap-4 bg-gradient-to-br from-slate-950 via-slate-900 to-zinc-900">
-          <div className="glass rounded-3xl p-8 flex flex-col items-center gap-4 shadow-2xl">
-            <Loader2 className="h-10 w-10 animate-spin text-white/80" />
-            <div className="text-white/90 text-lg font-light">
-              Loading scene...
-            </div>
+        <div className="absolute inset-0 z-20 flex flex-col items-center justify-center gap-4 bg-white">
+          <img src={hoyaLogo} alt="HOYA" className="h-8 w-auto opacity-80" />
+          <Loader2 className="h-8 w-8 animate-spin text-hoya-blue" />
+          <div className="text-hoya-muted text-sm font-light tracking-wide">
+            Loading scene...
           </div>
         </div>
       )}
       {error && (
-        <div className="absolute inset-0 z-20 flex flex-col items-center justify-center gap-4 bg-gradient-to-br from-slate-950 via-slate-900 to-zinc-900">
-          <div className="glass rounded-3xl p-8 flex flex-col items-center gap-4 shadow-2xl">
-            <div className="text-red-400 text-lg font-light">{error}</div>
+        <div className="absolute inset-0 z-20 flex flex-col items-center justify-center gap-4 bg-white px-6">
+          <img src={hoyaLogo} alt="HOYA" className="h-8 w-auto" />
+          <div className="text-destructive text-base font-light text-center max-w-md">
+            {error}
           </div>
         </div>
       )}

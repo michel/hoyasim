@@ -251,7 +251,12 @@
       ],
       "scale": [5, 5, 5],
       "components": {
-        "gsplat": { "enabled": true, "unified": true, "asset": 287139133, "layers": [0] }
+        "gsplat": {
+          "enabled": true,
+          "unified": true,
+          "asset": 287139133,
+          "layers": [0]
+        }
       }
     },
     "18cfe02a-5fc4-43a7-b9c6-f55bca10a8f1": {
@@ -265,7 +270,12 @@
       "rotation": [0, 7.016709298534876e-15, -7.016709298534872e-15],
       "scale": [1, 1, 1],
       "components": {
-        "gsplat": { "enabled": true, "unified": true, "asset": 287139133, "layers": [0] }
+        "gsplat": {
+          "enabled": true,
+          "unified": true,
+          "asset": 287139133,
+          "layers": [0]
+        }
       }
     }
   },

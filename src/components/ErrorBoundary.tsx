@@ -1,5 +1,6 @@
 import { Component } from 'react'
 import { Link } from 'react-router-dom'
+import hoyaLogo from '@/assets/hoya-logo.svg'
 import { Button } from '@/components/ui/button'
 
 interface Props {
@@ -21,20 +22,23 @@ export class ErrorBoundary extends Component<Props, State> {
   render() {
     if (this.state.error)
       return (
-        <div className="min-h-screen flex flex-col items-center justify-center bg-gradient-to-br from-slate-900 via-purple-900/50 to-slate-900">
-          <div className="glass rounded-3xl px-12 py-10 flex flex-col items-center gap-6 shadow-2xl max-w-lg">
-            <h1 className="text-2xl font-light text-white">
-              Something went wrong
-            </h1>
-            <p className="text-white/60 text-sm max-w-md text-center">
-              {this.state.error}
-            </p>
+        <div className="min-h-screen flex flex-col items-center justify-center bg-white px-6">
+          <div className="flex flex-col items-center gap-8 max-w-lg w-full">
+            <img src={hoyaLogo} alt="HOYA" className="h-10 w-auto" />
+            <div className="flex flex-col items-center gap-2">
+              <h1 className="text-2xl font-light text-hoya-dark tracking-wide">
+                Something went wrong
+              </h1>
+              <p className="text-hoya-muted text-sm max-w-md text-center">
+                {this.state.error}
+              </p>
+            </div>
             {import.meta.env.DEV && this.state.stack && (
-              <pre className="text-white/40 text-xs max-w-md overflow-auto max-h-40 text-left w-full">
+              <pre className="text-hoya-muted/80 text-xs max-w-md overflow-auto max-h-40 text-left w-full bg-secondary rounded-xl p-4">
                 {this.state.stack}
               </pre>
             )}
-            <Button variant="glass" asChild>
+            <Button asChild>
               <Link to="/">Back to Home</Link>
             </Button>
           </div>
