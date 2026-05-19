@@ -1,4 +1,4 @@
-import { Glasses, Loader2 } from 'lucide-react'
+import { Glasses, Loader2, Smartphone } from 'lucide-react'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import hoyaLogo from '@/assets/hoya-logo.svg'
 import { Button } from '@/components/ui/button'
@@ -119,6 +119,7 @@ export default function PlayCanvasView({
       {showEnableButton && !gyroActive && !loading && (
         <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-10">
           <Button variant="glass" size="lg" onClick={enableMotionControls}>
+            <Smartphone className="h-5 w-5" />
             Tap to Enable Motion Controls
           </Button>
         </div>
@@ -131,7 +132,16 @@ export default function PlayCanvasView({
             onClick={putOnGlasses}
             disabled={puttingOnGlasses}
           >
-            {puttingOnGlasses ? 'Putting on glasses…' : 'Put on glasses'}
+            {puttingOnGlasses && (
+              <Loader2 className="h-5 w-5 animate-spin" />
+            )}
+            <span>{puttingOnGlasses ? 'Experiencing' : 'Experience'}</span>
+            <img
+              src={hoyaLogo}
+              alt="HOYA"
+              className="h-4 w-auto brightness-0 invert"
+            />
+            <span>{puttingOnGlasses ? 'vision…' : 'vision'}</span>
           </Button>
         </div>
       )}

@@ -57,27 +57,38 @@ export function useDeviceOrientation(
     }
 
     const screen = new pc.Quat()
-    let alphaOffset = 0
+    const current = new pc.Quat()
+    const initialYawInv = new pc.Quat()
     let hasInitialized = false
 
     const onDeviceOrientation = (event: DeviceOrientationEvent) => {
       if (event.alpha === null || event.beta === null || event.gamma === null)
         return
 
-      if (!hasInitialized) {
-        alphaOffset = -event.alpha
-        hasInitialized = true
-      }
-
-      const alpha = (event.alpha + alphaOffset) * DEG_TO_RAD
+      const alpha = event.alpha * DEG_TO_RAD
       const beta = event.beta * DEG_TO_RAD
       const gamma = event.gamma * DEG_TO_RAD
       const orient = (window.screen?.orientation?.angle || 0) * DEG_TO_RAD
 
-      eulerYXZToQuat(lookState.gyroQuat, beta, alpha, gamma)
-      lookState.gyroQuat.mul(WORLD_CORRECTION)
+      eulerYXZToQuat(current, beta, alpha, gamma)
+      current.mul(WORLD_CORRECTION)
       screen.set(0, 0, Math.sin(-orient / 2), Math.cos(-orient / 2))
-      lookState.gyroQuat.mul(screen)
+      current.mul(screen)
+
+      // Snap yaw to "forward" on activation while keeping pitch/roll absolute.
+      // Swing-twist around Y: q = q_twist * q_swing, so q_twist = (0, y, 0, w)
+      // normalized. Pre-multiplying by inv(q_twist_0) cancels initial yaw and
+      // leaves the swing (pitch/roll) free to track the phone naturally.
+      if (!hasInitialized) {
+        const len = Math.hypot(current.y, current.w)
+        if (len > 0) {
+          initialYawInv.set(0, -current.y / len, 0, current.w / len)
+        } else {
+          initialYawInv.set(0, 0, 0, 1)
+        }
+        hasInitialized = true
+      }
+      lookState.gyroQuat.mul2(initialYawInv, current)
       lookState.gyroActive = true
     }
 
