@@ -3,7 +3,12 @@ import { SUN_DIRECTION, sunInView } from './scripts/sun'
 
 const ASSETS_PATH = `${window.location.origin}${import.meta.env.BASE_URL}assets/glasses/`
 
-const LENS_SCALE_MULT = 1.18
+// Kill switch: flip to true to use master's original lens sizing (smaller
+// meshes = ~40 % fewer lens fragments per frame). Lets us isolate whether
+// the lens scale-up is the mobile FPS bottleneck.
+const LENS_USE_MASTER_SIZE = true
+
+const LENS_SCALE_MULT = LENS_USE_MASTER_SIZE ? 1.08 : 1.18
 const LENS_SCALE = new pc.Vec3(
   0.16875 * LENS_SCALE_MULT,
   0.16875 * LENS_SCALE_MULT,
@@ -12,12 +17,23 @@ const LENS_SCALE = new pc.Vec3(
 // Spread the lenses outward proportionally so the larger glasses still
 // frame each eye with a clear bridge between, rather than crowding the
 // centre of the screen.
-const LENS_LEFT_POS = new pc.Vec3(-0.44, 0, -0.4875)
-const LENS_RIGHT_POS = new pc.Vec3(0.44, 0, -0.4875)
+const LENS_X = LENS_USE_MASTER_SIZE ? 0.39375 : 0.44
+const LENS_LEFT_POS = new pc.Vec3(-LENS_X, 0, -0.4875)
+const LENS_RIGHT_POS = new pc.Vec3(LENS_X, 0, -0.4875)
 
 const IMPAIRED_BLUR_RADIUS_PX = 16.0
 const IMPAIRED_CHROMA_STRENGTH = 0.001
 const IMPAIRED_FADE_IN_SEC = 1.0
+
+// Temporary kill switch for the per-frame sun work (worldToScreen +
+// Sensity ramp + shader uniforms). Used to isolate whether sun effects
+// are responsible for mobile FPS dips.
+const SUN_EFFECTS_ENABLED = true
+
+// Kill switch for the full-screen impaired-vision overlay (the blur +
+// chromatic aberration that runs every frame). Toggle off to measure
+// whether the 9-tap kernel × 3 channels is the mobile FPS bottleneck.
+const IMPAIRED_VISION_ENABLED = true
 
 type AssetType = ConstructorParameters<typeof pc.Asset>[1]
 
@@ -256,6 +272,7 @@ function setupImpairedVisionOverlay(app: pc.AppBase, cameraEntity: pc.Entity) {
   material.update()
 
   const entity = new pc.Entity('ImpairedVision')
+  entity.enabled = IMPAIRED_VISION_ENABLED
   app.root.addChild(entity)
   const meshInstance = new pc.MeshInstance(mesh, material, entity)
   meshInstance.cull = false
@@ -280,6 +297,9 @@ function setupImpairedVisionOverlay(app: pc.AppBase, cameraEntity: pc.Entity) {
       1,
       (performance.now() / 1000 - startTime) / IMPAIRED_FADE_IN_SEC,
     )
+    material.setParameter('uStrength', t)
+    if (!SUN_EFFECTS_ENABLED) return
+
     // Blind ramps non-linearly across the full sun-in-view range so the
     // effect is subtle in passing glances and dramatic when the user is
     // staring straight into the sun. pow(smoothstep, 2) keeps the lower
@@ -300,7 +320,6 @@ function setupImpairedVisionOverlay(app: pc.AppBase, cameraEntity: pc.Entity) {
       sunUV[1] = 1 - sunScreen.y / h
       material.setParameter('uSunUV', sunUV)
     }
-    material.setParameter('uStrength', t)
   }
   app.on('update', onUpdate)
 
@@ -512,6 +531,7 @@ export async function setupLenses(
   // Per-frame Sensity ramp. Early-out when neither eye has Sensity selected
   // so non-photochromic configurations cost nothing.
   const onUpdate = (dt: number) => {
+    if (!SUN_EFFECTS_ENABLED) return
     const left = sides.left
     const right = sides.right
     if (!left || !right) return
