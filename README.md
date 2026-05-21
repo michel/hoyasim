@@ -2,7 +2,7 @@
 
 Interactive 3D scene viewer with AR glasses overlay. Experience an immersive Gaussian-splat environment through simulated progressive lenses — on desktop with mouse/touch, or on mobile with real gyroscope head-tracking.
 
-**[Live Demo](https://micheldegraaf.github.io/hoyasim/)**
+**[Live Demo](https://re-invention.nl/hoyasim/)**
 
 ## What It Does
 
@@ -55,17 +55,17 @@ Open the ngrok HTTPS URL on your iPhone. Tap the gyroscope button in the scene t
 
 ## Available Scripts
 
-| Command | Description |
-|---------|-------------|
-| `bun run dev` | Start dev server on port 5173 |
-| `bun run build` | Type-check and build for production |
-| `bun run preview` | Preview the production build locally |
-| `bun run test` | Run tests |
-| `bun run test:watch` | Run tests in watch mode |
-| `bun run type-check` | Type-check only (no build) |
-| `bun run lint` | Check for issues with Biome |
-| `bun run format` | Auto-format all files |
-| `bun run check` | Check and auto-fix issues |
+| Command              | Description                          |
+| -------------------- | ------------------------------------ |
+| `bun run dev`        | Start dev server on port 5173        |
+| `bun run build`      | Type-check and build for production  |
+| `bun run preview`    | Preview the production build locally |
+| `bun run test`       | Run tests                            |
+| `bun run test:watch` | Run tests in watch mode              |
+| `bun run type-check` | Type-check only (no build)           |
+| `bun run lint`       | Check for issues with Biome          |
+| `bun run format`     | Auto-format all files                |
+| `bun run check`      | Check and auto-fix issues            |
 
 ## Project Structure
 
@@ -117,18 +117,18 @@ Expect ~3–4 minutes and ~3 GB peak RAM on a 2.8M-gaussian splat. The current b
 
 **What each flag does — this is how you "create the LOD":**
 
-| Flag | Meaning |
-|------|---------|
-| `-w` | Overwrite the output directory if it exists. |
-| `"$PLY" -l N` | Add the file as **LOD level N**. Repeat the input once per tier. `-l 0` is full resolution; higher numbers are coarser. |
-| `--decimate 50%` | Progressive pairwise-merge the *preceding* input down to N% (or an absolute count) of its gaussians. Best quality-per-splat reduction. Applied per input, so each tier is decimated independently. LOD 0 has no `--decimate` (full quality). |
-| `-C 128` | **LOD chunk size ≈ 128K gaussians per chunk** (`--lod-chunk-count`, in thousands; default 512). Smaller chunks = more files, but each streamed upload is ~4× cheaper, which spreads the per-frame upload spike (e.g. when the camera loops past new geometry) across more frames. **Required** to reproduce the shipped 41-chunk layout — omitting it gives a coarser 12-chunk/512K bundle. |
+| Flag             | Meaning                                                                                                                                                                                                                                                                                                                                                                                     |
+| ---------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `-w`             | Overwrite the output directory if it exists.                                                                                                                                                                                                                                                                                                                                                |
+| `"$PLY" -l N`    | Add the file as **LOD level N**. Repeat the input once per tier. `-l 0` is full resolution; higher numbers are coarser.                                                                                                                                                                                                                                                                     |
+| `--decimate 50%` | Progressive pairwise-merge the _preceding_ input down to N% (or an absolute count) of its gaussians. Best quality-per-splat reduction. Applied per input, so each tier is decimated independently. LOD 0 has no `--decimate` (full quality).                                                                                                                                                |
+| `-C 128`         | **LOD chunk size ≈ 128K gaussians per chunk** (`--lod-chunk-count`, in thousands; default 512). Smaller chunks = more files, but each streamed upload is ~4× cheaper, which spreads the per-frame upload spike (e.g. when the camera loops past new geometry) across more frames. **Required** to reproduce the shipped 41-chunk layout — omitting it gives a coarser 12-chunk/512K bundle. |
 
 To trade quality for size, change the `--decimate` percentages or the number of `-l` tiers. To trade file count for smoother streaming, tune `-C`.
 
 #### Optional: clean the capture first
 
-Raw captures often have low-opacity haze and floating "wisp" gaussians that cost GPU sort time for no visual gain. You can prune them before building the LOD bundle (run on the `.ply`, write a cleaned `.ply`, then feed *that* to the command above):
+Raw captures often have low-opacity haze and floating "wisp" gaussians that cost GPU sort time for no visual gain. You can prune them before building the LOD bundle (run on the `.ply`, write a cleaned `.ply`, then feed _that_ to the command above):
 
 ```bash
 bunx @playcanvas/splat-transform "$PLY" \
@@ -159,12 +159,12 @@ Then edit `file.size` and `file.hash` for `287139133` in `config.json`. If you'r
 
 How aggressively the engine streams and coarsens lives in `src/lib/playcanvasApp.ts` (search `app.scene.gsplat`). Current values:
 
-| Setting | Desktop | Touch | iOS |
-|---------|---------|-------|-----|
-| `splatBudget` (max gaussians/frame) | 4,000,000 | 500,000 | 200,000 |
-| `lodRangeMin` / `lodRangeMax` | default | min 2 | pinned to 3 (single tier) |
-| `lodBaseDistance` | 1 | 0.5 | 0.5 |
-| `lodMultiplier` | 1.5 | 2 | 2 |
+| Setting                             | Desktop   | Touch   | iOS                       |
+| ----------------------------------- | --------- | ------- | ------------------------- |
+| `splatBudget` (max gaussians/frame) | 4,000,000 | 500,000 | 200,000                   |
+| `lodRangeMin` / `lodRangeMax`       | default   | min 2   | pinned to 3 (single tier) |
+| `lodBaseDistance`                   | 1         | 0.5     | 0.5                       |
+| `lodMultiplier`                     | 1.5       | 2       | 2                         |
 
 Shared (all platforms): `lodUnderfillLimit = 2` (draw a coarser cached tier while the target streams in), `cooldownTicks = 120` (~2s before evicting off-screen chunks), `lodBehindPenalty = 3`, `lodUpdateDistance = 3` (re-evaluate LOD every 3 m of camera motion), `radialSorting = true`, `highQualitySH = false`.
 
