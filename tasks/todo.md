@@ -78,3 +78,49 @@ Parametrize each product with `cornerHeight`, `cornerWidth`, `feather` uniforms 
 
 ## Review
 _(to be filled after implementation)_
+
+---
+
+# Tap hint on the left change-lens button
+
+**Date:** 2026-06-08
+
+Add the same tapping-hand hint (used on the "Experience HOYA vision" CTA) to the
+bottom-left change-lens button, shown when the glasses are first put on, to teach
+the tap-to-cycle gesture.
+
+## Decisions (from grill-me)
+- Left lens button only.
+- Reuse existing `.cta-tap` + `.cta-tap-contact` animation (Pointer + ripple, 1.5s infinite).
+- Placement: bottom-right of the button, same `-bottom-8 right-6` offset as the CTA.
+- Show when `glassesOn && !hasCycledLens`.
+- Hide on the first lens cycle (any side) — sets `hasCycledLens`.
+- Reappears on re-wear only if never cycled; gone for good once cycled.
+- Session-only in-memory state (no localStorage).
+
+## Plan
+- [x] Add `hasCycledLens` state (default `false`) in `PlayCanvasView`.
+- [x] Set `hasCycledLens = true` inside `cycleSide`.
+- [x] Add `showHint?: boolean` prop to `LensSelector`.
+- [x] Restructure `LensSelector`: positioned wrapper `<div>` holds screen placement
+      (`absolute bottom-8 {anchor} z-10`); inner `<button>` becomes `relative`
+      (keeps `overflow-hidden`); hint rendered as a sibling of the button so it
+      escapes the button's `overflow-hidden`.
+- [x] Render the hint (`Pointer` + contact ripple, `pointer-events-none`,
+      `absolute -bottom-8 right-6`) only when `showHint` is true.
+- [x] Pass `showHint={!hasCycledLens}` to the left selector only.
+
+## Verification
+- [x] biome + tsc clean.
+- [ ] Glasses on -> hand taps bottom-right of left button, looping. (visual — pending)
+- [ ] Tap either lens button -> hint disappears and stays gone. (visual — pending)
+- [ ] Take off + put back on after cycling -> no hint. Without cycling -> hint returns. (visual — pending)
+
+## Review
+Reused the existing `.cta-tap` / `.cta-tap-contact` animation verbatim, so the
+hint is identical to the CTA's. `LensSelector` now returns a positioned wrapper
+so the hint (a sibling of the `<button>`) escapes the button's `overflow-hidden`;
+all visual button styling is unchanged. Logic: `hasCycledLens` (in-memory, default
+`false`) flips to `true` on the first cycle of either side; the left selector gets
+`showHint={!hasCycledLens}`. Net diff is small and touches only `PlayCanvasView.tsx`.
+tsc + biome clean. Functional/visual check still to run in the browser.
