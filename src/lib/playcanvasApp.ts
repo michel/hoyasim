@@ -37,6 +37,12 @@ const BIKE_ENTITY_NAME = 'Render'
 const RIG_ENTITY_NAME = 'waa'
 const CAMERA_ENTITY_NAME = 'Camera'
 
+// Container asset name (config.json) and the bike's local transform under the rig.
+// Scale/rotation are tuned visually against the scene, not derived from the GLB.
+const BIKE_ASSET_NAME = 'bike.glb'
+const BIKE_SCALE = 1
+const BIKE_EULER: [number, number, number] = [0, 0, 0]
+
 pc.dracoInitialize({
   jsUrl:
     'https://www.gstatic.com/draco/versioned/decoders/1.5.7/draco_wasm_wrapper.js',
@@ -236,15 +242,30 @@ function setupRig(app: pc.AppBase) {
   })
 }
 
+// Swaps the baked grey single-mesh render on the "Render" anchor for the full
+// textured GLB hierarchy, so every mesh and material from the container shows.
+function setupBike(app: pc.AppBase, opts: SceneOptions) {
+  const anchor = app.root.findByName(BIKE_ENTITY_NAME)
+  if (!(anchor instanceof pc.Entity)) return
+  if (opts.noBike) {
+    anchor.enabled = false
+    return
+  }
+  if (anchor.render) anchor.removeComponent('render')
+  const container = app.assets.find(BIKE_ASSET_NAME, 'container')
+  const resource = container?.resource as pc.ContainerResource | undefined
+  const model = resource?.instantiateRenderEntity()
+  if (model) anchor.addChild(model)
+  anchor.setLocalPosition(0, 0, 0)
+  anchor.setLocalEulerAngles(...BIKE_EULER)
+  anchor.setLocalScale(BIKE_SCALE, BIKE_SCALE, BIKE_SCALE)
+}
+
 // Post-load scene wiring: tunes entities baked into the scene JSON and starts
 // the impaired-vision overlay. Returns the camera entity the lenses attach to
 // (null when the lens effect is disabled or the camera is missing).
 function setupScene(app: pc.AppBase, opts: SceneOptions): pc.Entity | null {
-  const bike = app.root.findByName(BIKE_ENTITY_NAME)
-  if (bike instanceof pc.Entity) {
-    bike.setLocalScale(0.25, 0.25, 0.25)
-    if (opts.noBike) bike.enabled = false
-  }
+  setupBike(app, opts)
 
   stripShadows(app)
 
