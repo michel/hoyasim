@@ -106,17 +106,30 @@ function reorderLayersForGrab(layers: pc.LayerComposition) {
   layers.insertOpaque(depth, worldTransparentIdx + 1)
 }
 
-function localZRange(entity: pc.Entity): { min: number; max: number } {
-  let min = Number.POSITIVE_INFINITY
-  let max = Number.NEGATIVE_INFINITY
+// Planar bounds of the lens mesh in its own local space. x is the lens's
+// horizontal axis, z its vertical axis (y is the thin depth/normal). Anchoring
+// the soft zone to these bounds keeps its corners a fixed fraction of the lens
+// at any window size or aspect ratio — the screen projection no longer matters.
+function localBounds(entity: pc.Entity): {
+  xMin: number
+  xMax: number
+  zMin: number
+  zMax: number
+} {
+  let xMin = Number.POSITIVE_INFINITY
+  let xMax = Number.NEGATIVE_INFINITY
+  let zMin = Number.POSITIVE_INFINITY
+  let zMax = Number.NEGATIVE_INFINITY
   for (const r of entity.findComponents('render') as pc.RenderComponent[]) {
     for (const mi of r.meshInstances) {
       const aabb = mi.mesh.aabb
-      min = Math.min(min, aabb.center.z - aabb.halfExtents.z)
-      max = Math.max(max, aabb.center.z + aabb.halfExtents.z)
+      xMin = Math.min(xMin, aabb.center.x - aabb.halfExtents.x)
+      xMax = Math.max(xMax, aabb.center.x + aabb.halfExtents.x)
+      zMin = Math.min(zMin, aabb.center.z - aabb.halfExtents.z)
+      zMax = Math.max(zMax, aabb.center.z + aabb.halfExtents.z)
     }
   }
-  return { min, max }
+  return { xMin, xMax, zMin, zMax }
 }
 
 const VERTEX_GLSL = `
@@ -138,12 +151,14 @@ const FRAGMENT_GLSL = `
 precision highp float;
 uniform sampler2D uSceneColorMap;
 uniform vec4 uScreenSize;
+uniform float uMinX;
+uniform float uMaxX;
 uniform float uMinY;
 uniform float uMaxY;
-// Soft-zone geometry (mirror-symmetric lower corners), normalised screen space,
-// y-up to match gl_FragCoord. innerX = 1.0 - uCornerWidth.
-uniform float uCornerWidth;   // horizontal reach in from each side edge
-uniform float uCornerHeight;  // vertical climb up from the bottom edge
+// Soft-zone geometry (mirror-symmetric lower corners) in lens-local space,
+// y-up (0 = lens bottom edge, 1 = lens top edge). innerX = 1.0 - uCornerWidth.
+uniform float uCornerWidth;   // horizontal reach in from each side of the lens
+uniform float uCornerHeight;  // vertical climb up from the lens bottom edge
 uniform float uFeather;       // ramp width from sharp -> blurred
 uniform float uBlurMax;       // max soft-zone blur radius, pixels
 uniform float uLineTrace;     // 0..1 boundary-line reveal progress (sweeps the trace on)
@@ -186,7 +201,7 @@ vec3 softBlur(vec2 base, vec3 center) {
   return c / w;
 }
 
-// Soft-zone blur amount [0,1] at a screen-space point (y-up). Sharp (0) across
+// Soft-zone blur amount [0,1] at a lens-local point (y-up). Sharp (0) across
 // the clear field; ramps to 1 toward the two lower corners. Mirror-symmetric.
 float softZone(vec2 uv) {
   float innerX = 1.0 - uCornerWidth;
@@ -230,7 +245,12 @@ void main(void) {
   // branch and no radius ramp, so the boundary stays artifact-free: the field
   // is smooth, mix() is continuous, and blurAmt = 0 yields the sharp sample
   // exactly.
-  float blurAmt = softZone(screenUV);
+  // Anchor the soft zone in lens-local space (not screen space) so its corners
+  // stay a fixed fraction of the lens at any window size / aspect ratio. lensY
+  // is y-down (0 = top); flip it so the zone sits in the lens's lower corners.
+  float lensX = clamp((vLocalPos.x - uMinX) / (uMaxX - uMinX), 0.0, 1.0);
+  float lensYUp = 1.0 - lensY;
+  float blurAmt = softZone(vec2(lensX, lensYUp));
   vec3 sharp = texture(uSceneColorMap, sampleUV).rgb;
   vec3 color = mix(sharp, softBlur(sampleUV, sharp), blurAmt);
 
@@ -252,7 +272,7 @@ void main(void) {
     float along = dot(gl_FragCoord.xy, tangent);
     float dash = step(0.5, fract(along / LINE_DASH_PERIOD_PX));
     float thr = uCornerHeight * (1.0 - uLineTrace);
-    float reveal = smoothstep(thr, thr + 0.03, screenUV.y);
+    float reveal = smoothstep(thr, thr + 0.03, lensYUp);
     color = mix(color, vec3(1.0), core * dash * reveal * uLineFade);
   }
 
@@ -400,13 +420,20 @@ function applyProductUniforms(m: pc.ShaderMaterial, product: LensProduct) {
   m.setParameter('uFeather', p.feather)
 }
 
-function createLensMaterial(yMin: number, yMax: number): pc.ShaderMaterial {
+function createLensMaterial(
+  xMin: number,
+  xMax: number,
+  yMin: number,
+  yMax: number,
+): pc.ShaderMaterial {
   const m = new pc.ShaderMaterial({
-    uniqueName: `progressive-lens-${yMin}-${yMax}`,
+    uniqueName: `progressive-lens-${xMin}-${xMax}-${yMin}-${yMax}`,
     vertexGLSL: VERTEX_GLSL,
     fragmentGLSL: FRAGMENT_GLSL,
     attributes: { vertex_position: pc.SEMANTIC_POSITION },
   })
+  m.setParameter('uMinX', xMin)
+  m.setParameter('uMaxX', xMax)
   m.setParameter('uMinY', yMin)
   m.setParameter('uMaxY', yMax)
   m.setParameter('uBlurMax', SOFT_ZONE_BLUR_MAX_PX)
@@ -525,8 +552,8 @@ export async function setupLenses(
     const lens = (
       lensAsset.resource as pc.ContainerResource
     ).instantiateRenderEntity()
-    const { min, max } = localZRange(lens)
-    const material = createLensMaterial(min, max)
+    const { xMin, xMax, zMin, zMax } = localBounds(lens)
+    const material = createLensMaterial(xMin, xMax, zMin, zMax)
     applyMaterial(lens, material)
     setLayer(lens, pc.LAYERID_IMMEDIATE)
 
