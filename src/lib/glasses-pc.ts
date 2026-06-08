@@ -110,12 +110,12 @@ interface LensProductProfile {
 // Starting values traced from the customer's renders (mirror-symmetric). Tune
 // on device against the source images.
 const LENS_PRODUCTS: Record<LensProduct, LensProductProfile> = {
-  // Entry: largest soft corners, narrowest clear field (~76%).
-  Balansis: { cornerWidth: 0.3, cornerHeight: 0.62, feather: 0.07 },
-  // Mid: moderate corners (~86% clear).
-  'MySelf Profile': { cornerWidth: 0.22, cornerHeight: 0.55, feather: 0.07 },
-  // Premium: edge-hugging slivers, near edge-to-edge clarity (~99%).
-  MySense: { cornerWidth: 0.14, cornerHeight: 0.45, feather: 0.07 },
+  // Entry: largest soft corners, narrowest clear field.
+  Balansis: { cornerWidth: 0.35, cornerHeight: 0.7, feather: 0.07 },
+  // Mid: moderate corners.
+  'MySelf Profile': { cornerWidth: 0.27, cornerHeight: 0.62, feather: 0.07 },
+  // Premium: smallest soft corners, widest clear field.
+  MySense: { cornerWidth: 0.18, cornerHeight: 0.5, feather: 0.07 },
 }
 
 export const LENS_PRODUCT_ORDER: LensProduct[] = [

@@ -6,7 +6,7 @@
 // Premium progressive multifocal, shared by all three products. The soft-zone
 // blur (not this curve) is what distinguishes Balansis / MySelf Profile /
 // MySense from one another.
-const MULTIFOCAL_POWER = 0.02
+const MULTIFOCAL_POWER = 0.055
 const MULTIFOCAL_CENTER_Y = 0.5
 
 export const LENS_VERTEX_GLSL = `
@@ -33,7 +33,8 @@ uniform float uMaxX;
 uniform float uMinY;
 uniform float uMaxY;
 // Soft-zone geometry (mirror-symmetric lower corners) in lens-local space,
-// y-up (0 = lens bottom edge, 1 = lens top edge). innerX = 1.0 - uCornerWidth.
+// y-up (0 = lens bottom edge, 1 = lens top edge). Each corner is a quarter
+// ellipse with these two radii.
 uniform float uCornerWidth;   // horizontal reach in from each side of the lens
 uniform float uCornerHeight;  // vertical climb up from the lens bottom edge
 uniform float uFeather;       // ramp width from sharp -> blurred
@@ -45,8 +46,9 @@ in vec3 vLocalPos;
 const float POWER = ${MULTIFOCAL_POWER.toFixed(3)};
 const float CENTER_Y = ${MULTIFOCAL_CENTER_Y.toFixed(3)};
 const float LINE_LEVEL = 0.5;     // soft-zone contour the boundary line traces
-const float LINE_HALF_PX = 2.5;        // line half-width in pixels
-const float LINE_DASH_PERIOD_PX = 12.0; // dash + gap length along the line, pixels
+const float LINE_HALF_PX = 6.0;        // line half-width in pixels
+const float LINE_DASH_COUNT = 11.0;    // dash + gap cycles along each corner arc
+const float HALF_PI = 1.5707963;
 
 // Weight a tap to 0 if its UV leaves [0,1] so edge texels aren't repeated into
 // the kernel — that's what produces axis-aligned streaks near the boundary.
@@ -79,18 +81,17 @@ vec3 softBlur(vec2 base, vec3 center) {
 }
 
 // Soft-zone blur amount [0,1] at a lens-local point (y-up). Sharp (0) across
-// the clear field; ramps to 1 toward the two lower corners. Mirror-symmetric.
+// the clear field; ramps to 1 into the two lower corners. Each corner is a
+// quarter ellipse — distance from the corner origin, normalised by the
+// per-product reach (uCornerWidth across, uCornerHeight up) — so the boundary
+// is a smooth round arc rather than a squared-off bend. Mirror-symmetric.
 float softZone(vec2 uv) {
-  float innerX = 1.0 - uCornerWidth;
-  float xEnd = min(innerX + uFeather, 1.0);
-  float yStart = max(uCornerHeight - uFeather, 0.0);
-  // 1 at the bottom edge, ramping to 0 above the climb height. Edges are kept
-  // in ascending order (smoothstep is undefined when edge0 >= edge1) and the
-  // result inverted, so the ramp is well-defined on every driver.
-  float ry = 1.0 - smoothstep(yStart, uCornerHeight, uv.y);
-  float right = smoothstep(innerX, xEnd, uv.x) * ry;       // bottom-right corner
-  float left = smoothstep(innerX, xEnd, 1.0 - uv.x) * ry;  // bottom-left corner
-  return max(left, right);
+  float hx = min(uv.x, 1.0 - uv.x);          // distance from the nearer side
+  float nx = hx / max(uCornerWidth, 1e-4);
+  float ny = uv.y / max(uCornerHeight, 1e-4);
+  float r = length(vec2(nx, ny));            // 1.0 on the zone boundary
+  float featherR = uFeather / max(uCornerHeight, 1e-4);
+  return 1.0 - smoothstep(1.0 - featherR, 1.0, r);
 }
 
 void main(void) {
@@ -140,14 +141,15 @@ void main(void) {
     float d = abs(blurAmt - LINE_LEVEL);
     float aa = max(fwidth(blurAmt) * LINE_HALF_PX, 1e-5);
     float core = 1.0 - smoothstep(0.0, aa, d);
-    // Dash along the contour's tangent (perpendicular to the soft-zone gradient)
-    // in pixel space, so dot spacing is uniform whether the boundary runs
-    // horizontally, vertically, or diagonally — and isn't skewed by the screen
-    // aspect ratio the way a normalised-UV stripe was.
-    vec2 grad = vec2(dFdx(blurAmt), dFdy(blurAmt));
-    vec2 tangent = normalize(vec2(-grad.y, grad.x) + vec2(1e-6));
-    float along = dot(gl_FragCoord.xy, tangent);
-    float dash = step(0.5, fract(along / LINE_DASH_PERIOD_PX));
+    // Dash by the polar angle around this corner's origin (lens-local lower
+    // corner, normalised by the zone reach). The angle rises monotonically along
+    // the arc from the bottom edge up to the side edge, so dashes stay even and
+    // unbroken through the corner. A screen-space tangent projection broke up
+    // there because the tangent rotates — and flips sign — across the curve.
+    float nx = min(lensX, 1.0 - lensX) / max(uCornerWidth, 1e-4);
+    float ny = lensYUp / max(uCornerHeight, 1e-4);
+    float theta = atan(ny, nx);
+    float dash = step(0.5, fract(theta * LINE_DASH_COUNT / HALF_PI));
     float thr = uCornerHeight * (1.0 - uLineTrace);
     float reveal = smoothstep(thr, thr + 0.03, lensYUp);
     color = mix(color, vec3(1.0), core * dash * reveal * uLineFade);

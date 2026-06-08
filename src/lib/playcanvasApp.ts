@@ -40,7 +40,7 @@ const CAMERA_ENTITY_NAME = 'Camera'
 // Container asset name (config.json) and the bike's local transform under the rig.
 // Scale/rotation are tuned visually against the scene, not derived from the GLB.
 const BIKE_ASSET_NAME = 'bike.glb'
-const BIKE_SCALE = 1
+const BIKE_SCALE = 1.6
 const BIKE_EULER: [number, number, number] = [0, 0, 0]
 
 // The traffic light spans the road (the model is already mirrored across both
