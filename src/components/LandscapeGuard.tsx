@@ -37,14 +37,12 @@ function RotateDeviceIllustration() {
         viewBox="0 0 84 120"
         fill="none"
         xmlns="http://www.w3.org/2000/svg"
-        role="img"
-        aria-label="Rotate phone to landscape"
+        aria-hidden="true"
         style={{
           animation: 'rotate-device 2.8s ease-in-out infinite',
           transformOrigin: 'center',
         }}
       >
-        <title>Rotate phone to landscape</title>
         <rect
           x="2"
           y="2"

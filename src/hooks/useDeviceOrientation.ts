@@ -2,14 +2,14 @@ import * as pc from 'playcanvas'
 import { useEffect, useRef, useState } from 'react'
 import type { LookState } from '@/lib/scripts/lookCamera'
 
-interface DeviceOrientationEventiOS extends DeviceOrientationEvent {
+// iOS gates the motion sensors behind a static requestPermission() on the
+// DeviceOrientationEvent constructor that the standard lib types omit.
+type DeviceOrientationEventStatic = typeof DeviceOrientationEvent & {
   requestPermission?: () => Promise<'granted' | 'denied'>
 }
 
 const DeviceOrientationEventiOS =
-  DeviceOrientationEvent as unknown as DeviceOrientationEventiOS & {
-    requestPermission?: () => Promise<'granted' | 'denied'>
-  }
+  DeviceOrientationEvent as DeviceOrientationEventStatic
 
 const isIOS = typeof DeviceOrientationEventiOS.requestPermission === 'function'
 

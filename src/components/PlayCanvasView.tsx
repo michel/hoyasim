@@ -29,6 +29,23 @@ const LENS_TAGLINES: Record<LensProduct, string> = {
   MySense: 'Premium progressive',
 }
 
+// Animated tapping-hand cue, anchored to the bottom-right of its relative parent.
+function TapHint() {
+  return (
+    <div
+      aria-hidden="true"
+      className="pointer-events-none absolute -bottom-8 right-6"
+    >
+      <span className="cta-tap-contact absolute left-[11px] top-0 h-6 w-6 -translate-x-1/2 -translate-y-1/2 rounded-full bg-white/50" />
+      <Pointer
+        className="cta-tap relative h-8 w-8 text-white"
+        strokeWidth={2}
+        style={{ filter: 'drop-shadow(0 2px 4px rgba(0,0,0,0.55))' }}
+      />
+    </div>
+  )
+}
+
 function LensSelector({
   side,
   active,
@@ -82,19 +99,7 @@ function LensSelector({
           />
         </span>
       </button>
-      {showHint && (
-        <div
-          aria-hidden="true"
-          className="pointer-events-none absolute -bottom-8 right-6"
-        >
-          <span className="cta-tap-contact absolute left-[11px] top-0 h-6 w-6 -translate-x-1/2 -translate-y-1/2 rounded-full bg-white/50" />
-          <Pointer
-            className="cta-tap relative h-8 w-8 text-white"
-            strokeWidth={2}
-            style={{ filter: 'drop-shadow(0 2px 4px rgba(0,0,0,0.55))' }}
-          />
-        </div>
-      )}
+      {showHint && <TapHint />}
     </div>
   )
 }
@@ -199,6 +204,7 @@ export default function PlayCanvasView({
       <canvas
         ref={canvasRef}
         id="application-canvas"
+        aria-label="Interactive 3D vision simulator"
         style={{ display: 'block', width: '100%', height: '100%' }}
       />
       <div
@@ -253,19 +259,7 @@ export default function PlayCanvasView({
               />
               <span>vision</span>
             </Button>
-            {!puttingOnGlasses && (
-              <div
-                aria-hidden="true"
-                className="pointer-events-none absolute -bottom-8 right-6"
-              >
-                <span className="cta-tap-contact absolute left-[11px] top-0 h-6 w-6 -translate-x-1/2 -translate-y-1/2 rounded-full bg-white/50" />
-                <Pointer
-                  className="cta-tap relative h-8 w-8 text-white"
-                  strokeWidth={2}
-                  style={{ filter: 'drop-shadow(0 2px 4px rgba(0,0,0,0.55))' }}
-                />
-              </div>
-            )}
+            {!puttingOnGlasses && <TapHint />}
           </div>
         </div>
       )}
