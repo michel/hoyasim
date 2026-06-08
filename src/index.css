@@ -169,6 +169,39 @@
   }
 }
 
+@keyframes tap-press {
+  0%,
+  100% {
+    transform: translateY(0) scale(1);
+  }
+  12% {
+    transform: translateY(-5px) scale(0.88);
+  }
+  26% {
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes tap-contact {
+  0%,
+  8% {
+    opacity: 0;
+    transform: scale(0.3);
+  }
+  16% {
+    opacity: 0.45;
+    transform: scale(0.6);
+  }
+  46% {
+    opacity: 0;
+    transform: scale(1.6);
+  }
+  100% {
+    opacity: 0;
+    transform: scale(1.6);
+  }
+}
+
 @layer components {
   .glass {
     background: rgba(255, 255, 255, 0.12);
@@ -185,5 +218,12 @@
   .glass-hoya {
     background: #0055c4;
     border: 1px solid rgba(255, 255, 255, 0.15);
+  }
+  .cta-tap {
+    animation: tap-press 1.5s ease-in-out infinite;
+    transform-origin: 50% 0;
+  }
+  .cta-tap-contact {
+    animation: tap-contact 1.5s ease-in-out infinite;
   }
 }

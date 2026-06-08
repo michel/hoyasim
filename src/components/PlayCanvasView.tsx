@@ -1,4 +1,4 @@
-import { ChevronRight, Glasses, Loader2, Smartphone } from 'lucide-react'
+import { ChevronRight, Glasses, Loader2, Pointer, Smartphone } from 'lucide-react'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import hoyaLogo from '@/assets/hoya-logo.svg'
 import { Button } from '@/components/ui/button'
@@ -213,20 +213,35 @@ export default function PlayCanvasView({
               : 'scale-100 opacity-100'
           }`}
         >
-          <Button
-            variant="glass"
-            size="lg"
-            onClick={putOnGlasses}
-            disabled={puttingOnGlasses}
-          >
-            <span>Experience</span>
-            <img
-              src={hoyaLogo}
-              alt="HOYA"
-              className="h-4 w-auto brightness-0 invert"
-            />
-            <span>vision</span>
-          </Button>
+          <div className="relative inline-flex">
+            <Button
+              variant="glass"
+              size="lg"
+              onClick={putOnGlasses}
+              disabled={puttingOnGlasses}
+            >
+              <span>Experience</span>
+              <img
+                src={hoyaLogo}
+                alt="HOYA"
+                className="h-4 w-auto brightness-0 invert"
+              />
+              <span>vision</span>
+            </Button>
+            {!puttingOnGlasses && (
+              <div
+                aria-hidden="true"
+                className="pointer-events-none absolute -bottom-8 right-6"
+              >
+                <span className="cta-tap-contact absolute left-[11px] top-0 h-6 w-6 -translate-x-1/2 -translate-y-1/2 rounded-full bg-white/50" />
+                <Pointer
+                  className="cta-tap relative h-8 w-8 text-white"
+                  strokeWidth={2}
+                  style={{ filter: 'drop-shadow(0 2px 4px rgba(0,0,0,0.55))' }}
+                />
+              </div>
+            )}
+          </div>
         </div>
       )}
       {!loading && !error && glassesOn && (
