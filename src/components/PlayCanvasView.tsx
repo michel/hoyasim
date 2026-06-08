@@ -18,10 +18,9 @@ function nextProduct(current: LensProduct): LensProduct {
 }
 
 const LENS_TAGLINES: Record<LensProduct, string> = {
-  'iD MyStyle 3': 'Premium progressive',
-  'iD WorkStyle 3': 'Desk + screens',
-  'iD LifeStyle 3': 'Everyday progressive',
-  Sensity: 'Photochromic',
+  Balansis: 'Essential progressive',
+  'MySelf Profile': 'Personalised progressive',
+  MySense: 'Premium progressive',
 }
 
 function LensSelector({
@@ -93,8 +92,8 @@ export default function PlayCanvasView({
   const [error, setError] = useState<string | null>(null)
   const [glassesOn, setGlassesOn] = useState(false)
   const [puttingOnGlasses, setPuttingOnGlasses] = useState(false)
-  const [leftProduct, setLeftProduct] = useState<LensProduct>('iD MyStyle 3')
-  const [rightProduct, setRightProduct] = useState<LensProduct>('iD MyStyle 3')
+  const [leftProduct, setLeftProduct] = useState<LensProduct>('Balansis')
+  const [rightProduct, setRightProduct] = useState<LensProduct>('Balansis')
 
   useEffect(() => {
     let raf = 0

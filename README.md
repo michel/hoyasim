@@ -7,7 +7,7 @@ Interactive 3D scene viewer with AR glasses overlay. Experience an immersive Gau
 ## What It Does
 
 - **Photoreal 3D environment** — explore a captured scene rendered as a streamed Gaussian splat with runtime level-of-detail
-- **AR glasses simulation** — dual-lens overlay with realistic optical distortion, progressive lens effects, and lens swapping
+- **AR glasses simulation** — dual-lens overlay with realistic optical distortion, progressive multifocal effect, and per-eye swapping between three lens designs (Balansis, MySelf Profile, MySense), each with its own peripheral soft-zone blur
 - **Gyroscope support** — tilt your phone to look around naturally (iOS & Android)
 - **Desktop controls** — click and drag or use touch to pan the camera
 - **PWA** — install on your home screen for a fullscreen, app-like experience
@@ -77,7 +77,7 @@ src/
 ├── lib/
 │   ├── playcanvasApp.ts    # PlayCanvas bootstrap — scene, gsplat LOD tuning, render loop
 │   ├── glasses-pc.ts       # AR glasses rendering — lenses, distortion, frame geometry
-│   ├── scripts/            # PlayCanvas scripts (cycleForward, lookCamera, sun)
+│   ├── scripts/            # PlayCanvas scripts (cycleForward, lookCamera)
 │   └── utils.ts            # Shared helpers
 └── assets/                 # Logo and static assets
 ```

@@ -1,29 +1,39 @@
 import * as pc from 'playcanvas'
-import { SUN_DIRECTION, sunInView } from './scripts/sun'
 
 const ASSETS_PATH = `${window.location.origin}${import.meta.env.BASE_URL}assets/glasses/`
 
-// Kill switch: flip to true to use master's original lens sizing (smaller
-// meshes = ~40 % fewer lens fragments per frame). Lets us isolate whether
-// the lens scale-up is the mobile FPS bottleneck.
-const LENS_USE_MASTER_SIZE = true
-
-const LENS_SCALE_MULT = LENS_USE_MASTER_SIZE ? 1.08 : 1.18
+const LENS_SCALE_MULT = 1.08
 const LENS_SCALE = new pc.Vec3(
   0.16875 * LENS_SCALE_MULT,
   0.16875 * LENS_SCALE_MULT,
   0.28125 * LENS_SCALE_MULT,
 )
-// Spread the lenses outward proportionally so the larger glasses still
-// frame each eye with a clear bridge between, rather than crowding the
-// centre of the screen.
-const LENS_X = LENS_USE_MASTER_SIZE ? 0.39375 : 0.44
+// Spread the lenses outward so the glasses frame each eye with a clear bridge
+// between, rather than crowding the centre of the screen.
+const LENS_X = 0.39375
 const LENS_LEFT_POS = new pc.Vec3(-LENS_X, 0, -0.4875)
 const LENS_RIGHT_POS = new pc.Vec3(LENS_X, 0, -0.4875)
 
 const IMPAIRED_BLUR_RADIUS_PX = 16.0
 const IMPAIRED_CHROMA_STRENGTH = 0.001
 const IMPAIRED_FADE_IN_SEC = 1.0
+
+// Premium progressive multifocal, shared by all three products. The soft-zone
+// blur (not this curve) is what distinguishes Balansis / MySelf Profile /
+// MySense from one another.
+const MULTIFOCAL_POWER = 0.02
+const MULTIFOCAL_CENTER_Y = 0.5
+
+// Max soft-zone blur radius in pixels. Demo-exaggerated so the tier difference
+// reads on a phone, but capped below the uncorrected overlay (16px) so the
+// periphery looks "soft" rather than "blind".
+const SOFT_ZONE_BLUR_MAX_PX = 12.0
+
+// Boundary-line trace timing: sweep the dotted line on, hold, then fade out.
+// Triggered on put-on (both eyes) and on every product switch (that eye).
+const TRACE_IN_SEC = 0.55
+const TRACE_HOLD_SEC = 0.7
+const TRACE_OUT_SEC = 0.6
 
 // "Putting on glasses" entrance. The glasses start this far above their rest
 // position (in camera-local Y units, i.e. screen-vertical) and slide down into
@@ -41,16 +51,6 @@ function easeOutBack(t: number): number {
   const p = t - 1
   return 1 + c3 * p * p * p + c1 * p * p
 }
-
-// Temporary kill switch for the per-frame sun work (worldToScreen +
-// Sensity ramp + shader uniforms). Used to isolate whether sun effects
-// are responsible for mobile FPS dips.
-const SUN_EFFECTS_ENABLED = true
-
-// Kill switch for the full-screen impaired-vision overlay (the blur +
-// chromatic aberration that runs every frame). Toggle off to measure
-// whether the 9-tap kernel × 3 channels is the mobile FPS bottleneck.
-const IMPAIRED_VISION_ENABLED = true
 
 type AssetType = ConstructorParameters<typeof pc.Asset>[1]
 
@@ -130,59 +130,132 @@ void main(void) {
 }
 `
 
+// The lens corrects the full-screen impaired blur within its geometry (sampling
+// the pre-overlay scene grab) AND re-introduces a controlled peripheral blur in
+// the two lower corners — the progressive "soft zone". The size of that soft
+// zone is the only thing that differs between the three products.
 const FRAGMENT_GLSL = `
 precision highp float;
 uniform sampler2D uSceneColorMap;
 uniform vec4 uScreenSize;
-uniform float uPower;
-uniform float uCenterY;
-uniform float uSensityDarkness;
 uniform float uMinY;
 uniform float uMaxY;
+// Soft-zone geometry (mirror-symmetric lower corners), normalised screen space,
+// y-up to match gl_FragCoord. innerX = 1.0 - uCornerWidth.
+uniform float uCornerWidth;   // horizontal reach in from each side edge
+uniform float uCornerHeight;  // vertical climb up from the bottom edge
+uniform float uFeather;       // ramp width from sharp -> blurred
+uniform float uBlurMax;       // max soft-zone blur radius, pixels
+uniform float uLineTrace;     // 0..1 boundary-line reveal progress (sweeps the trace on)
+uniform float uLineFade;      // 0..1 boundary-line opacity (handles the fade-out)
 in vec3 vLocalPos;
+
+const float POWER = ${MULTIFOCAL_POWER.toFixed(3)};
+const float CENTER_Y = ${MULTIFOCAL_CENTER_Y.toFixed(3)};
+const float LINE_LEVEL = 0.5;     // soft-zone contour the boundary line traces
+const float LINE_HALF_PX = 2.5;        // line half-width in pixels
+const float LINE_DASH_PERIOD_PX = 12.0; // dash + gap length along the line, pixels
+
+// Weight a tap to 0 if its UV leaves [0,1] so edge texels aren't repeated into
+// the kernel — that's what produces axis-aligned streaks near the boundary.
+float inBounds(vec2 uv) {
+  vec2 m = step(vec2(0.0), uv) * step(uv, vec2(1.0));
+  return m.x * m.y;
+}
+
+// Constant-radius soft-focus blur (golden-angle / Vogel disk). The strength of
+// the soft zone is varied by cross-fading sharp->blurred (see main), NOT by
+// ramping this radius. A radius that ramps across the zone makes the fixed
+// sample pattern's reach change along the boundary, which draws the iso-radius
+// contour as a dotted line. Blurring at a constant radius — exactly how the
+// artifact-free full-screen overlay works — keeps the boundary clean. center
+// is the already-fetched sharp sample, reused as the centre tap.
+vec3 softBlur(vec2 base, vec3 center) {
+  vec2 r = uScreenSize.zw * uBlurMax;
+  vec3 c = center;
+  float w = 1.0;
+  for (int i = 1; i <= 16; i++) {
+    float fi = float(i);
+    float ang = fi * 2.39996323;   // golden angle
+    float rad = sqrt(fi / 16.0);   // even area coverage
+    vec2 s = base + r * (rad * vec2(cos(ang), sin(ang)));
+    float k = inBounds(s);
+    c += texture(uSceneColorMap, s).rgb * k;
+    w += k;
+  }
+  return c / w;
+}
+
+// Soft-zone blur amount [0,1] at a screen-space point (y-up). Sharp (0) across
+// the clear field; ramps to 1 toward the two lower corners. Mirror-symmetric.
+float softZone(vec2 uv) {
+  float innerX = 1.0 - uCornerWidth;
+  float xEnd = min(innerX + uFeather, 1.0);
+  float yStart = max(uCornerHeight - uFeather, 0.0);
+  // 1 at the bottom edge, ramping to 0 above the climb height. Edges are kept
+  // in ascending order (smoothstep is undefined when edge0 >= edge1) and the
+  // result inverted, so the ramp is well-defined on every driver.
+  float ry = 1.0 - smoothstep(yStart, uCornerHeight, uv.y);
+  float right = smoothstep(innerX, xEnd, uv.x) * ry;       // bottom-right corner
+  float left = smoothstep(innerX, xEnd, 1.0 - uv.x) * ry;  // bottom-left corner
+  return max(left, right);
+}
 
 void main(void) {
   vec2 screenUV = gl_FragCoord.xy * uScreenSize.zw;
 
-  // vLocalPos.z is the lens GLB's vertical axis. With the current lens GLBs:
-  // lensY = 0 at the visual top of the lens, lensY = 1 at the visual bottom.
+  // vLocalPos.z is the lens GLB's vertical axis (0 = visual top, 1 = bottom).
+  // Multifocal progressive: minify above the neutral band, magnify below it.
   float lensY = clamp((vLocalPos.z - uMinY) / (uMaxY - uMinY), 0.0, 1.0);
-
-  // Multifocal progressive. uCenterY = the lensY at which the lens is "neutral"
-  // (no distortion). For everyday designs this sits at 0.5; the WorkStyle desk
-  // lens shifts it upward so the intermediate-distance band lands in the upper
-  // middle of the lens.
-  //   lensY < uCenterY  → factor > 0 → minify (zoom out)
-  //   lensY = uCenterY  → factor = 0 → no distortion
-  //   lensY > uCenterY  → factor < 0 → magnify (zoom in)
-  float factor = (uCenterY - lensY) * 2.0 * uPower;
+  float factor = (CENTER_Y - lensY) * 2.0 * POWER;
 
   vec2 center = vec2(0.5);
-  // Per-axis tanh asymptote: the displacement from screen center smoothly
-  // caps at ±0.499 so sampleUV stays inside [0.001, 0.999] regardless of how
-  // hard we minify. Without this, factor > 0 at the screen corners would push
-  // sampleUV past the edge and texel clamping would draw axis-aligned streaks.
+  // Per-axis tanh asymptote keeps the displaced sample inside [0.001, 0.999]
+  // so minification at the corners never clamps into axis-aligned streaks.
   vec2 d = (screenUV - center) * (1.0 + factor);
   d.x = 0.499 * tanh(d.x / 0.499);
   d.y = 0.499 * tanh(d.y / 0.499);
   vec2 sampleUV = center + d;
 
-  // Minification (factor > 0) pushes sampleUV outside [0, 1] near the screen
-  // edges. Hard-clamping there repeats the edge texel and shows as stripes.
-  // Fade alpha based on distance to the boundary from INSIDE, so alpha is
-  // already 0 before we'd ever sample a clamped pixel — revealing the
-  // (blurred) underlying world layer artifact-free.
+  // Fade alpha to 0 before the displaced sample reaches the screen edge, so the
+  // (blurred) underlying world shows through instead of a clamped streak.
   vec2 edgeDist = min(sampleUV, 1.0 - sampleUV);
   float minEdge = min(edgeDist.x, edgeDist.y);
   float alpha = smoothstep(0.0, 0.05, minEdge);
 
   sampleUV = clamp(sampleUV, vec2(0.001), vec2(0.999));
-  vec3 color = texture(uSceneColorMap, sampleUV).rgb;
-  // Sensity photochromic darken. ~30 % brightness retained at full
-  // darkness — cat-3 sunglass tint. The activation curve only reaches
-  // 1.0 when the customer is staring directly at the sun, so day-to-day
-  // gameplay sits closer to a 50–60 % retained tint.
-  color *= mix(1.0, 0.3, uSensityDarkness);
+
+  // Peripheral soft-zone blur — the per-product differentiator. Cross-fade the
+  // sharp sample toward a constant-radius blur by the soft-zone amount. No
+  // branch and no radius ramp, so the boundary stays artifact-free: the field
+  // is smooth, mix() is continuous, and blurAmt = 0 yields the sharp sample
+  // exactly.
+  float blurAmt = softZone(screenUV);
+  vec3 sharp = texture(uSceneColorMap, sampleUV).rgb;
+  vec3 color = mix(sharp, softBlur(sampleUV, sharp), blurAmt);
+
+  // Boundary-line trace. Animated on put-on and on every product switch to show
+  // where this product's clear field ends. uLineFade is a uniform, so this
+  // branch is uniform across the whole draw (no divergent-quad artifacts). The
+  // line is a thin, constant-width (fwidth) dotted contour at LINE_LEVEL, swept
+  // on from the top of the zone downward by uLineTrace, then faded by uLineFade.
+  if (uLineFade > 0.001) {
+    float d = abs(blurAmt - LINE_LEVEL);
+    float aa = max(fwidth(blurAmt) * LINE_HALF_PX, 1e-5);
+    float core = 1.0 - smoothstep(0.0, aa, d);
+    // Dash along the contour's tangent (perpendicular to the soft-zone gradient)
+    // in pixel space, so dot spacing is uniform whether the boundary runs
+    // horizontally, vertically, or diagonally — and isn't skewed by the screen
+    // aspect ratio the way a normalised-UV stripe was.
+    vec2 grad = vec2(dFdx(blurAmt), dFdy(blurAmt));
+    vec2 tangent = normalize(vec2(-grad.y, grad.x) + vec2(1e-6));
+    float along = dot(gl_FragCoord.xy, tangent);
+    float dash = step(0.5, fract(along / LINE_DASH_PERIOD_PX));
+    float thr = uCornerHeight * (1.0 - uLineTrace);
+    float reveal = smoothstep(thr, thr + 0.03, screenUV.y);
+    color = mix(color, vec3(1.0), core * dash * reveal * uLineFade);
+  }
+
   pcFragColor0 = vec4(color, alpha);
 }
 `
@@ -192,6 +265,8 @@ in vec3 vertex_position;
 void main(void) { gl_Position = vec4(vertex_position.xy, 0.0, 1.0); }
 `
 
+// Full-screen "uncorrected vision" overlay: blur + chromatic aberration. This
+// is the world the lenses correct; it stays on for the whole session.
 const IMPAIRED_FRAGMENT_GLSL = `
 precision highp float;
 uniform sampler2D uSceneColorMap;
@@ -199,8 +274,6 @@ uniform vec4 uScreenSize;
 uniform float uBlurRadius;
 uniform float uChroma;
 uniform float uStrength;
-uniform float uBlind;
-uniform vec2 uSunUV;
 
 // Weight a blur tap to 0 if its UV is out of [0,1], so edge texels are not
 // repeated into the kernel sum — that's what produces axis-aligned streaks
@@ -241,31 +314,11 @@ void main(void) {
   vec3 impaired = vec3(cR.r, cG.g, cB.b);
   vec3 sharp = texture(uSceneColorMap, uv).rgb;
   vec3 base = mix(sharp, impaired, uStrength);
-
-  // Radial halo: pixels near the sun's screen-space position wash toward
-  // white. Falloff radius is in UV space (~25 % of the shorter screen
-  // axis).
-  vec2 toSun = uv - uSunUV;
-  float distToSun = length(toSun);
-  float halo = smoothstep(0.25, 0.0, distToSun);
-
-  // God rays: angular streaks radiating from the sun. A high-frequency
-  // sin in the polar angle gives spokes; raising to a power sharpens
-  // the streaks so they read as discrete rays instead of a smooth
-  // gradient. Modulated by distance so they fade close to the disc
-  // and out at the band edge.
-  float angle = atan(toSun.y, toSun.x);
-  float spokes = pow(0.5 + 0.5 * sin(angle * 11.0), 6.0);
-  float rayBand = smoothstep(0.45, 0.05, distToSun)
-                * smoothstep(0.0, 0.03, distToSun);
-  float rays = spokes * rayBand * 0.5;
-
-  base = mix(base, vec3(1.0), uBlind * (halo + rays));
   pcFragColor0 = vec4(base, 1.0);
 }
 `
 
-function setupImpairedVisionOverlay(app: pc.AppBase, cameraEntity: pc.Entity) {
+function setupImpairedVisionOverlay(app: pc.AppBase) {
   const device = app.graphicsDevice
   const mesh = new pc.Mesh(device)
   mesh.setPositions([-1, -1, 0, 1, -1, 0, -1, 1, 0, 1, 1, 0])
@@ -281,15 +334,12 @@ function setupImpairedVisionOverlay(app: pc.AppBase, cameraEntity: pc.Entity) {
   material.setParameter('uBlurRadius', IMPAIRED_BLUR_RADIUS_PX)
   material.setParameter('uChroma', IMPAIRED_CHROMA_STRENGTH)
   material.setParameter('uStrength', 0)
-  material.setParameter('uBlind', 0)
-  material.setParameter('uSunUV', [10, 10]) // off-screen until sun is in view
   material.depthWrite = false
   material.depthTest = false
   material.blendType = pc.BLEND_NONE
   material.update()
 
   const entity = new pc.Entity('ImpairedVision')
-  entity.enabled = IMPAIRED_VISION_ENABLED
   app.root.addChild(entity)
   const meshInstance = new pc.MeshInstance(mesh, material, entity)
   meshInstance.cull = false
@@ -302,12 +352,6 @@ function setupImpairedVisionOverlay(app: pc.AppBase, cameraEntity: pc.Entity) {
     entity.render.receiveShadows = false
   }
 
-  // Persistent scratch vec3s for the per-frame sun-projection calculation,
-  // so onUpdate never allocates.
-  const sunFar = SUN_DIRECTION.clone().mulScalar(10000)
-  const sunScreen = new pc.Vec3()
-  const sunUV: [number, number] = [10, 10]
-
   const startTime = performance.now() / 1000
   const onUpdate = () => {
     const t = Math.min(
@@ -315,75 +359,45 @@ function setupImpairedVisionOverlay(app: pc.AppBase, cameraEntity: pc.Entity) {
       (performance.now() / 1000 - startTime) / IMPAIRED_FADE_IN_SEC,
     )
     material.setParameter('uStrength', t)
-    if (!SUN_EFFECTS_ENABLED) return
-
-    // Blind ramps non-linearly across the full sun-in-view range so the
-    // effect is subtle in passing glances and dramatic when the user is
-    // staring straight into the sun. pow(smoothstep, 2) keeps the lower
-    // half gentle and accelerates near the peak.
-    const inView = sunInView(cameraEntity)
-    const ramp = pc.math.smoothstep(0.5, 1.0, inView)
-    material.setParameter('uBlind', ramp * ramp * 0.85)
-
-    // Project the sun (at effective infinity along SUN_DIRECTION) into
-    // screen UV. worldToScreen returns CSS-pixel Y-down coords (using
-    // graphicsDevice.clientRect), so divide by clientRect dims — not the
-    // DPR-scaled buffer dims — and flip Y for the shader which uses
-    // gl_FragCoord (Y-up).
-    if (cameraEntity.camera) {
-      cameraEntity.camera.worldToScreen(sunFar, sunScreen)
-      const { width: w, height: h } = app.graphicsDevice.clientRect
-      sunUV[0] = sunScreen.x / w
-      sunUV[1] = 1 - sunScreen.y / h
-      material.setParameter('uSunUV', sunUV)
-    }
   }
   app.on('update', onUpdate)
 
   return { entity, onUpdate }
 }
 
-// Each Hoya product is the same shader with a different uniform profile.
-// `power` controls how strongly the progressive zoom diverges from neutral.
-// `centerY` places the no-distortion zone on the lens (0 = top, 1 = bottom).
-// `sensity` marks the lens as photochromic so the per-frame update tick
-// pushes a darkness uniform to it.
-export type LensProduct =
-  | 'iD MyStyle 3'
-  | 'iD WorkStyle 3'
-  | 'iD LifeStyle 3'
-  | 'Sensity'
+// Each product is the same lens shader with a different soft-zone profile. The
+// soft zone (two lower corners) widens as the tier drops: MySense barely blurs,
+// Balansis blurs the most. All three share the premium multifocal curve above.
+export type LensProduct = 'Balansis' | 'MySelf Profile' | 'MySense'
 
 interface LensProductProfile {
-  power: number
-  centerY: number
-  sensity: boolean
+  cornerWidth: number
+  cornerHeight: number
+  feather: number
 }
 
+// Starting values traced from the customer's renders (mirror-symmetric). Tune
+// on device against the source images.
 const LENS_PRODUCTS: Record<LensProduct, LensProductProfile> = {
-  // Hero. Near-flat clarity across the lens — almost no swim.
-  'iD MyStyle 3': { power: 0.02, centerY: 0.5, sensity: false },
-  // Mid-tier. Strong visible swim so the customer feels the gap to MyStyle.
-  'iD LifeStyle 3': { power: 0.35, centerY: 0.5, sensity: false },
-  // Desk / screen. Sharp zone shifted way up so the intermediate band lands
-  // in the upper-middle; distance (top of lens) is dramatically distorted.
-  'iD WorkStyle 3': { power: 0.45, centerY: 0.2, sensity: false },
-  // Photochromic. Same optical curve as MyStyle plus the darkness uniform.
-  Sensity: { power: 0.02, centerY: 0.5, sensity: true },
+  // Entry: largest soft corners, narrowest clear field (~76%).
+  Balansis: { cornerWidth: 0.3, cornerHeight: 0.62, feather: 0.07 },
+  // Mid: moderate corners (~86% clear).
+  'MySelf Profile': { cornerWidth: 0.22, cornerHeight: 0.55, feather: 0.07 },
+  // Premium: edge-hugging slivers, near edge-to-edge clarity (~99%).
+  MySense: { cornerWidth: 0.14, cornerHeight: 0.45, feather: 0.07 },
 }
 
 export const LENS_PRODUCT_ORDER: LensProduct[] = [
-  'iD MyStyle 3',
-  'iD WorkStyle 3',
-  'iD LifeStyle 3',
-  'Sensity',
+  'Balansis',
+  'MySelf Profile',
+  'MySense',
 ]
 
 function applyProductUniforms(m: pc.ShaderMaterial, product: LensProduct) {
   const p = LENS_PRODUCTS[product]
-  m.setParameter('uPower', p.power)
-  m.setParameter('uCenterY', p.centerY)
-  if (!p.sensity) m.setParameter('uSensityDarkness', 0)
+  m.setParameter('uCornerWidth', p.cornerWidth)
+  m.setParameter('uCornerHeight', p.cornerHeight)
+  m.setParameter('uFeather', p.feather)
 }
 
 function createLensMaterial(yMin: number, yMax: number): pc.ShaderMaterial {
@@ -395,8 +409,10 @@ function createLensMaterial(yMin: number, yMax: number): pc.ShaderMaterial {
   })
   m.setParameter('uMinY', yMin)
   m.setParameter('uMaxY', yMax)
-  m.setParameter('uSensityDarkness', 0)
-  applyProductUniforms(m, 'iD MyStyle 3')
+  m.setParameter('uBlurMax', SOFT_ZONE_BLUR_MAX_PX)
+  m.setParameter('uLineTrace', 0)
+  m.setParameter('uLineFade', 0)
+  applyProductUniforms(m, 'Balansis')
   // Transparent so the lens renders AFTER the scene-color grab pass and can
   // sample uSceneColorMap.
   m.blendType = pc.BLEND_NORMAL
@@ -460,7 +476,7 @@ export function setupImpairedVision(
 ): ImpairedVisionController {
   if (cameraEntity.camera) cameraEntity.camera.renderSceneColorMap = true
   reorderLayersForGrab(app.scene.layers)
-  const impaired = setupImpairedVisionOverlay(app, cameraEntity)
+  const impaired = setupImpairedVisionOverlay(app)
   return {
     destroy() {
       impaired.entity.destroy()
@@ -470,10 +486,13 @@ export function setupImpairedVision(
   }
 }
 
-// Sensity damping. Darkening is faster than clearing — matches the
-// asymmetric behaviour of real photochromic lenses.
-const SENSITY_DARKEN_TC = 1.2 // seconds to reach ~63 % of target when darkening
-const SENSITY_CLEAR_TC = 3.0 // seconds to reach ~63 % of target when clearing
+interface SideState {
+  lens: pc.Entity
+  material: pc.ShaderMaterial
+  product: LensProduct
+  // Seconds since the boundary-line trace started, or null when idle.
+  traceElapsed: number | null
+}
 
 // Adds the lens + frame meshes as children of the camera. Each lens samples
 // the pre-overlay scene grab so the area it covers reads back as sharp; the
@@ -494,23 +513,7 @@ export async function setupLenses(
   // Rest position per group, captured so the entrance animation can lerp the
   // groups back down to it from their dropped start.
   const finalPositions: pc.Vec3[] = []
-  // Per-side: the lens entity (so we can enable / disable), the material (so
-  // we can swap product uniforms), and the currently selected product (so
-  // the Sensity tick knows whether to run).
-  const sides = {
-    left: null as null | {
-      lens: pc.Entity
-      material: pc.ShaderMaterial
-      product: LensProduct
-      sensityCurrent: number
-    },
-    right: null as null | {
-      lens: pc.Entity
-      material: pc.ShaderMaterial
-      product: LensProduct
-      sensityCurrent: number
-    },
-  }
+  const sides: Record<LensSide, SideState | null> = { left: null, right: null }
 
   for (let i = 0; i < SIDES.length; i++) {
     const cfg = SIDES[i]
@@ -549,34 +552,34 @@ export async function setupLenses(
     finalPositions.push(cfg.position)
 
     const key: LensSide = cfg.name === 'GlassesLeft' ? 'left' : 'right'
-    sides[key] = {
-      lens,
-      material,
-      product: 'iD MyStyle 3',
-      sensityCurrent: 0,
-    }
+    sides[key] = { lens, material, product: 'Balansis', traceElapsed: null }
   }
 
-  // Per-frame Sensity ramp. Early-out when neither eye has Sensity selected
-  // so non-photochromic configurations cost nothing.
+  // Kick the boundary-line trace for a side (idempotent restart).
+  const startTrace = (s: SideState | null) => {
+    if (s) s.traceElapsed = 0
+  }
+
+  // Per-frame trace ramp: sweep the dotted line on, hold, fade out. Costs
+  // nothing while idle (no trace pending on either eye).
   const onUpdate = (dt: number) => {
-    if (!SUN_EFFECTS_ENABLED) return
-    const left = sides.left
-    const right = sides.right
-    if (!left || !right) return
-    if (left.product !== 'Sensity' && right.product !== 'Sensity') return
-
-    // Wide activation so the lens already shows a clear tint during
-    // normal forward gameplay (camera dot ~0.78), and reaches full
-    // darkness when the customer looks straight at the sun.
-    const target = pc.math.smoothstep(0.4, 0.95, sunInView(cameraEntity))
-
-    for (const s of [left, right]) {
-      if (s.product !== 'Sensity') continue
-      const tc =
-        target > s.sensityCurrent ? SENSITY_DARKEN_TC : SENSITY_CLEAR_TC
-      s.sensityCurrent += (target - s.sensityCurrent) * (dt / tc)
-      s.material.setParameter('uSensityDarkness', s.sensityCurrent)
+    if (sides.left?.traceElapsed == null && sides.right?.traceElapsed == null)
+      return
+    for (const s of [sides.left, sides.right]) {
+      if (!s || s.traceElapsed == null) continue
+      s.traceElapsed += dt
+      const e = s.traceElapsed
+      const trace = Math.min(1, e / TRACE_IN_SEC)
+      let fade: number
+      if (e < TRACE_IN_SEC + TRACE_HOLD_SEC) fade = 1
+      else if (e < TRACE_IN_SEC + TRACE_HOLD_SEC + TRACE_OUT_SEC)
+        fade = 1 - (e - TRACE_IN_SEC - TRACE_HOLD_SEC) / TRACE_OUT_SEC
+      else {
+        fade = 0
+        s.traceElapsed = null
+      }
+      s.material.setParameter('uLineTrace', trace)
+      s.material.setParameter('uLineFade', fade)
     }
   }
   app.on('update', onUpdate)
@@ -598,6 +601,10 @@ export async function setupLenses(
         if (t < 1) return
         if (entranceTick) app.off('update', entranceTick)
         entranceTick = null
+        // Trace both lenses' boundaries once they've settled, so the customer
+        // sees each clear field the moment the glasses land.
+        startTrace(sides.left)
+        startTrace(sides.right)
         resolve()
       }
       app.on('update', entranceTick)
@@ -610,12 +617,8 @@ export async function setupLenses(
       if (!s || s.product === product) return
       s.product = product
       applyProductUniforms(s.material, product)
-      // Reset Sensity ramp when switching to / from photochromic so leftover
-      // darkness from a previous Sensity session doesn't bleed into MyStyle.
-      if (product !== 'Sensity') {
-        s.sensityCurrent = 0
-        s.material.setParameter('uSensityDarkness', 0)
-      }
+      // Trace the new clear-field boundary so the difference is obvious.
+      startTrace(s)
     },
     destroy() {
       app.off('update', onUpdate)
