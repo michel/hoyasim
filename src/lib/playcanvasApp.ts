@@ -43,6 +43,22 @@ const BIKE_ASSET_NAME = 'bike.glb'
 const BIKE_SCALE = 1
 const BIKE_EULER: [number, number, number] = [0, 0, 0]
 
+// The traffic light spans the road (the model is already mirrored across both
+// sides). TRAFFIC_LIGHT_Z is the single "down the road" knob (default: half-way
+// along the loop); the bike's stop line is derived from it. X is a lateral
+// nudge (0 = centred). X/Y/scale/rotation are tuned visually against the scene.
+const TRAFFIC_LIGHT_ASSET_NAME = 'trafficlight.glb'
+const TRAFFIC_LIGHT_Z = START_Z - LOOP_PERIOD * 0.82
+const TRAFFIC_LIGHT_X = 1.2
+const TRAFFIC_LIGHT_Y = 0
+const TRAFFIC_LIGHT_SCALE = 0.45
+const TRAFFIC_LIGHT_EULER: [number, number, number] = [0, 0, 0]
+// The bike stops this far ahead of (i.e. +Z of) the lights, eases off over
+// SLOWDOWN units, and idles at the stop line for WAIT seconds each lap.
+const TRAFFIC_LIGHT_STOP_OFFSET = 1.5
+const TRAFFIC_LIGHT_SLOWDOWN = 2.5
+const TRAFFIC_LIGHT_WAIT = 3
+
 pc.dracoInitialize({
   jsUrl:
     'https://www.gstatic.com/draco/versioned/decoders/1.5.7/draco_wasm_wrapper.js',
@@ -238,8 +254,29 @@ function setupRig(app: pc.AppBase) {
       targetZ: TARGET_Z,
       loop: true,
       fadeDistance: 0,
+      stopZ: TRAFFIC_LIGHT_Z + TRAFFIC_LIGHT_STOP_OFFSET,
+      slowDownDistance: TRAFFIC_LIGHT_SLOWDOWN,
+      waitDuration: TRAFFIC_LIGHT_WAIT,
     },
   })
+}
+
+// Plants the traffic light across the road at the configured Z. The model
+// already spans both sides, so a single instance is parented to the world root
+// (static) — the looping rig passes it once per lap.
+function setupTrafficLight(app: pc.AppBase) {
+  const container = app.assets.find(TRAFFIC_LIGHT_ASSET_NAME, 'container')
+  const resource = container?.resource as pc.ContainerResource | undefined
+  if (!resource) return
+  const light = resource.instantiateRenderEntity()
+  light.setLocalPosition(TRAFFIC_LIGHT_X, TRAFFIC_LIGHT_Y, TRAFFIC_LIGHT_Z)
+  light.setLocalEulerAngles(...TRAFFIC_LIGHT_EULER)
+  light.setLocalScale(
+    TRAFFIC_LIGHT_SCALE,
+    TRAFFIC_LIGHT_SCALE,
+    TRAFFIC_LIGHT_SCALE,
+  )
+  app.root.addChild(light)
 }
 
 // Swaps the baked grey single-mesh render on the "Render" anchor for the full
@@ -266,6 +303,7 @@ function setupBike(app: pc.AppBase, opts: SceneOptions) {
 // (null when the lens effect is disabled or the camera is missing).
 function setupScene(app: pc.AppBase, opts: SceneOptions): pc.Entity | null {
   setupBike(app, opts)
+  setupTrafficLight(app)
 
   stripShadows(app)
 

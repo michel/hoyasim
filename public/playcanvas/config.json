@@ -331,6 +331,21 @@
       "i18n": {},
       "id": "287159655"
     },
+    "287159700": {
+      "name": "trafficlight.glb",
+      "type": "container",
+      "file": {
+        "hash": "ec8a4a0274a65140f4d908b05e1cc02e",
+        "size": 1054744,
+        "filename": "trafficlight.glb",
+        "url": "assets/models/trafficlight.glb"
+      },
+      "data": {},
+      "preload": true,
+      "tags": [],
+      "i18n": {},
+      "id": "287159700"
+    },
     "287159656": {
       "name": "defaultMat",
       "type": "material",

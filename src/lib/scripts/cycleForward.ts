@@ -2,6 +2,9 @@ import * as pc from 'playcanvas'
 
 export const CYCLE_FORWARD_BASE_SPEED = 1
 const SHIFT_MULT = 5
+// Linear-in-distance deceleration only reaches zero asymptotically; snap to the
+// stop line once this close so the bike comes to a clean, exact halt.
+const STOP_EPSILON = 0.03
 
 interface CycleForwardInstance extends pc.ScriptType {
   speed: number
@@ -9,6 +12,13 @@ interface CycleForwardInstance extends pc.ScriptType {
   targetZ: number
   loop: boolean
   fadeDistance: number
+  // Traffic-light stop gate (disabled when slowDownDistance <= 0).
+  stopZ: number
+  slowDownDistance: number
+  waitDuration: number
+  _stopped: boolean
+  _waited: boolean
+  _waitTimer: number
   _overlay?: HTMLDivElement
   _lastOpacity?: number
 }
@@ -22,9 +32,18 @@ export function registerCycleForward(app: pc.AppBase) {
   CycleForward.attributes.add('targetZ', { type: 'number', default: -30 })
   CycleForward.attributes.add('loop', { type: 'boolean', default: false })
   CycleForward.attributes.add('fadeDistance', { type: 'number', default: 3 })
+  CycleForward.attributes.add('stopZ', { type: 'number', default: 0 })
+  CycleForward.attributes.add('slowDownDistance', {
+    type: 'number',
+    default: 0,
+  })
+  CycleForward.attributes.add('waitDuration', { type: 'number', default: 0 })
 
   CycleForward.extend({
     initialize(this: CycleForwardInstance) {
+      this._stopped = false
+      this._waited = false
+      this._waitTimer = 0
       const base = this.speed
       const keyboard = this.app.keyboard
       if (keyboard) {
@@ -59,12 +78,39 @@ export function registerCycleForward(app: pc.AppBase) {
 
     update(this: CycleForwardInstance, dt: number) {
       const pos = this.entity.getLocalPosition()
-      let nextZ = pos.z - this.speed * dt
+      let z = pos.z
+      let effSpeed = this.speed
+
+      // Ease off toward, then idle at, the traffic-light stop line — once per
+      // lap. dist > 0 while approaching from the +Z (start) side.
+      if (this.slowDownDistance > 0 && !this._waited) {
+        const dist = z - this.stopZ
+        if (this._stopped) {
+          this._waitTimer += dt
+          effSpeed = 0
+          if (this._waitTimer >= this.waitDuration) {
+            this._waited = true
+            this._stopped = false
+          }
+        } else if (dist <= STOP_EPSILON) {
+          this._stopped = true
+          this._waitTimer = 0
+          effSpeed = 0
+          z = this.stopZ
+        } else if (dist <= this.slowDownDistance) {
+          effSpeed = this.speed * (dist / this.slowDownDistance)
+        }
+      }
+
+      let nextZ = z - effSpeed * dt
 
       if (nextZ <= this.targetZ) {
         if (this.loop) {
           const overshoot = this.targetZ - nextZ
           nextZ = this.startZ - overshoot
+          this._stopped = false
+          this._waited = false
+          this._waitTimer = 0
         } else {
           nextZ = this.targetZ
         }
