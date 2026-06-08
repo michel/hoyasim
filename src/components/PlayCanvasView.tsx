@@ -1,4 +1,10 @@
-import { ChevronRight, Glasses, Loader2, Pointer, Smartphone } from 'lucide-react'
+import {
+  ChevronRight,
+  Glasses,
+  Loader2,
+  Pointer,
+  Smartphone,
+} from 'lucide-react'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import hoyaLogo from '@/assets/hoya-logo.svg'
 import { Button } from '@/components/ui/button'
