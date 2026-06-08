@@ -207,21 +207,26 @@ export default function PlayCanvasView({
         </div>
       )}
       {!loading && !error && !glassesOn && !showEnableButton && (
-        <div className="absolute bottom-8 left-1/2 -translate-x-1/2 z-10">
+        <div
+          className={`absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-10 transition-all duration-300 ${
+            puttingOnGlasses
+              ? 'pointer-events-none scale-95 opacity-0'
+              : 'scale-100 opacity-100'
+          }`}
+        >
           <Button
             variant="glass"
             size="lg"
             onClick={putOnGlasses}
             disabled={puttingOnGlasses}
           >
-            {puttingOnGlasses && <Loader2 className="h-5 w-5 animate-spin" />}
-            <span>{puttingOnGlasses ? 'Experiencing' : 'Experience'}</span>
+            <span>Experience</span>
             <img
               src={hoyaLogo}
               alt="HOYA"
               className="h-4 w-auto brightness-0 invert"
             />
-            <span>{puttingOnGlasses ? 'vision…' : 'vision'}</span>
+            <span>vision</span>
           </Button>
         </div>
       )}

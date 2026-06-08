@@ -289,6 +289,7 @@ export async function bootApp(
       putOnGlassesPromise = setupLenses(app, cameraEntity)
         .then((g) => {
           glasses = g
+          return g.playPutOnAnimation()
         })
         .catch((err: unknown) => {
           console.error('Lens setup failed:', err)

@@ -25,6 +25,23 @@ const IMPAIRED_BLUR_RADIUS_PX = 16.0
 const IMPAIRED_CHROMA_STRENGTH = 0.001
 const IMPAIRED_FADE_IN_SEC = 1.0
 
+// "Putting on glasses" entrance. The glasses start this far above their rest
+// position (in camera-local Y units, i.e. screen-vertical) and slide down into
+// the eye line. ENTRANCE_OVERSHOOT controls the easeOutBack tension — the
+// glasses dip slightly past rest and settle back, reading as a physical drop.
+const ENTRANCE_DROP = 1.2
+const ENTRANCE_DURATION = 0.6
+const ENTRANCE_OVERSHOOT = 1.1
+
+// easeOutBack: accelerates down, overshoots the target, then settles back to it
+// exactly at t = 1 — the little bounce that sells the "drop into place" feel.
+function easeOutBack(t: number): number {
+  const c1 = ENTRANCE_OVERSHOOT
+  const c3 = c1 + 1
+  const p = t - 1
+  return 1 + c3 * p * p * p + c1 * p * p
+}
+
 // Temporary kill switch for the per-frame sun work (worldToScreen +
 // Sensity ramp + shader uniforms). Used to isolate whether sun effects
 // are responsible for mobile FPS dips.
@@ -428,6 +445,9 @@ export type LensSide = 'left' | 'right'
 
 export interface GlassesController {
   setLensProduct(side: LensSide, product: LensProduct): void
+  // Slides the glasses down from above into their rest position. Resolves once
+  // the drop has settled, so the caller can reveal the lens controls after.
+  playPutOnAnimation(): Promise<void>
   destroy(): void
 }
 
@@ -471,6 +491,9 @@ export async function setupLenses(
 
   const frameMat = createFrameMaterial()
   const glassesGroups: pc.Entity[] = []
+  // Rest position per group, captured so the entrance animation can lerp the
+  // groups back down to it from their dropped start.
+  const finalPositions: pc.Vec3[] = []
   // Per-side: the lens entity (so we can enable / disable), the material (so
   // we can swap product uniforms), and the currently selected product (so
   // the Sensity tick knows whether to run).
@@ -514,10 +537,16 @@ export async function setupLenses(
 
     group.addChild(lens)
     group.addChild(frame)
-    group.setLocalPosition(cfg.position)
+    // Start dropped above the rest position; playPutOnAnimation slides it down.
+    group.setLocalPosition(
+      cfg.position.x,
+      cfg.position.y + ENTRANCE_DROP,
+      cfg.position.z,
+    )
     group.setLocalScale(LENS_SCALE)
     cameraEntity.addChild(group)
     glassesGroups.push(group)
+    finalPositions.push(cfg.position)
 
     const key: LensSide = cfg.name === 'GlassesLeft' ? 'left' : 'right'
     sides[key] = {
@@ -552,7 +581,30 @@ export async function setupLenses(
   }
   app.on('update', onUpdate)
 
+  // Drives the drop-into-place tween. Tracked so destroy() can detach it if the
+  // glasses are torn down mid-animation.
+  let entranceTick: ((dt: number) => void) | null = null
+  const playPutOnAnimation = () =>
+    new Promise<void>((resolve) => {
+      let elapsed = 0
+      entranceTick = (dt: number) => {
+        elapsed += dt
+        const t = Math.min(1, elapsed / ENTRANCE_DURATION)
+        const offset = ENTRANCE_DROP * (1 - easeOutBack(t))
+        for (let i = 0; i < glassesGroups.length; i++) {
+          const f = finalPositions[i]
+          glassesGroups[i].setLocalPosition(f.x, f.y + offset, f.z)
+        }
+        if (t < 1) return
+        if (entranceTick) app.off('update', entranceTick)
+        entranceTick = null
+        resolve()
+      }
+      app.on('update', entranceTick)
+    })
+
   return {
+    playPutOnAnimation,
     setLensProduct(side, product) {
       const s = sides[side]
       if (!s || s.product === product) return
@@ -567,6 +619,7 @@ export async function setupLenses(
     },
     destroy() {
       app.off('update', onUpdate)
+      if (entranceTick) app.off('update', entranceTick)
       for (const g of glassesGroups) g.destroy()
     },
   }
