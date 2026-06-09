@@ -40,8 +40,16 @@ const CAMERA_ENTITY_NAME = 'Camera'
 // Container asset name (config.json) and the bike's local transform under the rig.
 // Scale/rotation are tuned visually against the scene, not derived from the GLB.
 const BIKE_ASSET_NAME = 'bike.glb'
-const BIKE_SCALE = 1.6
+const BIKE_SCALE = 1.85
 const BIKE_EULER: [number, number, number] = [0, 0, 0]
+// Material name (from bike.glb) of the e-bike's dashboard display. The texture is
+// a near-white nav-map screenshot, so the screen is rendered unlit (see
+// brightenBikeScreen) with the texture driven purely through emissive at BELOW 1
+// — that keeps the bright map at a legible light-grey instead of letting ACES
+// tonemapping clip it to a blown-out white panel. Lower = more detail/contrast,
+// higher = brighter but washes out. Tuned visually.
+const BIKE_SCREEN_MATERIAL = 'Screen'
+const BIKE_SCREEN_EMISSIVE = 0.6
 
 // The traffic light spans the road (the model is already mirrored across both
 // sides). TRAFFIC_LIGHT_Z is the single "down the road" knob (default: half-way
@@ -49,9 +57,9 @@ const BIKE_EULER: [number, number, number] = [0, 0, 0]
 // nudge (0 = centred). X/Y/scale/rotation are tuned visually against the scene.
 const TRAFFIC_LIGHT_ASSET_NAME = 'trafficlight.glb'
 const TRAFFIC_LIGHT_Z = START_Z - LOOP_PERIOD * 0.82
-const TRAFFIC_LIGHT_X = 1.2
+const TRAFFIC_LIGHT_X = 1.0
 const TRAFFIC_LIGHT_Y = 0
-const TRAFFIC_LIGHT_SCALE = 0.45
+const TRAFFIC_LIGHT_SCALE = 0.35
 const TRAFFIC_LIGHT_EULER: [number, number, number] = [0, 0, 0]
 // The bike stops this far ahead of (i.e. +Z of) the lights, eases off over
 // SLOWDOWN units, and idles at the stop line for WAIT seconds each lap.
@@ -279,6 +287,29 @@ function setupTrafficLight(app: pc.AppBase) {
   app.root.addChild(light)
 }
 
+// Brightens the bike's textures by re-using each material's albedo map as an
+// additive emissive source. Only StandardMaterials carrying a colour map are
+// touched, and any material already driving its own emissive map is left alone.
+// Renders the e-bike's dashboard screen as a clear, self-lit display. The GLB
+// already wires the screen's texture as an emissive map but with a black
+// emissive factor. Driving the texture purely through emissive AND disabling
+// lighting avoids the double-exposure (lit diffuse + emissive) that otherwise
+// pushes the graphic past ACES tonemapping into a blown-out white panel.
+function brightenBikeScreen(model: pc.Entity) {
+  for (const r of model.findComponents('render') as pc.RenderComponent[]) {
+    for (const mi of r.meshInstances) {
+      const m = mi.material
+      if (!(m instanceof pc.StandardMaterial)) continue
+      if (m.name !== BIKE_SCREEN_MATERIAL) continue
+      if (!m.emissiveMap) m.emissiveMap = m.diffuseMap
+      m.useLighting = false
+      m.emissive.set(1, 1, 1)
+      m.emissiveIntensity = BIKE_SCREEN_EMISSIVE
+      m.update()
+    }
+  }
+}
+
 // Swaps the baked grey single-mesh render on the "Render" anchor for the full
 // textured GLB hierarchy, so every mesh and material from the container shows.
 function setupBike(app: pc.AppBase, opts: SceneOptions) {
@@ -292,7 +323,10 @@ function setupBike(app: pc.AppBase, opts: SceneOptions) {
   const container = app.assets.find(BIKE_ASSET_NAME, 'container')
   const resource = container?.resource as pc.ContainerResource | undefined
   const model = resource?.instantiateRenderEntity()
-  if (model) anchor.addChild(model)
+  if (model) {
+    brightenBikeScreen(model)
+    anchor.addChild(model)
+  }
   anchor.setLocalPosition(0, 0, 0)
   anchor.setLocalEulerAngles(...BIKE_EULER)
   anchor.setLocalScale(BIKE_SCALE, BIKE_SCALE, BIKE_SCALE)
