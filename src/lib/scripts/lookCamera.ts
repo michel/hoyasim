@@ -8,15 +8,8 @@ export interface LookState {
   gyroActive: boolean
 }
 
-interface LookCameraInstance extends pc.ScriptType {
-  sensitivity: number
-  pitchMin: number
-  pitchMax: number
-  yawRange: number
-}
-
-export const LAT_MIN = -85
-export const LAT_MAX = 85
+const LAT_MIN = -85
+const LAT_MAX = 85
 
 export function createLookState(): LookState {
   return { lon: 0, lat: 0, gyroQuat: new pc.Quat(), gyroActive: false }
@@ -34,12 +27,12 @@ export function registerLookCamera(app: pc.AppBase, state: LookState) {
   LookCamera.attributes.add('yawRange', { type: 'number', default: 180 })
 
   LookCamera.extend({
-    update(this: LookCameraInstance) {
+    update(this: pc.ScriptType) {
       if (state.gyroActive) {
         this.entity.setLocalRotation(state.gyroQuat)
         return
       }
-      const lat = Math.max(LAT_MIN, Math.min(LAT_MAX, state.lat))
+      const lat = pc.math.clamp(state.lat, LAT_MIN, LAT_MAX)
       this.entity.setLocalEulerAngles(lat, state.lon, 0)
     },
   })

@@ -11,16 +11,29 @@ import { Button } from '@/components/ui/button'
 import { useDeviceOrientation } from '@/hooks/useDeviceOrientation'
 import { usePointerControls } from '@/hooks/usePointerControls'
 import {
+  DEFAULT_LENS_PRODUCT,
   LENS_PRODUCT_ORDER,
   type LensProduct,
   type LensSide,
 } from '@/lib/glasses-pc'
-import { type BootedApp, bootApp } from '@/lib/playcanvasApp'
+import { type BootedApp, bootApp, type SceneOptions } from '@/lib/playcanvasApp'
 import { createLookState } from '@/lib/scripts/lookCamera'
 
 function nextProduct(current: LensProduct): LensProduct {
   const idx = LENS_PRODUCT_ORDER.indexOf(current)
   return LENS_PRODUCT_ORDER[(idx + 1) % LENS_PRODUCT_ORDER.length]
+}
+
+// Debug/feature toggles for the 3D scene, owned by the UI layer so the
+// PlayCanvas lib stays URL-agnostic.
+function readSceneOptions(): SceneOptions {
+  const params = new URLSearchParams(window.location.search)
+  return {
+    lensEnabled: params.get('lens') !== '0',
+    singleTile: params.get('singletile') === '1',
+    noSplat: params.get('nosplat') === '1',
+    noBike: params.get('nobike') === '1',
+  }
 }
 
 const LENS_TAGLINES: Record<LensProduct, string> = {
@@ -50,17 +63,15 @@ function LensSelector({
   side,
   active,
   onCycle,
-  position,
   showHint = false,
 }: {
   side: LensSide
   active: LensProduct
   onCycle: () => void
-  position: 'left' | 'right'
   showHint?: boolean
 }) {
   const anchor =
-    position === 'left'
+    side === 'left'
       ? 'left-[28%] -translate-x-1/2'
       : 'right-[28%] translate-x-1/2'
   return (
@@ -104,15 +115,11 @@ function LensSelector({
   )
 }
 
-interface PlayCanvasViewProps {
-  gyroActive: boolean
-  onGyroActiveChange: (active: boolean) => void
-}
+// DOM writes at 60 Hz force style/layout of the badge every frame; the readout
+// only needs to refresh a few times a second.
+const FPS_WRITE_INTERVAL_MS = 250
 
-export default function PlayCanvasView({
-  gyroActive,
-  onGyroActiveChange,
-}: PlayCanvasViewProps) {
+export default function PlayCanvasView() {
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const fpsRef = useRef<HTMLDivElement>(null)
   const bootedAppRef = useRef<BootedApp | null>(null)
@@ -120,13 +127,16 @@ export default function PlayCanvasView({
   const [error, setError] = useState<string | null>(null)
   const [glassesOn, setGlassesOn] = useState(false)
   const [puttingOnGlasses, setPuttingOnGlasses] = useState(false)
-  const [leftProduct, setLeftProduct] = useState<LensProduct>('Balansis')
-  const [rightProduct, setRightProduct] = useState<LensProduct>('Balansis')
+  const [products, setProducts] = useState<Record<LensSide, LensProduct>>({
+    left: DEFAULT_LENS_PRODUCT,
+    right: DEFAULT_LENS_PRODUCT,
+  })
   const [hasCycledLens, setHasCycledLens] = useState(false)
 
   useEffect(() => {
     let raf = 0
     let last = performance.now()
+    let lastWrite = 0
     let ema = 0
     const tick = (now: number) => {
       const dt = now - last
@@ -134,7 +144,10 @@ export default function PlayCanvasView({
       if (dt > 0) {
         const fps = 1000 / dt
         ema = ema === 0 ? fps : ema * 0.9 + fps * 0.1
-        if (fpsRef.current) fpsRef.current.textContent = `${ema.toFixed(0)} fps`
+        if (now - lastWrite >= FPS_WRITE_INTERVAL_MS && fpsRef.current) {
+          fpsRef.current.textContent = `${ema.toFixed(0)} fps`
+          lastWrite = now
+        }
       }
       raf = requestAnimationFrame(tick)
     }
@@ -148,7 +161,7 @@ export default function PlayCanvasView({
     if (!canvasRef.current) return
     let alive = true
 
-    bootApp(canvasRef.current, lookState)
+    bootApp(canvasRef.current, lookState, readSceneOptions())
       .then((app) => {
         if (!alive) {
           app.dispose()
@@ -172,8 +185,10 @@ export default function PlayCanvasView({
     if (glassesOn || puttingOnGlasses || !bootedAppRef.current) return
     setPuttingOnGlasses(true)
     await bootedAppRef.current.putOnGlasses()
-    bootedAppRef.current.setLensProduct('left', leftProduct)
-    bootedAppRef.current.setLensProduct('right', rightProduct)
+    // A rebuilt controller starts both eyes at the default; restore the user's
+    // current selection.
+    bootedAppRef.current.setLensProduct('left', products.left)
+    bootedAppRef.current.setLensProduct('right', products.right)
     setGlassesOn(true)
     setPuttingOnGlasses(false)
   }
@@ -185,19 +200,14 @@ export default function PlayCanvasView({
 
   const cycleSide = (side: LensSide) => {
     setHasCycledLens(true)
-    const next =
-      side === 'left' ? nextProduct(leftProduct) : nextProduct(rightProduct)
-    if (side === 'left') setLeftProduct(next)
-    else setRightProduct(next)
+    const next = nextProduct(products[side])
+    setProducts((p) => ({ ...p, [side]: next }))
     bootedAppRef.current?.setLensProduct(side, next)
   }
 
+  const { gyroActive, showEnableButton, enableMotionControls } =
+    useDeviceOrientation(lookState)
   usePointerControls(canvasRef.current, lookState, gyroActive)
-  const { showEnableButton, enableMotionControls } = useDeviceOrientation(
-    lookState,
-    gyroActive,
-    onGyroActiveChange,
-  )
 
   return (
     <>
@@ -267,16 +277,14 @@ export default function PlayCanvasView({
         <>
           <LensSelector
             side="left"
-            active={leftProduct}
+            active={products.left}
             onCycle={() => cycleSide('left')}
-            position="left"
             showHint={!hasCycledLens}
           />
           <LensSelector
             side="right"
-            active={rightProduct}
+            active={products.right}
             onCycle={() => cycleSide('right')}
-            position="right"
           />
           <div className="absolute bottom-6 right-6 z-10">
             <Button

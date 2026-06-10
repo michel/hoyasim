@@ -11,7 +11,6 @@ interface CycleForwardInstance extends pc.ScriptType {
   startZ: number
   targetZ: number
   loop: boolean
-  fadeDistance: number
   // Traffic-light stop gate (disabled when slowDownDistance <= 0).
   stopZ: number
   slowDownDistance: number
@@ -19,8 +18,6 @@ interface CycleForwardInstance extends pc.ScriptType {
   _stopped: boolean
   _waited: boolean
   _waitTimer: number
-  _overlay?: HTMLDivElement
-  _lastOpacity?: number
 }
 
 export function registerCycleForward(app: pc.AppBase) {
@@ -31,7 +28,6 @@ export function registerCycleForward(app: pc.AppBase) {
   CycleForward.attributes.add('startZ', { type: 'number', default: 11 })
   CycleForward.attributes.add('targetZ', { type: 'number', default: -30 })
   CycleForward.attributes.add('loop', { type: 'boolean', default: false })
-  CycleForward.attributes.add('fadeDistance', { type: 'number', default: 3 })
   CycleForward.attributes.add('stopZ', { type: 'number', default: 0 })
   CycleForward.attributes.add('slowDownDistance', {
     type: 'number',
@@ -59,21 +55,6 @@ export function registerCycleForward(app: pc.AppBase) {
           keyboard.off(pc.EVENT_KEYUP, onKey)
         })
       }
-
-      if (!this.loop) return
-      const overlay = document.createElement('div')
-      overlay.style.cssText = [
-        'position:fixed',
-        'inset:0',
-        'background:#000',
-        'opacity:0',
-        'pointer-events:none',
-        'z-index:9999',
-      ].join(';')
-      document.body.appendChild(overlay)
-      this._overlay = overlay
-      this._lastOpacity = 0
-      this.on('destroy', () => overlay.remove())
     },
 
     update(this: CycleForwardInstance, dt: number) {
@@ -117,24 +98,6 @@ export function registerCycleForward(app: pc.AppBase) {
       }
 
       this.entity.setLocalPosition(pos.x, pos.y, nextZ)
-
-      if (this._overlay && this.fadeDistance > 0) {
-        const distFromStart = this.startZ - nextZ
-        const distFromTarget = nextZ - this.targetZ
-        const a1 =
-          distFromTarget < this.fadeDistance
-            ? 1 - Math.max(0, distFromTarget) / this.fadeDistance
-            : 0
-        const a2 =
-          distFromStart < this.fadeDistance
-            ? 1 - Math.max(0, distFromStart) / this.fadeDistance
-            : 0
-        const next = Math.max(a1, a2)
-        if (next !== this._lastOpacity) {
-          this._overlay.style.opacity = String(next)
-          this._lastOpacity = next
-        }
-      }
     },
   })
 }

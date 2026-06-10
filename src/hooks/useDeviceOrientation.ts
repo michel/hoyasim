@@ -1,5 +1,5 @@
 import * as pc from 'playcanvas'
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useState } from 'react'
 import type { LookState } from '@/lib/scripts/lookCamera'
 
 // iOS gates the motion sensors behind a static requestPermission() on the
@@ -14,11 +14,15 @@ const DeviceOrientationEventiOS =
 const isIOS = typeof DeviceOrientationEventiOS.requestPermission === 'function'
 
 // -90 degrees around X axis, aligns the camera frame with the device frame.
-const WORLD_CORRECTION = new pc.Quat(-Math.sqrt(0.5), 0, 0, Math.sqrt(0.5))
+const WORLD_CORRECTION = new pc.Quat().setFromAxisAngle(pc.Vec3.RIGHT, -90)
 
-const DEG_TO_RAD = Math.PI / 180
+// The grant is app-global, not per-view: LandscapeGuard swaps the whole subtree
+// out during a portrait flip, so hook state alone would forget an already
+// granted gyro and re-show the enable button on every rotation.
+let gyroGranted = false
 
-// Three.js' Euler(beta, alpha, -gamma, 'YXZ') as a raw quaternion.
+// Three.js' Euler(beta, alpha, -gamma, 'YXZ') as a raw quaternion — PlayCanvas
+// has no YXZ euler order.
 function eulerYXZToQuat(
   out: pc.Quat,
   betaRad: number,
@@ -37,18 +41,11 @@ function eulerYXZToQuat(
   out.w = c1 * c2 * c3 + s1 * s2 * s3
 }
 
-export function useDeviceOrientation(
-  lookState: LookState,
-  gyroActive: boolean,
-  onGyroActiveChange: (active: boolean) => void,
-) {
-  const [showEnableButton, setShowEnableButton] = useState(false)
-  const onGyroActiveChangeRef = useRef(onGyroActiveChange)
-  onGyroActiveChangeRef.current = onGyroActiveChange
-
-  useEffect(() => {
-    setShowEnableButton(isIOS)
-  }, [])
+export function useDeviceOrientation(lookState: LookState) {
+  const [gyroActive, setGyroActive] = useState(gyroGranted)
+  const [showEnableButton, setShowEnableButton] = useState(
+    isIOS && !gyroGranted,
+  )
 
   useEffect(() => {
     if (!gyroActive) {
@@ -65,14 +62,16 @@ export function useDeviceOrientation(
       if (event.alpha === null || event.beta === null || event.gamma === null)
         return
 
-      const alpha = event.alpha * DEG_TO_RAD
-      const beta = event.beta * DEG_TO_RAD
-      const gamma = event.gamma * DEG_TO_RAD
-      const orient = (window.screen?.orientation?.angle || 0) * DEG_TO_RAD
+      const alpha = event.alpha * pc.math.DEG_TO_RAD
+      const beta = event.beta * pc.math.DEG_TO_RAD
+      const gamma = event.gamma * pc.math.DEG_TO_RAD
 
       eulerYXZToQuat(current, beta, alpha, gamma)
       current.mul(WORLD_CORRECTION)
-      screen.set(0, 0, Math.sin(-orient / 2), Math.cos(-orient / 2))
+      screen.setFromAxisAngle(
+        pc.Vec3.BACK,
+        -(window.screen?.orientation?.angle || 0),
+      )
       current.mul(screen)
 
       // Snap yaw to "forward" on activation while keeping pitch/roll absolute.
@@ -102,7 +101,10 @@ export function useDeviceOrientation(
   useEffect(() => {
     if (isIOS) return
     const testOrientation = (event: DeviceOrientationEvent) => {
-      if (event.alpha !== null) onGyroActiveChangeRef.current(true)
+      if (event.alpha !== null) {
+        gyroGranted = true
+        setGyroActive(true)
+      }
       window.removeEventListener('deviceorientation', testOrientation)
     }
     window.addEventListener('deviceorientation', testOrientation)
@@ -114,7 +116,8 @@ export function useDeviceOrientation(
     try {
       const permission = await DeviceOrientationEventiOS.requestPermission?.()
       if (permission === 'granted') {
-        onGyroActiveChangeRef.current(true)
+        gyroGranted = true
+        setGyroActive(true)
         setShowEnableButton(false)
       }
     } catch {
@@ -122,5 +125,5 @@ export function useDeviceOrientation(
     }
   }
 
-  return { showEnableButton, enableMotionControls }
+  return { gyroActive, showEnableButton, enableMotionControls }
 }

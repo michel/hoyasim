@@ -1,6 +1,11 @@
 import * as pc from 'playcanvas'
 import { LENS_FRAGMENT_GLSL, LENS_VERTEX_GLSL } from './glasses-shaders'
+import { renderComponents } from './pc-utils'
 
+// Origin-prefixed on purpose: AssetRegistry prepends assets.prefix (the
+// playcanvas project path) to any URL its ABSOLUTE_URL regex doesn't match,
+// and a root-relative path doesn't match. The full origin keeps these URLs
+// out of that rewrite.
 const ASSETS_PATH = `${window.location.origin}${import.meta.env.BASE_URL}assets/glasses/`
 
 const LENS_SCALE_MULT = 1.08
@@ -45,6 +50,8 @@ function easeOutBack(t: number): number {
 
 type AssetType = ConstructorParameters<typeof pc.Asset>[1]
 
+// Reuses a registry asset when one exists (e.g. glasses taken off and put back
+// on), so repeat setups don't re-fetch, re-parse, or leak duplicate assets.
 function loadAsset(
   app: pc.AppBase,
   name: string,
@@ -52,22 +59,27 @@ function loadAsset(
   url: string,
 ): Promise<pc.Asset> {
   return new Promise((resolve, reject) => {
-    const asset = new pc.Asset(name, type, { url })
+    const found = app.assets.find(name, type)
+    // A failed load leaves an asset `loaded` with a null resource; drop it so a
+    // retry re-fetches instead of resolving to a dead asset.
+    if (found?.loaded && !found.resource) app.assets.remove(found)
+    const existing = found && (!found.loaded || found.resource) ? found : null
+    const asset = existing ?? new pc.Asset(name, type, { url })
+    if (asset.loaded) return resolve(asset)
     asset.once('load', () => resolve(asset))
     asset.once('error', (err: unknown) => reject(new Error(String(err))))
-    app.assets.add(asset)
+    if (!existing) app.assets.add(asset)
     app.assets.load(asset)
   })
 }
 
 function applyMaterial(entity: pc.Entity, material: pc.Material) {
-  for (const r of entity.findComponents('render') as pc.RenderComponent[])
+  for (const r of renderComponents(entity))
     for (const mi of r.meshInstances) mi.material = material
 }
 
 function setLayer(entity: pc.Entity, layerId: number) {
-  for (const r of entity.findComponents('render') as pc.RenderComponent[])
-    r.layers = [layerId]
+  for (const r of renderComponents(entity)) r.layers = [layerId]
 }
 
 // Planar bounds of the lens mesh in its own local space. x is the lens's
@@ -84,7 +96,7 @@ function localBounds(entity: pc.Entity): {
   let xMax = Number.NEGATIVE_INFINITY
   let zMin = Number.POSITIVE_INFINITY
   let zMax = Number.NEGATIVE_INFINITY
-  for (const r of entity.findComponents('render') as pc.RenderComponent[]) {
+  for (const r of renderComponents(entity)) {
     for (const mi of r.meshInstances) {
       const aabb = mi.mesh.aabb
       xMin = Math.min(xMin, aabb.center.x - aabb.halfExtents.x)
@@ -124,6 +136,9 @@ export const LENS_PRODUCT_ORDER: LensProduct[] = [
   'MySense',
 ]
 
+// Every fresh controller (and the UI mirroring it) starts both eyes here.
+export const DEFAULT_LENS_PRODUCT: LensProduct = LENS_PRODUCT_ORDER[0]
+
 function applyProductUniforms(m: pc.ShaderMaterial, product: LensProduct) {
   const p = LENS_PRODUCTS[product]
   m.setParameter('uCornerWidth', p.cornerWidth)
@@ -150,7 +165,7 @@ function createLensMaterial(
   m.setParameter('uBlurMax', SOFT_ZONE_BLUR_MAX_PX)
   m.setParameter('uLineTrace', 0)
   m.setParameter('uLineFade', 0)
-  applyProductUniforms(m, 'Balansis')
+  applyProductUniforms(m, DEFAULT_LENS_PRODUCT)
   // Transparent so the lens renders AFTER the scene-color grab pass and can
   // sample uSceneColorMap.
   m.blendType = pc.BLEND_NORMAL
@@ -169,7 +184,10 @@ function createFrameMaterial(): pc.StandardMaterial {
   return m
 }
 
+export type LensSide = 'left' | 'right'
+
 interface SideConfig {
+  side: LensSide
   name: string
   lensFile: string
   frameFile: string
@@ -178,20 +196,20 @@ interface SideConfig {
 
 const SIDES: SideConfig[] = [
   {
+    side: 'left',
     name: 'GlassesLeft',
     lensFile: 'lens_left.glb',
     frameFile: 'lens_frame_left.glb',
     position: LENS_LEFT_POS,
   },
   {
+    side: 'right',
     name: 'GlassesRight',
     lensFile: 'lens_right.glb',
     frameFile: 'lens_frame_right.glb',
     position: LENS_RIGHT_POS,
   },
 ]
-
-export type LensSide = 'left' | 'right'
 
 export interface GlassesController {
   setLensProduct(side: LensSide, product: LensProduct): void
@@ -259,12 +277,16 @@ function buildSide(
   group.setLocalScale(LENS_SCALE)
   cameraEntity.addChild(group)
 
-  const side: LensSide = cfg.name === 'GlassesLeft' ? 'left' : 'right'
   return {
     group,
     finalPosition: cfg.position,
-    side,
-    state: { lens, material, product: 'Balansis', traceElapsed: null },
+    side: cfg.side,
+    state: {
+      lens,
+      material,
+      product: DEFAULT_LENS_PRODUCT,
+      traceElapsed: null,
+    },
   }
 }
 
@@ -334,32 +356,30 @@ export async function setupLenses(
   app: pc.AppBase,
   cameraEntity: pc.Entity,
 ): Promise<GlassesController> {
-  const assets = await Promise.all(
-    SIDES.flatMap((s) => [
-      loadAsset(app, s.lensFile, 'container', `${ASSETS_PATH}${s.lensFile}`),
-      loadAsset(app, s.frameFile, 'container', `${ASSETS_PATH}${s.frameFile}`),
-    ]),
+  const sideAssets = await Promise.all(
+    SIDES.map((s) =>
+      Promise.all([
+        loadAsset(app, s.lensFile, 'container', `${ASSETS_PATH}${s.lensFile}`),
+        loadAsset(
+          app,
+          s.frameFile,
+          'container',
+          `${ASSETS_PATH}${s.frameFile}`,
+        ),
+      ]),
+    ),
   )
 
   const frameMat = createFrameMaterial()
-  const glassesGroups: pc.Entity[] = []
+  const built = SIDES.map((cfg, i) =>
+    buildSide(cfg, sideAssets[i][0], sideAssets[i][1], frameMat, cameraEntity),
+  )
+  const glassesGroups = built.map((b) => b.group)
   // Rest position per group, captured so the entrance animation can lerp the
   // groups back down to it from their dropped start.
-  const finalPositions: pc.Vec3[] = []
+  const finalPositions = built.map((b) => b.finalPosition)
   const sides: Record<LensSide, SideState | null> = { left: null, right: null }
-
-  for (let i = 0; i < SIDES.length; i++) {
-    const built = buildSide(
-      SIDES[i],
-      assets[i * 2],
-      assets[i * 2 + 1],
-      frameMat,
-      cameraEntity,
-    )
-    glassesGroups.push(built.group)
-    finalPositions.push(built.finalPosition)
-    sides[built.side] = built.state
-  }
+  for (const b of built) sides[b.side] = b.state
 
   const onUpdate = createTraceUpdate(sides)
   app.on('update', onUpdate)

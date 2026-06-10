@@ -5,10 +5,6 @@ const IMPAIRED_BLUR_RADIUS_PX = 16.0
 const IMPAIRED_CHROMA_STRENGTH = 0.001
 const IMPAIRED_FADE_IN_SEC = 1.0
 
-export interface ImpairedVisionController {
-  destroy(): void
-}
-
 // Reorder layer composition so the scene-color grab pass fires AFTER the World
 // transparent sub-layer (where the gsplat renders). The grab is inserted by PC
 // at the LAYERID_DEPTH transition; moving Depth to after World transparent
@@ -70,34 +66,24 @@ function setupImpairedVisionOverlay(app: pc.AppBase) {
     entity.render.receiveShadows = false
   }
 
-  const startTime = performance.now() / 1000
-  const onUpdate = () => {
-    const t = Math.min(
-      1,
-      (performance.now() / 1000 - startTime) / IMPAIRED_FADE_IN_SEC,
-    )
+  // Fade the impairment in, then detach — uStrength stays pinned at 1 for the
+  // rest of the session, so there's nothing left to update per frame.
+  let elapsed = 0
+  const onUpdate = (dt: number) => {
+    elapsed += dt
+    const t = Math.min(1, elapsed / IMPAIRED_FADE_IN_SEC)
     material.setParameter('uStrength', t)
+    if (t >= 1) app.off('update', onUpdate)
   }
   app.on('update', onUpdate)
-
-  return { entity, onUpdate }
 }
 
 // Sets up the blurred / chromatic-aberration overlay that simulates needing
-// glasses. Stays active for the whole session — putting on glasses doesn't
-// remove the blur, it just locally corrects it within the lens geometry.
-export function setupImpairedVision(
-  app: pc.AppBase,
-  cameraEntity: pc.Entity,
-): ImpairedVisionController {
+// glasses. Stays active for the whole session (teardown rides app.destroy()) —
+// putting on glasses doesn't remove the blur, it just locally corrects it
+// within the lens geometry.
+export function setupImpairedVision(app: pc.AppBase, cameraEntity: pc.Entity) {
   if (cameraEntity.camera) cameraEntity.camera.renderSceneColorMap = true
   reorderLayersForGrab(app.scene.layers)
-  const impaired = setupImpairedVisionOverlay(app)
-  return {
-    destroy() {
-      impaired.entity.destroy()
-      app.off('update', impaired.onUpdate)
-      if (cameraEntity.camera) cameraEntity.camera.renderSceneColorMap = false
-    },
-  }
+  setupImpairedVisionOverlay(app)
 }

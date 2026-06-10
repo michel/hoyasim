@@ -1,3 +1,4 @@
+import * as pc from 'playcanvas'
 import { useEffect, useState } from 'react'
 import hoyaLogo from '@/assets/hoya-logo.svg'
 
@@ -89,16 +90,14 @@ function PortraitWarning() {
   )
 }
 
-const IS_TOUCH_DEVICE = 'ontouchstart' in window || navigator.maxTouchPoints > 0
-
 export function LandscapeGuard({ children }: { children: React.ReactNode }) {
   const [isPortrait, setIsPortrait] = useState(() => {
-    if (!IS_TOUCH_DEVICE) return false
+    if (!pc.platform.touch) return false
     return window.matchMedia('(orientation: portrait)').matches
   })
 
   useEffect(() => {
-    if (!IS_TOUCH_DEVICE) return
+    if (!pc.platform.touch) return
     const mql = window.matchMedia('(orientation: portrait)')
     const onChange = (e: MediaQueryListEvent) => setIsPortrait(e.matches)
     mql.addEventListener('change', onChange)

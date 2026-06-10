@@ -28,7 +28,9 @@ if (!rootElement) throw new Error('Root element not found')
 // tears down the WebGL/PlayCanvas context while the first boot is still in
 // flight, producing ARRAY_BUFFER null errors and a doubled scene.
 createRoot(rootElement).render(
-  <BrowserRouter basename="/hoyasim">
+  // Deploy path is owned by vite.config.ts (base); BASE_URL keeps the router in
+  // sync with it. Trailing slash stripped so the bare /hoyasim URL matches too.
+  <BrowserRouter basename={import.meta.env.BASE_URL.replace(/\/$/, '')}>
     <Suspense
       fallback={
         <div className="min-h-screen flex items-center justify-center">

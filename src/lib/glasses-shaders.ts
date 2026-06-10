@@ -9,6 +9,16 @@
 const MULTIFOCAL_POWER = 0.055
 const MULTIFOCAL_CENTER_Y = 0.5
 
+// Weight a tap to 0 if its UV leaves [0,1] so edge texels aren't repeated into
+// the kernel sum — that's what produces axis-aligned streaks near the boundary.
+// Shared by both programs' blur kernels.
+const INBOUNDS_GLSL = `
+float inBounds(vec2 uv) {
+  vec2 m = step(vec2(0.0), uv) * step(uv, vec2(1.0));
+  return m.x * m.y;
+}
+`
+
 export const LENS_VERTEX_GLSL = `
 in vec3 vertex_position;
 uniform mat4 matrix_model;
@@ -49,13 +59,7 @@ const float LINE_LEVEL = 0.5;     // soft-zone contour the boundary line traces
 const float LINE_HALF_PX = 6.0;        // line half-width in pixels
 const float LINE_DASH_COUNT = 11.0;    // dash + gap cycles along each corner arc
 const float HALF_PI = 1.5707963;
-
-// Weight a tap to 0 if its UV leaves [0,1] so edge texels aren't repeated into
-// the kernel — that's what produces axis-aligned streaks near the boundary.
-float inBounds(vec2 uv) {
-  vec2 m = step(vec2(0.0), uv) * step(uv, vec2(1.0));
-  return m.x * m.y;
-}
+${INBOUNDS_GLSL}
 
 // Constant-radius soft-focus blur (golden-angle / Vogel disk). The strength of
 // the soft zone is varied by cross-fading sharp->blurred (see main), NOT by
@@ -173,14 +177,7 @@ uniform vec4 uScreenSize;
 uniform float uBlurRadius;
 uniform float uChroma;
 uniform float uStrength;
-
-// Weight a blur tap to 0 if its UV is out of [0,1], so edge texels are not
-// repeated into the kernel sum — that's what produces axis-aligned streaks
-// near the screen boundary.
-float inBounds(vec2 uv) {
-  vec2 m = step(vec2(0.0), uv) * step(uv, vec2(1.0));
-  return m.x * m.y;
-}
+${INBOUNDS_GLSL}
 
 vec3 blur9(vec2 base, vec2 px) {
   vec3 c = vec3(0.0);
@@ -211,8 +208,13 @@ void main(void) {
   vec3 cG = blur9(uv, px);
   vec3 cB = blur9(uv - off, px);
   vec3 impaired = vec3(cR.r, cG.g, cB.b);
+  // uStrength is a uniform, so this branch is uniform across the draw; once the
+  // fade-in pins it at 1 the full-screen sharp tap + mix is skipped entirely.
+  if (uStrength >= 1.0) {
+    pcFragColor0 = vec4(impaired, 1.0);
+    return;
+  }
   vec3 sharp = texture(uSceneColorMap, uv).rgb;
-  vec3 base = mix(sharp, impaired, uStrength);
-  pcFragColor0 = vec4(base, 1.0);
+  pcFragColor0 = vec4(mix(sharp, impaired, uStrength), 1.0);
 }
 `

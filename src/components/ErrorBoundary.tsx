@@ -8,15 +8,14 @@ interface Props {
 }
 
 interface State {
-  error: string | null
-  stack: string | undefined
+  error: Error | null
 }
 
 export class ErrorBoundary extends Component<Props, State> {
-  state: State = { error: null, stack: undefined }
+  state: State = { error: null }
 
   static getDerivedStateFromError(error: Error) {
-    return { error: error.message, stack: error.stack }
+    return { error }
   }
 
   render() {
@@ -30,12 +29,12 @@ export class ErrorBoundary extends Component<Props, State> {
                 Something went wrong
               </h1>
               <p className="text-hoya-muted text-sm max-w-md text-center">
-                {this.state.error}
+                {this.state.error.message}
               </p>
             </div>
-            {import.meta.env.DEV && this.state.stack && (
+            {import.meta.env.DEV && this.state.error.stack && (
               <pre className="text-hoya-muted/80 text-xs max-w-md overflow-auto max-h-40 text-left w-full bg-secondary rounded-xl p-4">
-                {this.state.stack}
+                {this.state.error.stack}
               </pre>
             )}
             <Button asChild>

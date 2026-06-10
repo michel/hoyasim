@@ -6,6 +6,7 @@ import {
   setupLenses,
 } from './glasses-pc'
 import { setupImpairedVision } from './impaired-vision'
+import { renderComponents } from './pc-utils'
 import {
   CYCLE_FORWARD_BASE_SPEED,
   registerCycleForward,
@@ -82,21 +83,13 @@ export interface BootedApp {
   setLensProduct: (side: LensSide, product: LensProduct) => void
 }
 
-interface SceneOptions {
+// Debug/feature toggles. Parsed from the URL by the UI layer (PlayCanvasView)
+// and passed into bootApp, so this module stays URL-agnostic.
+export interface SceneOptions {
   lensEnabled: boolean
   singleTile: boolean
   noSplat: boolean
   noBike: boolean
-}
-
-function readSceneOptions(): SceneOptions {
-  const params = new URLSearchParams(window.location.search)
-  return {
-    lensEnabled: params.get('lens') !== '0',
-    singleTile: params.get('singletile') === '1',
-    noSplat: params.get('nosplat') === '1',
-    noBike: params.get('nobike') === '1',
-  }
 }
 
 // Wires the component systems, resource handlers, and input devices onto a fresh
@@ -149,30 +142,29 @@ function createApp(
   return app
 }
 
-function configureApp(app: pc.AppBase, configUrl: string): Promise<void> {
-  return new Promise((resolve, reject) =>
-    app.configure(configUrl, (err) =>
-      err ? reject(new Error(String(err))) : resolve(),
-    ),
+// Adapts PlayCanvas' node-style callbacks (configure/preload/loadScene) to a
+// promise, mapping a truthy err to a rejection.
+const asPromise = (run: (done: (err?: unknown) => void) => void) =>
+  new Promise<void>((resolve, reject) =>
+    run((err) => (err ? reject(new Error(String(err))) : resolve())),
   )
-}
 
-function preloadApp(app: pc.AppBase): Promise<void> {
-  return new Promise((resolve) => app.preload(() => resolve()))
-}
-
-function loadScene(app: pc.AppBase, scenePath: string): Promise<void> {
-  return new Promise((resolve, reject) =>
-    app.scenes.loadScene(scenePath, (err) =>
-      err ? reject(new Error(String(err))) : resolve(),
-    ),
-  )
+// Looks up a preloaded container asset (config.json) and instantiates its
+// render hierarchy, or null when the asset is missing.
+function instantiateContainer(
+  app: pc.AppBase,
+  assetName: string,
+): pc.Entity | null {
+  const resource = app.assets.find(assetName, 'container')?.resource as
+    | pc.ContainerResource
+    | undefined
+  return resource?.instantiateRenderEntity() ?? null
 }
 
 // The gsplat bakes lighting; dynamic shadows add cost without visible benefit.
 // Strip shadow flags from every render component and light before the first frame.
 function stripShadows(app: pc.AppBase) {
-  for (const r of app.root.findComponents('render') as pc.RenderComponent[]) {
+  for (const r of renderComponents(app.root)) {
     r.castShadows = false
     r.receiveShadows = false
   }
@@ -185,7 +177,7 @@ function stripShadows(app: pc.AppBase) {
 // streaming so the looping camera doesn't accumulate GPU memory over time.
 function configureGsplat(
   app: pc.AppBase,
-  splats: (pc.GraphNode | null)[],
+  tiles: pc.Entity[],
   noSplat: boolean,
 ) {
   // Mobile is fill-bound, so it gets a tighter budget than desktop. iOS gets
@@ -221,8 +213,8 @@ function configureGsplat(
   app.scene.gsplat.lodBehindPenalty = 3
   app.scene.gsplat.lodUpdateDistance = 3
   app.scene.gsplat.radialSorting = true
-  for (const e of splats) {
-    if (!(e instanceof pc.Entity) || !e.gsplat) continue
+  for (const e of tiles) {
+    if (!e.gsplat) continue
     if (noSplat) {
       e.enabled = false
       continue
@@ -261,7 +253,6 @@ function setupRig(app: pc.AppBase) {
       startZ: START_Z,
       targetZ: TARGET_Z,
       loop: true,
-      fadeDistance: 0,
       stopZ: TRAFFIC_LIGHT_Z + TRAFFIC_LIGHT_STOP_OFFSET,
       slowDownDistance: TRAFFIC_LIGHT_SLOWDOWN,
       waitDuration: TRAFFIC_LIGHT_WAIT,
@@ -273,10 +264,8 @@ function setupRig(app: pc.AppBase) {
 // already spans both sides, so a single instance is parented to the world root
 // (static) — the looping rig passes it once per lap.
 function setupTrafficLight(app: pc.AppBase) {
-  const container = app.assets.find(TRAFFIC_LIGHT_ASSET_NAME, 'container')
-  const resource = container?.resource as pc.ContainerResource | undefined
-  if (!resource) return
-  const light = resource.instantiateRenderEntity()
+  const light = instantiateContainer(app, TRAFFIC_LIGHT_ASSET_NAME)
+  if (!light) return
   light.setLocalPosition(TRAFFIC_LIGHT_X, TRAFFIC_LIGHT_Y, TRAFFIC_LIGHT_Z)
   light.setLocalEulerAngles(...TRAFFIC_LIGHT_EULER)
   light.setLocalScale(
@@ -296,7 +285,7 @@ function setupTrafficLight(app: pc.AppBase) {
 // lighting avoids the double-exposure (lit diffuse + emissive) that otherwise
 // pushes the graphic past ACES tonemapping into a blown-out white panel.
 function brightenBikeScreen(model: pc.Entity) {
-  for (const r of model.findComponents('render') as pc.RenderComponent[]) {
+  for (const r of renderComponents(model)) {
     for (const mi of r.meshInstances) {
       const m = mi.material
       if (!(m instanceof pc.StandardMaterial)) continue
@@ -320,9 +309,7 @@ function setupBike(app: pc.AppBase, opts: SceneOptions) {
     return
   }
   if (anchor.render) anchor.removeComponent('render')
-  const container = app.assets.find(BIKE_ASSET_NAME, 'container')
-  const resource = container?.resource as pc.ContainerResource | undefined
-  const model = resource?.instantiateRenderEntity()
+  const model = instantiateContainer(app, BIKE_ASSET_NAME)
   if (model) {
     brightenBikeScreen(model)
     anchor.addChild(model)
@@ -348,7 +335,10 @@ function setupScene(app: pc.AppBase, opts: SceneOptions): pc.Entity | null {
   }
 
   const outerSplat = app.root.findByGuid(OUTER_SPLAT_GUID)
-  configureGsplat(app, [outerSplat, innerSplat], opts.noSplat)
+  const tiles = [outerSplat, innerSplat].filter(
+    (e): e is pc.Entity => e instanceof pc.Entity,
+  )
+  configureGsplat(app, tiles, opts.noSplat)
 
   setupRig(app)
 
@@ -359,9 +349,6 @@ function setupScene(app: pc.AppBase, opts: SceneOptions): pc.Entity | null {
   if (opts.singleTile && innerSplat instanceof pc.Entity)
     innerSplat.enabled = false
 
-  const tiles = [outerSplat, innerSplat].filter(
-    (e): e is pc.Entity => e instanceof pc.Entity,
-  )
   if (
     cam instanceof pc.Entity &&
     tiles.length > 0 &&
@@ -376,6 +363,7 @@ function setupScene(app: pc.AppBase, opts: SceneOptions): pc.Entity | null {
 export async function bootApp(
   canvas: HTMLCanvasElement,
   lookState: LookState,
+  options: SceneOptions,
 ): Promise<BootedApp> {
   const device = await pc.createGraphicsDevice(canvas, {
     deviceTypes: ['webgl2', 'webgl1'],
@@ -404,11 +392,11 @@ export async function bootApp(
   const onResize = () => app.resizeCanvas()
   window.addEventListener('resize', onResize)
 
-  await configureApp(app, CONFIG_FILENAME)
-  await preloadApp(app)
-  await loadScene(app, SCENE_PATH)
+  await asPromise((done) => app.configure(CONFIG_FILENAME, done))
+  await asPromise((done) => app.preload(() => done()))
+  await asPromise((done) => app.scenes.loadScene(SCENE_PATH, done))
   app.start()
-  const cameraEntity = setupScene(app, readSceneOptions())
+  const cameraEntity = setupScene(app, options)
 
   return {
     app,
