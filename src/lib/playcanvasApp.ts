@@ -57,8 +57,10 @@ const CAMERA_ENTITY_NAME = 'Camera'
 // Container asset name (config.json) and the bike's local transform under the rig.
 // Scale/rotation are tuned visually against the scene, not derived from the GLB.
 const BIKE_ASSET_NAME = 'bike.glb'
-const BIKE_SCALE = 1.85
+const BIKE_SCALE = 1.1
 const BIKE_EULER: [number, number, number] = [0, 0, 0]
+// Vertical lift off the road, tuned visually so the bike sits in frame.
+const BIKE_Y = 0.15
 // Material name (from bike.glb) of the e-bike's dashboard display. The texture is
 // a near-white nav-map screenshot, so the screen is rendered unlit (see
 // brightenBikeScreen) with the texture driven purely through emissive at BELOW 1
@@ -349,7 +351,7 @@ function setupBike(app: pc.AppBase) {
     brightenBikeScreen(model)
     anchor.addChild(model)
   }
-  anchor.setLocalPosition(0, 0, 0)
+  anchor.setLocalPosition(0, BIKE_Y, 0)
   anchor.setLocalEulerAngles(...BIKE_EULER)
   anchor.setLocalScale(BIKE_SCALE, BIKE_SCALE, BIKE_SCALE)
 }
