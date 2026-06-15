@@ -24,12 +24,28 @@ const MAX_PIXEL_RATIO_TOUCH = 0.5
 const MAX_PIXEL_RATIO_DESKTOP = 1.5
 
 const START_Z = 11
-const LOOP_PERIOD = 43.24
+// The scene loops by tiling two copies of the splat LOOP_PERIOD apart (the rig
+// rides one period, then snaps back). The two tiles sit LOOP_PERIOD/OUTER_SCALE
+// apart in the splat's own local units, so the join is seamless only when that
+// separation ≈ the splat's solid content span along the street (~8.2 local units
+// for the current render). Too large leaves a gap between blocks; too small
+// overlaps them and the next block's trees punch through this block's houses.
+// 43.24 suited the older splat (its hazy distance reached further and hid the
+// overlap); the cleaner render has hard edges, so the tiles must just meet.
+const LOOP_PERIOD = 41
 const TARGET_Z = START_Z - LOOP_PERIOD
 const OUTER_SCALE = 5
 // Inner gsplat is a child of the outer one; its local Z controls how far apart
 // the two tiles sit in world space (multiplied by the outer's scale).
 const INNER_LOCAL_Z = -LOOP_PERIOD / OUTER_SCALE
+
+// Distance fog blends the far end of the splat into the sky, so the street's hard
+// far edge — and LOD chunks streaming in — fade in instead of popping. The colour
+// matches the horizon haze; START/END are world-space camera distances tuned so
+// the near block stays crisp and the pop zone is fully dissolved by END.
+const FOG_COLOR: [number, number, number] = [0.74, 0.83, 0.92]
+const FOG_START = 9
+const FOG_END = 30
 
 // GUIDs and names baked into the PlayCanvas scene JSON.
 const OUTER_SPLAT_GUID = '1b585588-7432-4d27-a6a1-fdffaa61fcec'
@@ -53,13 +69,14 @@ const BIKE_SCREEN_MATERIAL = 'Screen'
 const BIKE_SCREEN_EMISSIVE = 0.6
 
 // The traffic light spans the road (the model is already mirrored across both
-// sides). TRAFFIC_LIGHT_Z is the single "down the road" knob (default: half-way
-// along the loop); the bike's stop line is derived from it. X is a lateral
-// nudge (0 = centred). X/Y/scale/rotation are tuned visually against the scene.
+// sides). TRAFFIC_LIGHT_Z is the single "down the road" knob — an absolute world
+// Z, deliberately decoupled from LOOP_PERIOD so re-tuning the loop length doesn't
+// drag the light along with it. The bike's stop line is derived from it. X is a
+// lateral nudge (0 = centred). X/Y/scale/rotation are tuned visually.
 const TRAFFIC_LIGHT_ASSET_NAME = 'trafficlight.glb'
-const TRAFFIC_LIGHT_Z = START_Z - LOOP_PERIOD * 0.82
+const TRAFFIC_LIGHT_Z = -21.86
 const TRAFFIC_LIGHT_X = 1.0
-const TRAFFIC_LIGHT_Y = 0
+const TRAFFIC_LIGHT_Y = 0.05
 const TRAFFIC_LIGHT_SCALE = 0.35
 const TRAFFIC_LIGHT_EULER: [number, number, number] = [0, 0, 0]
 // The bike stops this far ahead of (i.e. +Z of) the lights, eases off over
@@ -81,15 +98,6 @@ export interface BootedApp {
   putOnGlasses: () => Promise<void>
   takeOffGlasses: () => void
   setLensProduct: (side: LensSide, product: LensProduct) => void
-}
-
-// Debug/feature toggles. Parsed from the URL by the UI layer (PlayCanvasView)
-// and passed into bootApp, so this module stays URL-agnostic.
-export interface SceneOptions {
-  lensEnabled: boolean
-  singleTile: boolean
-  noSplat: boolean
-  noBike: boolean
 }
 
 // Wires the component systems, resource handlers, and input devices onto a fresh
@@ -161,6 +169,16 @@ function instantiateContainer(
   return resource?.instantiateRenderEntity() ?? null
 }
 
+// Linear distance fog, applied scene-wide (the gsplat shader honours scene fog in
+// pc 2.19+). Fades distant geometry into the horizon so far content dissolves in
+// rather than popping at the splat's hard edge.
+function setupFog(app: pc.AppBase) {
+  app.scene.fog.type = pc.FOG_LINEAR
+  app.scene.fog.color.set(...FOG_COLOR)
+  app.scene.fog.start = FOG_START
+  app.scene.fog.end = FOG_END
+}
+
 // The gsplat bakes lighting; dynamic shadows add cost without visible benefit.
 // Strip shadow flags from every render component and light before the first frame.
 function stripShadows(app: pc.AppBase) {
@@ -175,11 +193,7 @@ function stripShadows(app: pc.AppBase) {
 
 // Globally LOD-balance both tiles to stay under a target splat count, then tune
 // streaming so the looping camera doesn't accumulate GPU memory over time.
-function configureGsplat(
-  app: pc.AppBase,
-  tiles: pc.Entity[],
-  noSplat: boolean,
-) {
+function configureGsplat(app: pc.AppBase, tiles: pc.Entity[]) {
   // Mobile is fill-bound, so it gets a tighter budget than desktop. iOS gets
   // the tightest because thermal throttling kicks in after a couple of loop
   // cycles — less per-frame GPU work = slower heat buildup = stable FPS longer.
@@ -215,10 +229,6 @@ function configureGsplat(
   app.scene.gsplat.radialSorting = true
   for (const e of tiles) {
     if (!e.gsplat) continue
-    if (noSplat) {
-      e.enabled = false
-      continue
-    }
     e.gsplat.unified = true
     // Cheaper Z-axis SH approximation. Edge gaussians lose some view-dependent
     // shading; usually unnoticeable, big GPU win on mobile.
@@ -260,9 +270,9 @@ function setupRig(app: pc.AppBase) {
   })
 }
 
-// Plants the traffic light across the road at the configured Z. The model
-// already spans both sides, so a single instance is parented to the world root
-// (static) — the looping rig passes it once per lap.
+// Plants the overhead traffic light beside the road at the configured Z, parented
+// to the world root (static) — the looping rig passes it once per lap — then wires
+// its bulbs to the bike.
 function setupTrafficLight(app: pc.AppBase) {
   const light = instantiateContainer(app, TRAFFIC_LIGHT_ASSET_NAME)
   if (!light) return
@@ -274,6 +284,35 @@ function setupTrafficLight(app: pc.AppBase) {
     TRAFFIC_LIGHT_SCALE,
   )
   app.root.addChild(light)
+  setupTrafficLightCycle(app, light)
+}
+
+// The model ships three coloured bulbs (named green/red/yellow) that rest hidden
+// at scale 0. Rather than free-run the baked clips, drive them from the bike so
+// the signal actually matches its stop-and-go: green while riding, amber on the
+// approach, red while idling at the stop line — the red → green → amber cycle the
+// model was authored for, in sync with the lap.
+function setupTrafficLightCycle(app: pc.AppBase, light: pc.Entity) {
+  const rig = app.root.findByName(RIG_ENTITY_NAME)
+  if (!(rig instanceof pc.Entity)) return
+  const red = light.findByName('red')
+  const green = light.findByName('green')
+  const yellow = light.findByName('yellow')
+  const stopZ = TRAFFIC_LIGHT_Z + TRAFFIC_LIGHT_STOP_OFFSET
+  let prevZ = rig.getLocalPosition().z
+  const setBulb = (b: pc.GraphNode | null, on: boolean) =>
+    b?.setLocalScale(on ? 1 : 0, on ? 1 : 0, on ? 1 : 0)
+  app.on('update', () => {
+    const z = rig.getLocalPosition().z
+    const moving = Math.abs(z - prevZ) > 1e-4
+    prevZ = z
+    const dist = z - stopZ
+    const stopped = !moving && Math.abs(dist) < 0.5
+    const approaching = moving && dist > 0 && dist <= TRAFFIC_LIGHT_SLOWDOWN
+    setBulb(red, stopped)
+    setBulb(yellow, approaching)
+    setBulb(green, !stopped && !approaching)
+  })
 }
 
 // Brightens the bike's textures by re-using each material's albedo map as an
@@ -301,13 +340,9 @@ function brightenBikeScreen(model: pc.Entity) {
 
 // Swaps the baked grey single-mesh render on the "Render" anchor for the full
 // textured GLB hierarchy, so every mesh and material from the container shows.
-function setupBike(app: pc.AppBase, opts: SceneOptions) {
+function setupBike(app: pc.AppBase) {
   const anchor = app.root.findByName(BIKE_ENTITY_NAME)
   if (!(anchor instanceof pc.Entity)) return
-  if (opts.noBike) {
-    anchor.enabled = false
-    return
-  }
   if (anchor.render) anchor.removeComponent('render')
   const model = instantiateContainer(app, BIKE_ASSET_NAME)
   if (model) {
@@ -321,12 +356,13 @@ function setupBike(app: pc.AppBase, opts: SceneOptions) {
 
 // Post-load scene wiring: tunes entities baked into the scene JSON and starts
 // the impaired-vision overlay. Returns the camera entity the lenses attach to
-// (null when the lens effect is disabled or the camera is missing).
-function setupScene(app: pc.AppBase, opts: SceneOptions): pc.Entity | null {
-  setupBike(app, opts)
+// (null when the camera is missing).
+function setupScene(app: pc.AppBase): pc.Entity | null {
+  setupBike(app)
   setupTrafficLight(app)
 
   stripShadows(app)
+  setupFog(app)
 
   const innerSplat = app.root.findByGuid(INNER_SPLAT_GUID)
   if (innerSplat instanceof pc.Entity) {
@@ -338,24 +374,16 @@ function setupScene(app: pc.AppBase, opts: SceneOptions): pc.Entity | null {
   const tiles = [outerSplat, innerSplat].filter(
     (e): e is pc.Entity => e instanceof pc.Entity,
   )
-  configureGsplat(app, tiles, opts.noSplat)
+  configureGsplat(app, tiles)
 
   setupRig(app)
 
   const cam = app.root.findByName(CAMERA_ENTITY_NAME)
-  const cameraEntity = cam instanceof pc.Entity && opts.lensEnabled ? cam : null
+  const cameraEntity = cam instanceof pc.Entity ? cam : null
   if (cameraEntity) setupImpairedVision(app, cameraEntity)
 
-  if (opts.singleTile && innerSplat instanceof pc.Entity)
-    innerSplat.enabled = false
-
-  if (
-    cam instanceof pc.Entity &&
-    tiles.length > 0 &&
-    !opts.singleTile &&
-    !opts.noSplat
-  )
-    setupTileCulling(app, cam, tiles)
+  if (cameraEntity && tiles.length > 0)
+    setupTileCulling(app, cameraEntity, tiles)
 
   return cameraEntity
 }
@@ -363,7 +391,6 @@ function setupScene(app: pc.AppBase, opts: SceneOptions): pc.Entity | null {
 export async function bootApp(
   canvas: HTMLCanvasElement,
   lookState: LookState,
-  options: SceneOptions,
 ): Promise<BootedApp> {
   const device = await pc.createGraphicsDevice(canvas, {
     deviceTypes: ['webgl2', 'webgl1'],
@@ -396,7 +423,7 @@ export async function bootApp(
   await asPromise((done) => app.preload(() => done()))
   await asPromise((done) => app.scenes.loadScene(SCENE_PATH, done))
   app.start()
-  const cameraEntity = setupScene(app, options)
+  const cameraEntity = setupScene(app)
 
   return {
     app,

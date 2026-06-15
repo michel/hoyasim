@@ -11,7 +11,8 @@
     "check": "biome check --write .",
     "format-and-check": "biome format --write . && biome check --write .",
     "preview": "vite preview",
-    "type-check": "tsgo --pretty --noEmit"
+    "type-check": "tsgo --pretty --noEmit",
+    "build-splat": "bash scripts/build-splat.sh"
   },
   "dependencies": {
     "@radix-ui/react-slot": "^1.2.4",

@@ -95,25 +95,51 @@ The bundle is two things on disk:
 
 ### Regenerating from a new capture
 
-You need the source `.ply` capture and [`@playcanvas/splat-transform`](https://github.com/playcanvas/splat-transform) (run via `bunx`, no install needed). The current bundle was built from a ~2.8M-gaussian, 0-SH-band compressed PLY (~150 MB).
+The whole pipeline is captured in one script — **`bun run build-splat`** (`scripts/build-splat.sh`). Point it at a source `.ply` and it rebuilds the shipped bundle in place:
 
 ```bash
-PLY="/path/to/new_splat.ply"
-OUT="public/playcanvas/assets/splat"
-
-rm -rf "$OUT"
-mkdir -p "$OUT"
-
-bunx @playcanvas/splat-transform -w \
-  "$PLY" -l 0 \
-  "$PLY" --decimate 50%   -l 1 \
-  "$PLY" --decimate 25%   -l 2 \
-  "$PLY" --decimate 12.5% -l 3 \
-  -C 128 \
-  "$OUT/lod-meta.json"
+bun run build-splat                      # uses ~/Downloads/fixed.ply by default
+SRC=/path/to/new_capture.ply bun run build-splat
 ```
 
-Expect ~3–4 minutes and ~3 GB peak RAM on a 2.8M-gaussian splat. The current bundle is 41 chunks (21 at LOD 0, 11 at LOD 1, 6 at LOD 2, 3 at LOD 3), ~67 MB total.
+It runs [`@playcanvas/splat-transform`](https://github.com/playcanvas/splat-transform) (via `bunx`, no install) in **two passes**:
+
+```bash
+# PASS 1 — align the capture onto the scene's frame, then match the bundle's 0-SH format
+bunx @playcanvas/splat-transform -w "$SRC" \
+  -N \
+  -s 0.04959004828572706 \
+  -t -0.010897,0.008917,4.17333 \
+  -H 0 \
+  "$ALIGNED"
+
+# PASS 2 — build the 4-tier LOD octree (this is what "creates the LOD")
+bunx @playcanvas/splat-transform -w \
+  "$ALIGNED" -l 0 \
+  "$ALIGNED" --decimate 50%   -l 1 \
+  "$ALIGNED" --decimate 25%   -l 2 \
+  "$ALIGNED" --decimate 12.5% -l 3 \
+  -C 128 \
+  "public/playcanvas/assets/splat/lod-meta.json"
+```
+
+Expect a few minutes and ~3 GB peak RAM on a multi-million-gaussian splat. The current bundle (from the 3.25M-gaussian `fixed.ply` render) is 42 chunks (22 at LOD 0, 11 at LOD 1, 6 at LOD 2, 3 at LOD 3), ~78 MB total, 0 SH bands.
+
+> **⚠️ Frame alignment (PASS 1) — re-derive this for every new capture.** The scene's
+> placement of the splat (rotation/scale/loop tiling) is hand-tuned in
+> `src/lib/playcanvasApp.ts` against the **existing** bundle's local coordinate
+> frame. A fresh render almost never lands in that frame — it's typically a
+> different scale, recentred, sometimes reoriented. PASS 1 transforms the capture
+> so its solid geometry sits exactly on top of the current bundle (`-s` scale then
+> `-t` translate realise `p' = scale·p + translate`; add `-r x,y,z` if a rotation
+> is needed). Then `playcanvasApp.ts` needs no changes and the swap is drop-in.
+> The `-s/-t` values above were **derived, not guessed** — run
+> **`python3 scripts/derive-splat-align.py /path/to/new_capture.ply`**, which
+> decodes the current bundle back to a point cloud and best-fits the similarity
+> transform, then prints the `ALIGN_SCALE` / `ALIGN_TRANSLATE` (and an `-r` line if
+> the rotation exceeds ~1°) to paste into `build-splat.sh`. `-H 0` strips spherical
+> harmonics down to DC, matching the shipped 0-SH bundle (`highQualitySH` is off at
+> runtime anyway). `-N` drops any NaN/Inf gaussians.
 
 **What each flag does — this is how you "create the LOD":**
 
@@ -146,7 +172,7 @@ This was used in earlier single-file experiments; the shipped LOD bundle current
 
 PlayCanvas loads the bundle via asset `287139133` in `public/playcanvas/config.json`, whose `file.url` is `assets/splat/lod-meta.json`. The `url` never changes.
 
-`config.json` also carries `file.size` and `file.hash` for that asset. These act as a **cache-busting hint, not an integrity check** — PlayCanvas does not validate the file against them and will load a bundle whose size/hash don't match (the shipped repo currently does exactly this). Updating them is only useful to force browsers / the service worker to refetch a changed bundle. If you want that, set them to the new values:
+`config.json` also carries `file.size` and `file.hash` for that asset. These act as a **cache-busting hint, not an integrity check** — PlayCanvas does not validate the file against them and will happily load a bundle whose size/hash don't match. Updating them forces browsers / the service worker to refetch a changed bundle, so keep them current (`build-splat` prints both values when it finishes):
 
 ```bash
 stat -f "%z" public/playcanvas/assets/splat/lod-meta.json   # -> file.size

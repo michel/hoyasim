@@ -229,8 +229,8 @@
       "type": "gsplat",
       "file": {
         "filename": "lod-meta.json",
-        "size": 47753,
-        "hash": "189643da62bcc711b75354e6ecb1520d",
+        "size": 86116,
+        "hash": "cd2b82ba0a525e99d8a17a1f0731e327",
         "url": "assets/splat/lod-meta.json"
       },
       "data": null,
@@ -335,8 +335,8 @@
       "name": "trafficlight.glb",
       "type": "container",
       "file": {
-        "hash": "ec8a4a0274a65140f4d908b05e1cc02e",
-        "size": 1054744,
+        "hash": "e003f31e5e6a58217e1dc5f3f9e0fb80",
+        "size": 667504,
         "filename": "trafficlight.glb",
         "url": "assets/models/trafficlight.glb"
       },

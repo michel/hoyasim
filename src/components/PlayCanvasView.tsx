@@ -16,24 +16,12 @@ import {
   type LensProduct,
   type LensSide,
 } from '@/lib/glasses-pc'
-import { type BootedApp, bootApp, type SceneOptions } from '@/lib/playcanvasApp'
+import { type BootedApp, bootApp } from '@/lib/playcanvasApp'
 import { createLookState } from '@/lib/scripts/lookCamera'
 
 function nextProduct(current: LensProduct): LensProduct {
   const idx = LENS_PRODUCT_ORDER.indexOf(current)
   return LENS_PRODUCT_ORDER[(idx + 1) % LENS_PRODUCT_ORDER.length]
-}
-
-// Debug/feature toggles for the 3D scene, owned by the UI layer so the
-// PlayCanvas lib stays URL-agnostic.
-function readSceneOptions(): SceneOptions {
-  const params = new URLSearchParams(window.location.search)
-  return {
-    lensEnabled: params.get('lens') !== '0',
-    singleTile: params.get('singletile') === '1',
-    noSplat: params.get('nosplat') === '1',
-    noBike: params.get('nobike') === '1',
-  }
 }
 
 const LENS_TAGLINES: Record<LensProduct, string> = {
@@ -115,13 +103,8 @@ function LensSelector({
   )
 }
 
-// DOM writes at 60 Hz force style/layout of the badge every frame; the readout
-// only needs to refresh a few times a second.
-const FPS_WRITE_INTERVAL_MS = 250
-
 export default function PlayCanvasView() {
   const canvasRef = useRef<HTMLCanvasElement>(null)
-  const fpsRef = useRef<HTMLDivElement>(null)
   const bootedAppRef = useRef<BootedApp | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -133,35 +116,13 @@ export default function PlayCanvasView() {
   })
   const [hasCycledLens, setHasCycledLens] = useState(false)
 
-  useEffect(() => {
-    let raf = 0
-    let last = performance.now()
-    let lastWrite = 0
-    let ema = 0
-    const tick = (now: number) => {
-      const dt = now - last
-      last = now
-      if (dt > 0) {
-        const fps = 1000 / dt
-        ema = ema === 0 ? fps : ema * 0.9 + fps * 0.1
-        if (now - lastWrite >= FPS_WRITE_INTERVAL_MS && fpsRef.current) {
-          fpsRef.current.textContent = `${ema.toFixed(0)} fps`
-          lastWrite = now
-        }
-      }
-      raf = requestAnimationFrame(tick)
-    }
-    raf = requestAnimationFrame(tick)
-    return () => cancelAnimationFrame(raf)
-  }, [])
-
   const lookState = useMemo(createLookState, [])
 
   useEffect(() => {
     if (!canvasRef.current) return
     let alive = true
 
-    bootApp(canvasRef.current, lookState, readSceneOptions())
+    bootApp(canvasRef.current, lookState)
       .then((app) => {
         if (!alive) {
           app.dispose()
@@ -216,10 +177,6 @@ export default function PlayCanvasView() {
         id="application-canvas"
         aria-label="Interactive 3D vision simulator"
         style={{ display: 'block', width: '100%', height: '100%' }}
-      />
-      <div
-        ref={fpsRef}
-        className="pointer-events-none absolute top-2 left-2 z-30 rounded bg-hoya-dark/70 px-2 py-1 font-mono text-xs text-white tabular-nums shadow-md shadow-black/30"
       />
       {loading && !error && (
         <div className="absolute inset-0 z-20 flex flex-col items-center justify-center gap-4 bg-white">
