@@ -98,7 +98,7 @@ The bundle is two things on disk:
 The whole pipeline is captured in one script — **`bun run build-splat`** (`scripts/build-splat.sh`). Point it at a source `.ply` and it rebuilds the shipped bundle in place:
 
 ```bash
-bun run build-splat                      # uses ~/Downloads/fixed.ply by default
+bun run build-splat                      # uses ~/Downloads/fixed2.ply by default
 SRC=/path/to/new_capture.ply bun run build-splat
 ```
 
@@ -108,8 +108,8 @@ It runs [`@playcanvas/splat-transform`](https://github.com/playcanvas/splat-tran
 # PASS 1 — align the capture onto the scene's frame, then match the bundle's 0-SH format
 bunx @playcanvas/splat-transform -w "$SRC" \
   -N \
-  -s 0.04959004828572706 \
-  -t -0.010897,0.008917,4.17333 \
+  -s 0.049533579662214819 \
+  -t 0.00958941,0.020316,4.17115 \
   -H 0 \
   "$ALIGNED"
 
@@ -123,7 +123,7 @@ bunx @playcanvas/splat-transform -w \
   "public/playcanvas/assets/splat/lod-meta.json"
 ```
 
-Expect a few minutes and ~3 GB peak RAM on a multi-million-gaussian splat. The current bundle (from the 3.25M-gaussian `fixed.ply` render) is 42 chunks (22 at LOD 0, 11 at LOD 1, 6 at LOD 2, 3 at LOD 3), ~78 MB total, 0 SH bands.
+Expect a few minutes and ~3 GB peak RAM on a multi-million-gaussian splat. The current bundle (from the 3.25M-gaussian `fixed2.ply` render) is 42 chunks (22 at LOD 0, 11 at LOD 1, 6 at LOD 2, 3 at LOD 3), ~78 MB total, 0 SH bands.
 
 > **⚠️ Frame alignment (PASS 1) — re-derive this for every new capture.** The scene's
 > placement of the splat (rotation/scale/loop tiling) is hand-tuned in
@@ -140,6 +140,18 @@ Expect a few minutes and ~3 GB peak RAM on a multi-million-gaussian splat. The c
 > the rotation exceeds ~1°) to paste into `build-splat.sh`. `-H 0` strips spherical
 > harmonics down to DC, matching the shipped 0-SH bundle (`highQualitySH` is off at
 > runtime anyway). `-N` drops any NaN/Inf gaussians.
+>
+> **Ground re-seat — solve `-t` Y separately.** The derive best-fits the _whole_
+> cloud, which seats X/Z but not the gravity axis: a new render's floater distribution
+> pulls the global Y fit, so the dense **road plane** (what the bike and traffic light
+> rest on) lands a few cm off even at overlap 1.000. Two gotchas: (1) the road must be
+> seated, not the centroid; (2) splat-transform applies the `-t` **Y** with a sign flip
+> (PLY→SOG Y convention — X/Z are unaffected), so `d(road world Y)/d(t_y) = −1` and the
+> derive's `t_y` is _not_ the seat value. Solve it directly: run **PASS 1 only** at two
+> `t_y` probes, decode and take the densest Y slab of `|x|<0.1, |z|<1` points, and pick
+> the `t_y` that lands the road on the old plane (local **−0.00887**, world **−0.0443**).
+> For `fixed2.ply` that is **`t_y = +0.020316`** (derive gave −0.0044). Then the bike and
+> traffic light need no re-seating in `playcanvasApp.ts` and the swap stays drop-in.
 
 **What each flag does — this is how you "create the LOD":**
 

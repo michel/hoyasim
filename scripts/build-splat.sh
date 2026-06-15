@@ -29,12 +29,13 @@
 # we transform the capture so its solid geometry lands exactly on top of the
 # current bundle. Then playcanvasApp.ts needs no changes and the swap is drop-in.
 #
-# The current ALIGN_* values below map the 2026-06-15 "fixed.ply" re-render onto
+# The current ALIGN_* values below map the 2026-06-15 "fixed2.ply" re-render onto
 # the original shipped frame. They were derived, not guessed: decode the current
 # bundle back to a point cloud and best-fit a similarity transform (uniform scale
-# + rotation + translation) from the new capture onto it. For fixed.ply the fit
-# was a pure uniform scale + Z-shift (rotation within 0.4 deg of identity, so it
-# is omitted). Reproduce / re-derive with scripts/derive-splat-align.py.
+# + rotation + translation) from the new capture onto it. For fixed2.ply the fit
+# was a pure uniform scale + Z-shift (rotation within 0.06 deg of identity at
+# overlap 1.000, so it is omitted). Reproduce / re-derive with
+# scripts/derive-splat-align.py.
 #
 # splat-transform applies ACTIONS IN ORDER, so `-s` (scale) then `-t` (translate)
 # realises  p' = scale * p + translate  (the order that matches the solver).
@@ -42,13 +43,23 @@
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
-SRC="${SRC:-$HOME/Downloads/fixed.ply}"          # raw capture (full-SH .ply)
+SRC="${SRC:-$HOME/Downloads/fixed2.ply}"         # raw capture (full-SH .ply)
 OUT="${OUT:-public/playcanvas/assets/splat}"     # shipped bundle location
 ALIGNED="${ALIGNED:-/tmp/splat_aligned.ply}"     # PASS 1 intermediate (0-SH, in-frame)
 
-# similarity transform: new-capture local frame -> current shipped frame
-ALIGN_SCALE="0.04959004828572706"
-ALIGN_TRANSLATE="-0.010897,0.008917,4.17333"
+# similarity transform: new-capture local frame -> current shipped frame.
+# derive-splat-align.py best-fits the WHOLE cloud (overlap 1.000), which seats X/Z
+# but NOT the gravity axis: a fresh render's floater distribution pulls the global
+# Y fit, so the dense road plane (what the bike + traffic light rest on) lands off.
+# Worse, splat-transform applies the -t *Y* with a sign flip (PLY->SOG Y-axis
+# convention; X/Z are unaffected) — d(road_world_Y)/d(t_y) = -1 exactly. So derive's
+# t_y is not the road-seat value. Instead solve t_y directly: run PASS 1 only at two
+# t_y probes, measure the dense road slab (LOD-0 |x|<0.1,|z|<1, densest Y bin), and
+# pick t_y so the road centreline lands on the OLD bundle's plane (local -0.00887,
+# world -0.0443). For fixed2.ply that is t_y=+0.020316 (derive gave -0.0044). Keeps
+# the swap drop-in — no object re-seating in playcanvasApp.ts.
+ALIGN_SCALE="0.049533579662214819"
+ALIGN_TRANSLATE="0.00958941,0.020316,4.17115"
 
 echo "===== PASS 1: align to scene frame + strip SH ====="
 bunx @playcanvas/splat-transform -w "$SRC" \

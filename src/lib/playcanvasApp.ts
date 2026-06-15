@@ -38,6 +38,11 @@ const OUTER_SCALE = 5
 // Inner gsplat is a child of the outer one; its local Z controls how far apart
 // the two tiles sit in world space (multiplied by the outer's scale).
 const INNER_LOCAL_Z = -LOOP_PERIOD / OUTER_SCALE
+// World-space Y nudge applied to the outer tile (the inner tile rides along as its
+// child, and the camera isn't parented to it). Lowers the whole environment so the
+// bike sits on the road instead of clipping into it — make it more negative to drop
+// the ground further, less to raise it.
+const SPLAT_Y_OFFSET = -2.5
 
 // Distance fog blends the far end of the splat into the sky, so the street's hard
 // far edge — and LOD chunks streaming in — fade in instead of popping. The colour
@@ -70,13 +75,14 @@ const BIKE_Y = 0.15
 const BIKE_SCREEN_MATERIAL = 'Screen'
 const BIKE_SCREEN_EMISSIVE = 0.6
 
-// The traffic light spans the road (the model is already mirrored across both
-// sides). TRAFFIC_LIGHT_Z is the single "down the road" knob — an absolute world
-// Z, deliberately decoupled from LOOP_PERIOD so re-tuning the loop length doesn't
-// drag the light along with it. The bike's stop line is derived from it. X is a
-// lateral nudge (0 = centred). X/Y/scale/rotation are tuned visually.
+// The GLB models the left-hand traffic light; setupTrafficLight plants it plus a
+// mirrored right-hand copy so the pair spans the road. TRAFFIC_LIGHT_Z is the single
+// "down the road" knob — an absolute world Z, deliberately decoupled from LOOP_PERIOD
+// so re-tuning the loop length doesn't drag the lights along with it. The bike's stop
+// line is derived from it. X is the left light's lateral offset (0 = centred on the
+// road); the right light mirrors it at -X. X/Y/scale/rotation are tuned visually.
 const TRAFFIC_LIGHT_ASSET_NAME = 'trafficlight.glb'
-const TRAFFIC_LIGHT_Z = -21.86
+const TRAFFIC_LIGHT_Z = -23
 const TRAFFIC_LIGHT_X = 1.0
 const TRAFFIC_LIGHT_Y = 0.05
 const TRAFFIC_LIGHT_SCALE = 0.35
@@ -272,19 +278,25 @@ function setupRig(app: pc.AppBase) {
   })
 }
 
-// Plants the overhead traffic light beside the road at the configured Z, parented
-// to the world root (static) — the looping rig passes it once per lap — then wires
-// its bulbs to the bike.
+// Plants the overhead traffic lights beside the road at the configured Z (parented
+// to the world root — static, so the looping rig passes them once per lap): the
+// left-hand GLB plus a right-hand mirror across the road centreline.
 function setupTrafficLight(app: pc.AppBase) {
+  plantTrafficLight(app, TRAFFIC_LIGHT_X, TRAFFIC_LIGHT_SCALE)
+  plantTrafficLight(app, -TRAFFIC_LIGHT_X, -TRAFFIC_LIGHT_SCALE)
+}
+
+// Instantiates one traffic-light container at lateral offset x, parents it to the
+// world root, and drives its bulbs from the bike. A negative scaleX mirrors the model
+// across the road centreline (X=0); paired with the negated x position that is an
+// exact reflection, so the right light's arm still reaches over the road and its faces
+// stay toward the oncoming bike (a 180° spin would face them away instead).
+function plantTrafficLight(app: pc.AppBase, x: number, scaleX: number) {
   const light = instantiateContainer(app, TRAFFIC_LIGHT_ASSET_NAME)
   if (!light) return
-  light.setLocalPosition(TRAFFIC_LIGHT_X, TRAFFIC_LIGHT_Y, TRAFFIC_LIGHT_Z)
+  light.setLocalPosition(x, TRAFFIC_LIGHT_Y, TRAFFIC_LIGHT_Z)
   light.setLocalEulerAngles(...TRAFFIC_LIGHT_EULER)
-  light.setLocalScale(
-    TRAFFIC_LIGHT_SCALE,
-    TRAFFIC_LIGHT_SCALE,
-    TRAFFIC_LIGHT_SCALE,
-  )
+  light.setLocalScale(scaleX, TRAFFIC_LIGHT_SCALE, TRAFFIC_LIGHT_SCALE)
   app.root.addChild(light)
   setupTrafficLightCycle(app, light)
 }
@@ -373,6 +385,10 @@ function setupScene(app: pc.AppBase): pc.Entity | null {
   }
 
   const outerSplat = app.root.findByGuid(OUTER_SPLAT_GUID)
+  if (outerSplat instanceof pc.Entity) {
+    const p = outerSplat.getLocalPosition()
+    outerSplat.setLocalPosition(p.x, p.y + SPLAT_Y_OFFSET, p.z)
+  }
   const tiles = [outerSplat, innerSplat].filter(
     (e): e is pc.Entity => e instanceof pc.Entity,
   )

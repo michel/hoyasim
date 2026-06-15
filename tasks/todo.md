@@ -1,3 +1,31 @@
+# Replace shipped splat with fixed2.ply (same compression + LOD, matched scale/orientation)
+
+**Date:** 2026-06-15
+
+New render `/Users/micheldegraaf/Downloads/fixed2.ply` (3,245,586 gaussians, full-SH) — same
+model as current source `fixed.ply` (3,246,724), byte-identical PLY property layout. Goal: drop-in
+replace the shipped LOD bundle, same compression (`-H 0`, `-C 128`, decimate 50/25/12.5%), matched
+scale + orientation. Pipeline documented in-repo (`derive-splat-align.py`, `build-splat.sh`, README).
+
+## Plan
+- [x] 1. Derived: scale=0.049533579662214819, translate=0.00958941,-0.0044322,4.17115,
+      rotation=0.055° (no `-r`), **overlap=1.000**. fixed2 lands perfectly on current frame.
+- [x] 2. build-splat.sh updated: SRC→fixed2.ply, scale + translate (incl. road-seat Y) + comment.
+- [x] 3. README updated: `-s`/`-t`, source name, ground re-seat note.
+- [x] 4a. First rebuild → 22/11/6/3, 78MB. Geometric check PASS, but road plane +0.124 world high
+      (ground re-seat gotcha). Fix: nudge align Y −0.0247 (−0.0044→−0.0292) to seat road on old plane.
+- [x] 4b. 2nd rebuild: road went +0.203 world — wrong sign. Found via deterministic PASS-1
+      probes that splat-transform applies `-t` Y with a sign flip (slope −1; X/Z normal).
+- [~] 4c. Solved t_y=+0.020316 (road → −0.0443). Final rebuild running.
+- [ ] 5. Update `config.json` size/hash.
+- [ ] 6. Adversarially VERIFY: scale/orientation/road/LOD/config/docs (multi-agent).
+- [ ] 7. Update memory + review section.
+
+## Review
+_(to be filled after implementation)_
+
+---
+
 # Three-Lens Blur Redesign — Plan
 
 **Date:** 2026-06-08
