@@ -42,7 +42,7 @@ const INNER_LOCAL_Z = -LOOP_PERIOD / OUTER_SCALE
 // child, and the camera isn't parented to it). Lowers the whole environment so the
 // bike sits on the road instead of clipping into it — make it more negative to drop
 // the ground further, less to raise it.
-const SPLAT_Y_OFFSET = -2.5
+const SPLAY_Z_OFFSET = -0.1
 
 // Distance fog blends the far end of the splat into the sky, so the street's hard
 // far edge — and LOD chunks streaming in — fade in instead of popping. The colour
@@ -62,10 +62,10 @@ const CAMERA_ENTITY_NAME = 'Camera'
 // Container asset name (config.json) and the bike's local transform under the rig.
 // Scale/rotation are tuned visually against the scene, not derived from the GLB.
 const BIKE_ASSET_NAME = 'bike.glb'
-const BIKE_SCALE = 1.1
+const BIKE_SCALE = 1.85
 const BIKE_EULER: [number, number, number] = [0, 0, 0]
 // Vertical lift off the road, tuned visually so the bike sits in frame.
-const BIKE_Y = 0.15
+const BIKE_Y = 0
 // Material name (from bike.glb) of the e-bike's dashboard display. The texture is
 // a near-white nav-map screenshot, so the screen is rendered unlit (see
 // brightenBikeScreen) with the texture driven purely through emissive at BELOW 1
@@ -84,7 +84,7 @@ const BIKE_SCREEN_EMISSIVE = 0.6
 const TRAFFIC_LIGHT_ASSET_NAME = 'trafficlight.glb'
 const TRAFFIC_LIGHT_Z = -23
 const TRAFFIC_LIGHT_X = 1.0
-const TRAFFIC_LIGHT_Y = 0.05
+const TRAFFIC_LIGHT_Y = 0.0
 const TRAFFIC_LIGHT_SCALE = 0.35
 const TRAFFIC_LIGHT_EULER: [number, number, number] = [0, 0, 0]
 // The bike stops this far ahead of (i.e. +Z of) the lights, eases off over
@@ -387,7 +387,7 @@ function setupScene(app: pc.AppBase): pc.Entity | null {
   const outerSplat = app.root.findByGuid(OUTER_SPLAT_GUID)
   if (outerSplat instanceof pc.Entity) {
     const p = outerSplat.getLocalPosition()
-    outerSplat.setLocalPosition(p.x, p.y + SPLAT_Y_OFFSET, p.z)
+    outerSplat.setLocalPosition(p.x, p.y, p.z + SPLAY_Z_OFFSET)
   }
   const tiles = [outerSplat, innerSplat].filter(
     (e): e is pc.Entity => e instanceof pc.Entity,
