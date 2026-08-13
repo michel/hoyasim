@@ -68,9 +68,7 @@ const CAMERA_ENTITY_NAME = 'Camera'
 // Container asset name (config.json) and the bike's local transform under the rig.
 // Scale/rotation are tuned visually against the scene, not derived from the GLB.
 const BIKE_ASSET_NAME = 'bike.glb'
-// Tuned visually; don't go below ~1.45 — high-contrast cockpit detail that low
-// in the lens's reading zone scatters into ghost copies under the soft blur.
-const BIKE_SCALE = 1.65
+const BIKE_SCALE = 1.85
 const BIKE_EULER: [number, number, number] = [0, 0, 0]
 // Vertical lift off the road, tuned visually so the bike sits in frame. 0.12
 // raises the cockpit out of the v03 capture's brick road (at 0 the model sat
