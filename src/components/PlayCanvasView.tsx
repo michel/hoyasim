@@ -14,7 +14,6 @@ import {
   DEFAULT_LENS_PRODUCT,
   LENS_PRODUCT_ORDER,
   type LensProduct,
-  type LensSide,
 } from '@/lib/glasses-pc'
 import { type BootedApp, bootApp } from '@/lib/playcanvasApp'
 import { createLookState } from '@/lib/scripts/lookCamera'
@@ -48,25 +47,19 @@ function TapHint() {
 }
 
 function LensSelector({
-  side,
   active,
   onCycle,
   showHint = false,
 }: {
-  side: LensSide
   active: LensProduct
   onCycle: () => void
   showHint?: boolean
 }) {
-  const anchor =
-    side === 'left'
-      ? 'left-[28%] -translate-x-1/2'
-      : 'right-[28%] translate-x-1/2'
   return (
-    <div className={`absolute bottom-8 ${anchor} z-10`}>
+    <div className="absolute bottom-8 left-1/2 -translate-x-1/2 z-10">
       <button
         type="button"
-        aria-label={`Swap ${side} lens (currently ${active}). Tap to cycle.`}
+        aria-label={`Swap lenses (currently ${active}). Tap to cycle.`}
         onClick={onCycle}
         className="group relative flex items-stretch overflow-hidden rounded-xl bg-hoya-blue text-white shadow-md shadow-black/30 active:scale-[0.98] transition-transform duration-150"
       >
@@ -110,10 +103,7 @@ export default function PlayCanvasView() {
   const [error, setError] = useState<string | null>(null)
   const [glassesOn, setGlassesOn] = useState(false)
   const [puttingOnGlasses, setPuttingOnGlasses] = useState(false)
-  const [products, setProducts] = useState<Record<LensSide, LensProduct>>({
-    left: DEFAULT_LENS_PRODUCT,
-    right: DEFAULT_LENS_PRODUCT,
-  })
+  const [product, setProduct] = useState<LensProduct>(DEFAULT_LENS_PRODUCT)
   const [hasCycledLens, setHasCycledLens] = useState(false)
 
   const lookState = useMemo(createLookState, [])
@@ -148,8 +138,8 @@ export default function PlayCanvasView() {
     await bootedAppRef.current.putOnGlasses()
     // A rebuilt controller starts both eyes at the default; restore the user's
     // current selection.
-    bootedAppRef.current.setLensProduct('left', products.left)
-    bootedAppRef.current.setLensProduct('right', products.right)
+    bootedAppRef.current.setLensProduct('left', product)
+    bootedAppRef.current.setLensProduct('right', product)
     setGlassesOn(true)
     setPuttingOnGlasses(false)
   }
@@ -159,11 +149,12 @@ export default function PlayCanvasView() {
     setGlassesOn(false)
   }
 
-  const cycleSide = (side: LensSide) => {
+  const cycleLenses = () => {
     setHasCycledLens(true)
-    const next = nextProduct(products[side])
-    setProducts((p) => ({ ...p, [side]: next }))
-    bootedAppRef.current?.setLensProduct(side, next)
+    const next = nextProduct(product)
+    setProduct(next)
+    bootedAppRef.current?.setLensProduct('left', next)
+    bootedAppRef.current?.setLensProduct('right', next)
   }
 
   const { gyroActive, showEnableButton, enableMotionControls } =
@@ -233,15 +224,9 @@ export default function PlayCanvasView() {
       {!loading && !error && glassesOn && (
         <>
           <LensSelector
-            side="left"
-            active={products.left}
-            onCycle={() => cycleSide('left')}
+            active={product}
+            onCycle={cycleLenses}
             showHint={!hasCycledLens}
-          />
-          <LensSelector
-            side="right"
-            active={products.right}
-            onCycle={() => cycleSide('right')}
           />
           <div className="absolute bottom-6 right-6 z-10">
             <Button
