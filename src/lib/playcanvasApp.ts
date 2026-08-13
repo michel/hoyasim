@@ -23,16 +23,22 @@ const SCENE_PATH = `${PROJECT_PREFIX}2483428.json`
 const MAX_PIXEL_RATIO_TOUCH = 0.5
 const MAX_PIXEL_RATIO_DESKTOP = 1.5
 
-const START_Z = 11
+// 11.5 tucks the lap window against the v03 capture's rideable street: the rig
+// starts just inside the north content edge and the wrap fires at z=-14.5,
+// right at the T-junction cross-street where the capture's road (and the
+// cropped bundle) ends.
+const START_Z = 11.5
 // The scene loops by tiling two copies of the splat LOOP_PERIOD apart (the rig
 // rides one period, then snaps back). The two tiles sit LOOP_PERIOD/OUTER_SCALE
-// apart in the splat's own local units, so the join is seamless only when that
-// separation ≈ the splat's solid content span along the street (~8.2 local units
-// for the current render). Too large leaves a gap between blocks; too small
-// overlaps them and the next block's trees punch through this block's houses.
-// 43.24 suited the older splat (its hazy distance reached further and hid the
-// overlap); the cleaner render has hard edges, so the tiles must just meet.
-const LOOP_PERIOD = 41
+// apart in the splat's own local units. The v03 capture's street ends at a
+// T-junction (the bundle is cropped there — see build-splat.sh), so the
+// separation is set to the RIDEABLE street span (~5.2 local units, north
+// content edge to the junction): the next copy's street butts onto the
+// cross-street and the wrap fires right at the junction, before the rig would
+// leave the road. Larger would open a dead gap past the junction; smaller
+// overlaps the copies and the next block's trees punch through this block's
+// houses.
+const LOOP_PERIOD = 26
 const TARGET_Z = START_Z - LOOP_PERIOD
 const OUTER_SCALE = 5
 // Inner gsplat is a child of the outer one; its local Z controls how far apart
@@ -62,10 +68,15 @@ const CAMERA_ENTITY_NAME = 'Camera'
 // Container asset name (config.json) and the bike's local transform under the rig.
 // Scale/rotation are tuned visually against the scene, not derived from the GLB.
 const BIKE_ASSET_NAME = 'bike.glb'
-const BIKE_SCALE = 1.85
+// Tuned visually; don't go below ~1.45 — high-contrast cockpit detail that low
+// in the lens's reading zone scatters into ghost copies under the soft blur.
+const BIKE_SCALE = 1.65
 const BIKE_EULER: [number, number, number] = [0, 0, 0]
-// Vertical lift off the road, tuned visually so the bike sits in frame.
-const BIKE_Y = 0
+// Vertical lift off the road, tuned visually so the bike sits in frame. 0.12
+// raises the cockpit out of the v03 capture's brick road (at 0 the model sat
+// sunk to the handlebars); a full geometric wheel-seat (+0.29) shoves the bar
+// into the camera, so this stays a framing knob, not a physics one.
+const BIKE_Y = 0.12
 // Material name (from bike.glb) of the e-bike's dashboard display. The texture is
 // a near-white nav-map screenshot, so the screen is rendered unlit (see
 // brightenBikeScreen) with the texture driven purely through emissive at BELOW 1
@@ -82,7 +93,11 @@ const BIKE_SCREEN_EMISSIVE = 0.6
 // line is derived from it. X is the left light's lateral offset (0 = centred on the
 // road); the right light mirrors it at -X. X/Y/scale/rotation are tuned visually.
 const TRAFFIC_LIGHT_ASSET_NAME = 'trafficlight.glb'
-const TRAFFIC_LIGHT_Z = -23
+// Like the pre-v03 placement this is a mid-block crossing stop (the old light's
+// exact street spot has no tile copy inside the shorter lap window). -11.5 puts
+// the stop ~83% through the loop (was ~79%), just before the T-junction
+// cross-street, with a 4.5-unit run-out between the stop line and the wrap.
+const TRAFFIC_LIGHT_Z = -11.5
 const TRAFFIC_LIGHT_X = 1.0
 const TRAFFIC_LIGHT_Y = 0.0
 const TRAFFIC_LIGHT_SCALE = 0.35
@@ -237,10 +252,8 @@ function configureGsplat(app: pc.AppBase, tiles: pc.Entity[]) {
   app.scene.gsplat.radialSorting = true
   for (const e of tiles) {
     if (!e.gsplat) continue
-    e.gsplat.unified = true
-    // Cheaper Z-axis SH approximation. Edge gaussians lose some view-dependent
-    // shading; usually unnoticeable, big GPU win on mobile.
-    e.gsplat.highQualitySH = false
+    // Unified rendering is the default (and only) mode since pc 2.21, and the
+    // bundle ships 0 SH bands, so no per-entity SH tuning is needed anymore.
     // Drop quality faster with distance — the trailing tile is usually far from
     // the camera as it loops around behind. Touch gets a steeper falloff.
     e.gsplat.lodBaseDistance = pc.platform.touch ? 0.5 : 1
@@ -252,7 +265,13 @@ function configureGsplat(app: pc.AppBase, tiles: pc.Entity[]) {
 // rasterized output is fully clipped. When a tile drifts beyond one full loop
 // period from the camera, disable the entity so the sort is skipped entirely.
 function setupTileCulling(app: pc.AppBase, cam: pc.Entity, tiles: pc.Entity[]) {
-  const cullThreshold = LOOP_PERIOD * 0.9
+  // Threshold = the tile's north content extent from its origin (~24.5 world
+  // units) plus ~13 units of headroom, so a tile re-enables while its nearest
+  // content is still distant enough for fog to soften the stream-in (the same
+  // enable distance the LOOP_PERIOD * 0.9 rule gave the longer pre-v03
+  // capture). Deliberately NOT derived from LOOP_PERIOD — the loop length
+  // tracks the rideable street, while this tracks the capture's extent.
+  const cullThreshold = 37.5
   app.on('update', () => {
     const camZ = cam.getPosition().z
     for (const tile of tiles)

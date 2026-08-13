@@ -86,7 +86,7 @@ The 3D environment itself (Gaussian splat + PlayCanvas config) lives under `publ
 
 ## The Gaussian Splat Environment
 
-The photoreal scene is a [Gaussian splat](https://repo-sam.inria.fr/fungraph/3d-gaussian-splatting/) (~2.8M gaussians) served as a **streamed LOD bundle** at `public/playcanvas/assets/splat/`. Instead of one monolithic file, the splat is split into a spatial octree of small chunks, each available at four detail tiers. At runtime PlayCanvas streams in only the chunks the camera can see and picks an LOD level per chunk from its screen-space size and the per-frame splat budget — so the iPhone never tries to draw all 2.8M gaussians at once.
+The photoreal scene is a [Gaussian splat](https://repo-sam.inria.fr/fungraph/3d-gaussian-splatting/) (~3.9M gaussians) served as a **streamed LOD bundle** at `public/playcanvas/assets/splat/`. Instead of one monolithic file, the splat is split into a spatial octree of small chunks, each available at four detail tiers. At runtime PlayCanvas streams in only the chunks the camera can see and picks an LOD level per chunk from its screen-space size and the per-frame splat budget — so the iPhone never tries to draw all 3.9M gaussians at once.
 
 The bundle is two things on disk:
 
@@ -98,7 +98,7 @@ The bundle is two things on disk:
 The whole pipeline is captured in one script — **`bun run build-splat`** (`scripts/build-splat.sh`). Point it at a source `.ply` and it rebuilds the shipped bundle in place:
 
 ```bash
-bun run build-splat                      # uses ~/Downloads/fixed2.ply by default
+bun run build-splat                      # uses the v03 capture from ~/Downloads/Aanlevermap by default
 SRC=/path/to/new_capture.ply bun run build-splat
 ```
 
@@ -108,22 +108,28 @@ It runs [`@playcanvas/splat-transform`](https://github.com/playcanvas/splat-tran
 # PASS 1 — align the capture onto the scene's frame, then match the bundle's 0-SH format
 bunx @playcanvas/splat-transform -w "$SRC" \
   -N \
-  -s 0.049533579662214819 \
-  -t 0.00958941,0.020316,4.17115 \
+  -r "$ALIGN_ROTATE" \
+  -s "$ALIGN_SCALE" \
+  -t "$ALIGN_TRANSLATE" \
   -H 0 \
   "$ALIGNED"
 
-# PASS 2 — build the 4-tier LOD octree (this is what "creates the LOD")
+# PASS 2 — build the 4-tier LOD octree (this is what "creates the LOD").
+# Since splat-transform 3.3.0 each decimation is its own invocation (must be the
+# final action, writing a .ply); the last run assembles the tiers into the octree.
+bunx @playcanvas/splat-transform -w "$ALIGNED" --decimate 50%   /tmp/splat_lod1.ply
+bunx @playcanvas/splat-transform -w "$ALIGNED" --decimate 25%   /tmp/splat_lod2.ply
+bunx @playcanvas/splat-transform -w "$ALIGNED" --decimate 12.5% /tmp/splat_lod3.ply
 bunx @playcanvas/splat-transform -w \
   "$ALIGNED" -l 0 \
-  "$ALIGNED" --decimate 50%   -l 1 \
-  "$ALIGNED" --decimate 25%   -l 2 \
-  "$ALIGNED" --decimate 12.5% -l 3 \
-  -C 128 \
+  /tmp/splat_lod1.ply -l 1 \
+  /tmp/splat_lod2.ply -l 2 \
+  /tmp/splat_lod3.ply -l 3 \
+  --lod-chunk-count 128 \
   "public/playcanvas/assets/splat/lod-meta.json"
 ```
 
-Expect a few minutes and ~3 GB peak RAM on a multi-million-gaussian splat. The current bundle (from the 3.25M-gaussian `fixed2.ply` render) is 42 chunks (22 at LOD 0, 11 at LOD 1, 6 at LOD 2, 3 at LOD 3), ~78 MB total, 0 SH bands.
+Expect a few minutes and ~3 GB peak RAM on a multi-million-gaussian splat. The current bundle (from the 3.9M-gaussian `Omgeving - v03` cleaned render, cropped at the T-junction where its street ends — see `CROP_BOX` in the script) is 46 chunks (22 at LOD 0, 13 at LOD 1, 7 at LOD 2, 4 at LOD 3), ~80 MB total, 0 SH bands.
 
 > **⚠️ Frame alignment (PASS 1) — re-derive this for every new capture.** The scene's
 > placement of the splat (rotation/scale/loop tiling) is hand-tuned in
@@ -150,8 +156,15 @@ Expect a few minutes and ~3 GB peak RAM on a multi-million-gaussian splat. The c
 > derive's `t_y` is _not_ the seat value. Solve it directly: run **PASS 1 only** at two
 > `t_y` probes, decode and take the densest Y slab of `|x|<0.1, |z|<1` points, and pick
 > the `t_y` that lands the road on the old plane (local **−0.00887**, world **−0.0443**).
-> For `fixed2.ply` that is **`t_y = +0.020316`** (derive gave −0.0044). Then the bike and
-> traffic light need no re-seating in `playcanvasApp.ts` and the swap stays drop-in.
+> For the v03 capture that is **`t_y = +0.0503902`** (derive gave +0.0531902). Then the bike
+> and traffic light need no re-seating in `playcanvasApp.ts` and the swap stays drop-in.
+>
+> **Loop length is coupled to the capture's RIDEABLE street span, not its content
+> span.** Measure where the road actually ends on the riding line (v03 tees into a
+> hedge at local z≈-0.6; the bundle is cropped there via `CROP_BOX`), then set
+> `LOOP_PERIOD`/`START_Z` in `playcanvasApp.ts` so the wrap fires right at that edge
+> and the tile separation equals the rideable span (v03: ~5.2 local units →
+> `LOOP_PERIOD = 26`). Re-check the traffic-light Z stays inside the lap window.
 
 **What each flag does — this is how you "create the LOD":**
 
