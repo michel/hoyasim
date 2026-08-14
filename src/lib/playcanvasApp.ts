@@ -101,10 +101,10 @@ const TRAFFIC_LIGHT_ASSET_NAME = 'trafficlight.glb'
 // A mid-block crossing stop ~37% through the lap (moved 20% of the loop
 // earlier from the crossroads at the user's request), leaving a long cruise
 // after the green before the wrap.
-const TRAFFIC_LIGHT_Z = -5.2
+const TRAFFIC_LIGHT_Z = -5.5
 const TRAFFIC_LIGHT_X = 1.3
 const TRAFFIC_LIGHT_Y = 0.0
-const TRAFFIC_LIGHT_SCALE = 0.46
+const TRAFFIC_LIGHT_SCALE = 0.4
 const TRAFFIC_LIGHT_EULER: [number, number, number] = [0, 0, 0]
 // The bike stops this far ahead of (i.e. +Z of) the lights, eases off over
 // SLOWDOWN units, and idles at the stop line for WAIT seconds each lap.
