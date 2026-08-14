@@ -35,16 +35,15 @@ const OUTER_SCALE = 6.6
 // [-1.85, 3.25]): start at the north crop plane (OUTER_SCALE*3.25 - 11.64) and
 // wrap at the south one — the wrap lands on the identical spot in the next
 // tile copy, so the seams are only ever crossed at the moment of the snap.
-const START_Z = 9.8
+const START_Z = 8.1
 // The scene loops by tiling two copies of the splat LOOP_PERIOD apart (the rig
 // rides one period, then snaps back). The two tiles sit LOOP_PERIOD/OUTER_SCALE
 // apart in the splat's own local units. Since the 90-deg scene rotation the
-// ride follows the capture's cross street, cropped to its rideable span of
-// 5.10 local units (see CROP_BOX in build-splat.sh) — the separation equals
-// that span so consecutive copies butt road-to-road: 5.10 * OUTER_SCALE.
-// Larger would open a dead gap at the tile edge; smaller overlaps the copies
-// and the next block's houses punch through this block's.
-const LOOP_PERIOD = 33.66
+// ride follows the capture's cross street, cropped to 5.10 local units with
+// a 0.25-unit opacity feather at each end (see CROP_BOX/FADE in
+// build-splat.sh) — the separation is (span - fade) * OUTER_SCALE so the two
+// copies' feathered ends overlap in a crossfade instead of a visible seam.
+const LOOP_PERIOD = 32.0
 const TARGET_Z = START_Z - LOOP_PERIOD
 // Inner gsplat is a child of the outer one; its local Z controls how far apart
 // the two tiles sit in world space (multiplied by the outer's scale).
@@ -119,27 +118,26 @@ const TRAFFIC_LIGHT_WAIT = 3
 // equal to keep the wrap seamless. Re-derive when the bundle's lateral
 // placement (SCENE_SHIFT/SCENE_YAW) or OUTER_SCALE changes.
 const LANE_PATH: LanePath = [
-  [9.81, 0.004],
-  [8.16, 0.237],
-  [6.51, 0.297],
-  [4.86, 0.228],
-  [3.21, 0.098],
-  [1.56, -0.071],
-  [-0.09, -0.073],
-  [-1.74, 0.018],
-  [-3.39, 0.131],
-  [-5.04, 0.14],
-  [-6.69, 0.129],
-  [-8.34, 0.074],
-  [-9.99, -0.062],
-  [-11.64, -0.122],
-  [-13.29, -0.122],
-  [-14.94, -0.031],
-  [-16.59, -0.129],
-  [-18.24, -0.213],
-  [-19.89, -0.307],
-  [-21.54, -0.229],
-  [-23.19, 0.004],
+  [8.1, 0.25],
+  [6.51, 0.277],
+  [4.86, 0.229],
+  [3.21, 0.101],
+  [1.56, -0.067],
+  [-0.09, -0.068],
+  [-1.74, 0.022],
+  [-3.39, 0.136],
+  [-5.04, 0.144],
+  [-6.69, 0.134],
+  [-8.34, 0.079],
+  [-9.99, -0.057],
+  [-11.64, -0.117],
+  [-13.29, -0.118],
+  [-14.94, -0.026],
+  [-16.59, -0.124],
+  [-18.24, -0.208],
+  [-19.89, -0.302],
+  [-21.54, -0.285],
+  [-23.9, 0.25],
 ]
 
 pc.dracoInitialize({

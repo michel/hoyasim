@@ -50,7 +50,7 @@ SRC="${SRC:-$HOME/Downloads/Aanlevermap/Cleaned Up/Omgeving - v03 -100k.compress
 # chunk data (only lod-meta.json gets a cache-busting hash in config.json).
 # Bump the suffix on every rebuild that changes geometry, and update the
 # asset url in public/playcanvas/config.json to match.
-OUT="${OUT:-public/playcanvas/assets/splat-v2}"  # shipped bundle location
+OUT="${OUT:-public/playcanvas/assets/splat-v3}"  # shipped bundle location
 ALIGNED="${ALIGNED:-/tmp/splat_aligned.ply}"     # PASS 1 intermediate (0-SH, in-frame)
 
 # similarity transform: new-capture local frame -> current shipped frame.
@@ -93,11 +93,15 @@ SCENE_PITCH="-0.7,0,0"
 SCENE_SHIFT="1.46,-0.0202,0.68"
 
 # The rideable street runs local z in [-1.85, +3.25] (5.10 units); beyond both
-# ends it tees into houses. Crop to exactly that span so consecutive tile
-# copies butt road-to-road and the rig wraps at the crop planes
-# (LOOP_PERIOD/START_Z in playcanvasApp.ts are derived from these numbers).
+# ends it tees into houses. Crop to exactly that span, then FEATHER the last
+# 0.25 units of opacity at each end (fade-splat-edges.py below): the tiles
+# overlap by exactly the fade band, tile A fades out while tile B fades in
+# (alphas sum to 1), so the joint is a soft crossfade instead of a visible
+# seam of sliced houses. LOOP_PERIOD/START_Z in playcanvasApp.ts derive from
+# (span - fade) = 4.85 local units.
 # Box is min-corner,max-corner in the final (post-rotation) frame.
 CROP_BOX="-1000,-1000,-1.85,1000,1000,3.25"
+FADE="-1.85 -1.60 3.00 3.25"
 
 echo "===== PASS 1: align to scene frame + strip SH ====="
 bunx @playcanvas/splat-transform -w "$SRC" \
@@ -111,6 +115,10 @@ bunx @playcanvas/splat-transform -w "$SRC" \
   -B "$CROP_BOX" \
   -H 0 \
   "$ALIGNED"
+
+echo "===== feather tile-joint edges ====="
+# shellcheck disable=SC2086
+python3 scripts/fade-splat-edges.py "$ALIGNED" $FADE
 
 echo "===== PASS 2: build 4-tier LOD bundle (~128K-gaussian chunks) ====="
 # --decimate halves (then quarters, then eighths) each coarser tier via pairwise

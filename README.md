@@ -86,7 +86,7 @@ The 3D environment itself (Gaussian splat + PlayCanvas config) lives under `publ
 
 ## The Gaussian Splat Environment
 
-The photoreal scene is a [Gaussian splat](https://repo-sam.inria.fr/fungraph/3d-gaussian-splatting/) (~3.9M gaussians) served as a **streamed LOD bundle** at `public/playcanvas/assets/splat-v2/` (the directory name carries a version — see below). Instead of one monolithic file, the splat is split into a spatial octree of small chunks, each available at four detail tiers. At runtime PlayCanvas streams in only the chunks the camera can see and picks an LOD level per chunk from its screen-space size and the per-frame splat budget — so the iPhone never tries to draw all 3.9M gaussians at once.
+The photoreal scene is a [Gaussian splat](https://repo-sam.inria.fr/fungraph/3d-gaussian-splatting/) (~3.9M gaussians) served as a **streamed LOD bundle** at `public/playcanvas/assets/splat-v3/` (the directory name carries a version — see below). Instead of one monolithic file, the splat is split into a spatial octree of small chunks, each available at four detail tiers. At runtime PlayCanvas streams in only the chunks the camera can see and picks an LOD level per chunk from its screen-space size and the per-frame splat budget — so the iPhone never tries to draw all 3.9M gaussians at once.
 
 The bundle is two things on disk:
 
@@ -126,7 +126,7 @@ bunx @playcanvas/splat-transform -w \
   /tmp/splat_lod2.ply -l 2 \
   /tmp/splat_lod3.ply -l 3 \
   --lod-chunk-count 128 \
-  "public/playcanvas/assets/splat-v2/lod-meta.json"
+  "public/playcanvas/assets/splat-v3/lod-meta.json"
 ```
 
 Expect a few minutes and ~3 GB peak RAM on a multi-million-gaussian splat. The current bundle (from the 3.9M-gaussian `Omgeving - v03` cleaned render, cropped at the T-junction where its street ends — see `CROP_BOX` in the script) is 46 chunks (22 at LOD 0, 13 at LOD 1, 7 at LOD 2, 4 at LOD 3), ~80 MB total, 0 SH bands.
@@ -198,13 +198,13 @@ This was used in earlier single-file experiments; the shipped LOD bundle current
 
 ### After regenerating: the `config.json` entry
 
-PlayCanvas loads the bundle via asset `287139133` in `public/playcanvas/config.json`, whose `file.url` points at the bundle's `lod-meta.json`. **The bundle directory name carries a version (`splat-v2`, `splat-v3`, …): bump it whenever a rebuild changes geometry** and update the `url` to match. The per-chunk file URLs are identical between rebuilds, so without a fresh directory name browsers and CDNs keep serving stale chunk data — only `lod-meta.json` itself is cache-busted by the size/hash below.
+PlayCanvas loads the bundle via asset `287139133` in `public/playcanvas/config.json`, whose `file.url` points at the bundle's `lod-meta.json`. **The bundle directory name carries a version (`splat-v3`, `splat-v3`, …): bump it whenever a rebuild changes geometry** and update the `url` to match. The per-chunk file URLs are identical between rebuilds, so without a fresh directory name browsers and CDNs keep serving stale chunk data — only `lod-meta.json` itself is cache-busted by the size/hash below.
 
 `config.json` also carries `file.size` and `file.hash` for that asset. These act as a **cache-busting hint, not an integrity check** — PlayCanvas does not validate the file against them and will happily load a bundle whose size/hash don't match. Updating them forces browsers / the service worker to refetch a changed bundle, so keep them current (`build-splat` prints both values when it finishes):
 
 ```bash
-stat -f "%z" public/playcanvas/assets/splat-v2/lod-meta.json   # -> file.size
-md5 -q       public/playcanvas/assets/splat-v2/lod-meta.json   # -> file.hash
+stat -f "%z" public/playcanvas/assets/splat-v3/lod-meta.json   # -> file.size
+md5 -q       public/playcanvas/assets/splat-v3/lod-meta.json   # -> file.hash
 ```
 
 Then edit `file.size` and `file.hash` for `287139133` in `config.json`. If you're seeing a stale splat in the browser, hard-reload / clear the service worker rather than relying on this.
