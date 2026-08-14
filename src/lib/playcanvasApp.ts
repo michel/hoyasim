@@ -97,17 +97,16 @@ const BIKE_SCREEN_EMISSIVE = 0.6
 // line is derived from it. X is the left light's lateral offset (0 = centred on the
 // road); the right light mirrors it at -X. X/Y/scale/rotation are tuned visually.
 const TRAFFIC_LIGHT_ASSET_NAME = 'trafficlight.glb'
-// The stop line (-10) lands exactly on the crossroads — the scene shift in
-// build-splat.sh places the junction there — so the bike now stops at a real
-// intersection, ~57% through the lap, with an 11-unit run-out to the wrap.
-const TRAFFIC_LIGHT_Z = -11.5
+// A mid-block crossing stop ~37% through the lap (moved 20% of the loop
+// earlier from the crossroads at the user's request), leaving a long cruise
+// after the green before the wrap.
+const TRAFFIC_LIGHT_Z = -4.8
 const TRAFFIC_LIGHT_X = 1.3
 const TRAFFIC_LIGHT_Y = 0.0
 const TRAFFIC_LIGHT_SCALE = 0.46
 const TRAFFIC_LIGHT_EULER: [number, number, number] = [0, 0, 0]
 // The bike stops this far ahead of (i.e. +Z of) the lights, eases off over
 // SLOWDOWN units, and idles at the stop line for WAIT seconds each lap.
-// 2.0 puts the stop line on the crossroads (OUTER_SCALE*0.33 - 11.64 = -9.46).
 const TRAFFIC_LIGHT_STOP_OFFSET = 2.0
 const TRAFFIC_LIGHT_SLOWDOWN = 3.3
 const TRAFFIC_LIGHT_WAIT = 3
