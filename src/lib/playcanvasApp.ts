@@ -23,22 +23,20 @@ const SCENE_PATH = `${PROJECT_PREFIX}2483428.json`
 const MAX_PIXEL_RATIO_TOUCH = 0.5
 const MAX_PIXEL_RATIO_DESKTOP = 1.5
 
-// 11.5 tucks the lap window against the v03 capture's rideable street: the rig
-// starts just inside the north content edge and the wrap fires at z=-14.5,
-// right at the T-junction cross-street where the capture's road (and the
-// cropped bundle) ends.
-const START_Z = 11.5
+// The lap window spans exactly the cropped bundle's street (local z
+// [-1.87, 3.17]): start at the north crop plane (world 5*3.17-11.64) and wrap
+// at the south one — the wrap lands on the identical spot in the next tile
+// copy, so the seams are only ever crossed at the moment of the snap.
+const START_Z = 4.2
 // The scene loops by tiling two copies of the splat LOOP_PERIOD apart (the rig
 // rides one period, then snaps back). The two tiles sit LOOP_PERIOD/OUTER_SCALE
-// apart in the splat's own local units. The v03 capture's street ends at a
-// T-junction (the bundle is cropped there — see build-splat.sh), so the
-// separation is set to the RIDEABLE street span (~5.2 local units, north
-// content edge to the junction): the next copy's street butts onto the
-// cross-street and the wrap fires right at the junction, before the rig would
-// leave the road. Larger would open a dead gap past the junction; smaller
-// overlaps the copies and the next block's trees punch through this block's
-// houses.
-const LOOP_PERIOD = 26
+// apart in the splat's own local units. Since the 90-deg scene rotation the
+// ride follows the capture's cross street, cropped to its rideable span of
+// 5.04 local units (see CROP_BOX in build-splat.sh) — the separation equals
+// that span so consecutive copies butt road-to-road: 5.04 * OUTER_SCALE.
+// Larger would open a dead gap at the tile edge; smaller overlaps the copies
+// and the next block's houses punch through this block's.
+const LOOP_PERIOD = 25.2
 const TARGET_Z = START_Z - LOOP_PERIOD
 const OUTER_SCALE = 5
 // Inner gsplat is a child of the outer one; its local Z controls how far apart
@@ -91,10 +89,9 @@ const BIKE_SCREEN_EMISSIVE = 0.6
 // line is derived from it. X is the left light's lateral offset (0 = centred on the
 // road); the right light mirrors it at -X. X/Y/scale/rotation are tuned visually.
 const TRAFFIC_LIGHT_ASSET_NAME = 'trafficlight.glb'
-// Like the pre-v03 placement this is a mid-block crossing stop (the old light's
-// exact street spot has no tile copy inside the shorter lap window). -11.5 puts
-// the stop ~83% through the loop (was ~79%), just before the T-junction
-// cross-street, with a 4.5-unit run-out between the stop line and the wrap.
+// The stop line (-10) lands exactly on the crossroads — the scene shift in
+// build-splat.sh places the junction there — so the bike now stops at a real
+// intersection, ~57% through the lap, with an 11-unit run-out to the wrap.
 const TRAFFIC_LIGHT_Z = -11.5
 const TRAFFIC_LIGHT_X = 1.0
 const TRAFFIC_LIGHT_Y = 0.0
@@ -263,13 +260,12 @@ function configureGsplat(app: pc.AppBase, tiles: pc.Entity[]) {
 // rasterized output is fully clipped. When a tile drifts beyond one full loop
 // period from the camera, disable the entity so the sort is skipped entirely.
 function setupTileCulling(app: pc.AppBase, cam: pc.Entity, tiles: pc.Entity[]) {
-  // Threshold = the tile's north content extent from its origin (~24.5 world
+  // Threshold = the tile's north content extent from its origin (~16 world
   // units) plus ~13 units of headroom, so a tile re-enables while its nearest
-  // content is still distant enough for fog to soften the stream-in (the same
-  // enable distance the LOOP_PERIOD * 0.9 rule gave the longer pre-v03
-  // capture). Deliberately NOT derived from LOOP_PERIOD — the loop length
-  // tracks the rideable street, while this tracks the capture's extent.
-  const cullThreshold = 37.5
+  // content is still distant enough for fog to soften the stream-in.
+  // Deliberately NOT derived from LOOP_PERIOD — the loop length tracks the
+  // rideable street, while this tracks the capture's extent.
+  const cullThreshold = 29
   app.on('update', () => {
     const camZ = cam.getPosition().z
     for (const tile of tiles)

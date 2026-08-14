@@ -160,11 +160,14 @@ Expect a few minutes and ~3 GB peak RAM on a multi-million-gaussian splat. The c
 > and traffic light need no re-seating in `playcanvasApp.ts` and the swap stays drop-in.
 >
 > **Loop length is coupled to the capture's RIDEABLE street span, not its content
-> span.** Measure where the road actually ends on the riding line (v03 tees into a
-> hedge at local z≈-0.6; the bundle is cropped there via `CROP_BOX`), then set
-> `LOOP_PERIOD`/`START_Z` in `playcanvasApp.ts` so the wrap fires right at that edge
-> and the tile separation equals the rideable span (v03: ~5.2 local units →
-> `LOOP_PERIOD = 26`). Re-check the traffic-light Z stays inside the lap window.
+> span.** Measure where the road actually ends on the riding line, crop the bundle
+> to exactly that span (`CROP_BOX`), and set `LOOP_PERIOD`/`START_Z` in
+> `playcanvasApp.ts` so the lap window covers it exactly — the wrap then lands on
+> the identical spot in the next tile copy. The scene currently rides the v03
+> capture's cross street (the whole scene is rotated 90° CCW via
+> `SCENE_YAW`/`SCENE_PITCH`/`SCENE_SHIFT` in `build-splat.sh`): rideable span 5.04
+> local units → `LOOP_PERIOD = 25.2`, `START_Z = 4.2`. Re-check the traffic-light Z
+> stays inside the lap window.
 
 **What each flag does — this is how you "create the LOD":**
 

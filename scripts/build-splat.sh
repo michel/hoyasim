@@ -64,13 +64,28 @@ ALIGN_ROTATE="-148.3097,-88.9157,147.5934"
 ALIGN_SCALE="0.026437995666495091"
 ALIGN_TRANSLATE="-2.49607,0.0503902,1.4554"
 
-# v03's street ends at a T-junction: south of local z=-0.6 (world -14.6) a hedge
-# and garden strip cross the riding line, so the rig would plough through them.
-# Crop everything south of the junction; the loop then butts the next tile's
-# street straight onto the cross-street (LOOP_PERIOD/START_Z in playcanvasApp.ts
-# are tuned to wrap right at this edge). Box is min-corner,max-corner in the
-# ALIGNED (bundle-local) frame.
-CROP_BOX="-1000,-1000,-0.6,1000,1000,1000"
+# SCENE ROTATION (2026-08-14): the ride now follows the OTHER street of the
+# crossroads — the whole scene is turned 90 deg counter-clockwise (bird's eye).
+# Applied AFTER the alignment above, in the bundle-local frame:
+#   SCENE_YAW   -91.0 not -90: the two streets are ~1 deg off perpendicular.
+#   SCENE_PITCH -0.7: this street has a real ~1.2% grade; a small X-rotation
+#               levels it so the flat-riding rig doesn't sink/float at the ends.
+#   SCENE_SHIFT recenters: carriageway onto x=0, road re-seated to local
+#               y=-0.0089, and the crossroads placed at local z=+0.33 so the
+#               traffic-light stop line (world -10) lands exactly at it.
+#               ⚠️ THIS trailing -t is applied with X AND Y sign-flipped (Z
+#               normal) — measured with unit probes; different from the leading
+#               -t above (only Y flips). Values below are the raw CLI args.
+SCENE_YAW="0,-91.0,0"
+SCENE_PITCH="-0.7,0,0"
+SCENE_SHIFT="1.253,-0.0208,0.678"
+
+# The rideable street runs local z in [-1.87, +3.17] (5.04 units); beyond both
+# ends it tees into houses. Crop to exactly that span so consecutive tile
+# copies butt road-to-road and the rig wraps at the crop planes
+# (LOOP_PERIOD/START_Z in playcanvasApp.ts are derived from these numbers).
+# Box is min-corner,max-corner in the final (post-rotation) frame.
+CROP_BOX="-1000,-1000,-1.87,1000,1000,3.17"
 
 echo "===== PASS 1: align to scene frame + strip SH ====="
 bunx @playcanvas/splat-transform -w "$SRC" \
@@ -78,6 +93,9 @@ bunx @playcanvas/splat-transform -w "$SRC" \
   -r "$ALIGN_ROTATE" \
   -s "$ALIGN_SCALE" \
   -t "$ALIGN_TRANSLATE" \
+  -r "$SCENE_YAW" \
+  -r "$SCENE_PITCH" \
+  -t "$SCENE_SHIFT" \
   -B "$CROP_BOX" \
   -H 0 \
   "$ALIGNED"
