@@ -1,0 +1,10 @@
+# aislop configuration.
+#
+# format engine OFF: this repo's formatter authority is its own Biome (2.5.x,
+# `bun run check`, enforced in CI and the PostToolUse hook). aislop bundles an
+# older Biome whose output disagrees on line wrapping, so its format engine
+# flags every Biome-formatted file and `aislop fix` reformats them only for
+# project Biome to revert — a pure tool-version conflict, not a real finding.
+# All other engines stay on.
+engines:
+  format: false
