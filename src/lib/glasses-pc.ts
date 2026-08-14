@@ -1,5 +1,5 @@
 import * as pc from 'playcanvas'
-import { LENS_FRAGMENT_GLSL, LENS_VERTEX_GLSL } from './glasses-shaders'
+import { LENS_VERTEX_GLSL, lensFragmentGLSL } from './glasses-shaders'
 import { renderComponents } from './pc-utils'
 
 // Origin-prefixed on purpose: AssetRegistry prepends assets.prefix (the
@@ -155,7 +155,7 @@ function createLensMaterial(
   const m = new pc.ShaderMaterial({
     uniqueName: `progressive-lens-${xMin}-${xMax}-${yMin}-${yMax}`,
     vertexGLSL: LENS_VERTEX_GLSL,
-    fragmentGLSL: LENS_FRAGMENT_GLSL,
+    fragmentGLSL: lensFragmentGLSL(pc.platform.touch ? 8 : 16),
     attributes: { vertex_position: pc.SEMANTIC_POSITION },
   })
   m.setParameter('uMinX', xMin)

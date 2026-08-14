@@ -1,5 +1,5 @@
 import * as pc from 'playcanvas'
-import { IMPAIRED_FRAGMENT_GLSL, IMPAIRED_VERTEX_GLSL } from './glasses-shaders'
+import { IMPAIRED_VERTEX_GLSL, impairedFragmentGLSL } from './glasses-shaders'
 
 const IMPAIRED_BLUR_RADIUS_PX = 16.0
 const IMPAIRED_CHROMA_STRENGTH = 0.001
@@ -42,7 +42,7 @@ function setupImpairedVisionOverlay(app: pc.AppBase) {
   const material = new pc.ShaderMaterial({
     uniqueName: 'impaired-vision-overlay',
     vertexGLSL: IMPAIRED_VERTEX_GLSL,
-    fragmentGLSL: IMPAIRED_FRAGMENT_GLSL,
+    fragmentGLSL: impairedFragmentGLSL(!pc.platform.touch),
     attributes: { vertex_position: pc.SEMANTIC_POSITION },
   })
   material.setParameter('uBlurRadius', IMPAIRED_BLUR_RADIUS_PX)

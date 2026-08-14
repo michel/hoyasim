@@ -34,7 +34,10 @@ void main(void) {
 // the pre-overlay scene grab) AND re-introduces a controlled peripheral blur in
 // the two lower corners — the progressive "soft zone". The size of that soft
 // zone is the only thing that differs between the three products.
-export const LENS_FRAGMENT_GLSL = `
+// taps: soft-zone blur kernel size. Mobile GPUs are fill-bound, so touch
+// devices compile an 8-tap kernel (visually equivalent at their reduced pixel
+// ratio); desktop keeps the full 16.
+export const lensFragmentGLSL = (taps: number) => `
 precision highp float;
 uniform sampler2D uSceneColorMap;
 uniform vec4 uScreenSize;
@@ -78,10 +81,10 @@ vec3 softBlur(vec2 base, vec3 center) {
   vec2 r = uScreenSize.zw * uBlurMax;
   vec3 c = center;
   float w = 1.0;
-  for (int i = 1; i <= 16; i++) {
+  for (int i = 1; i <= ${taps}; i++) {
     float fi = float(i);
     float ang = fi * 2.39996323;   // golden angle
-    float rad = sqrt(fi / 16.0);   // even area coverage
+    float rad = sqrt(fi / ${taps}.0);  // even area coverage
     vec2 s = base + r * (rad * vec2(cos(ang), sin(ang)));
     float k = inBounds(s);
     c += texture(uSceneColorMap, s).rgb * k;
@@ -180,7 +183,11 @@ void main(void) { gl_Position = vec4(vertex_position.xy, 0.0, 1.0); }
 
 // Full-screen "uncorrected vision" overlay: blur + chromatic aberration. This
 // is the world the lenses correct; it stays on for the whole session.
-export const IMPAIRED_FRAGMENT_GLSL = `
+// chroma: per-channel offset blurs (3x the taps) for chromatic aberration.
+// The offset is sub-pixel on phones (uChroma 0.001 at <=0.5 device pixel
+// ratio), so touch devices compile the single-blur variant — a third of the
+// heaviest full-screen pass — with no visible difference.
+export const impairedFragmentGLSL = (chroma: boolean) => `
 precision highp float;
 uniform sampler2D uSceneColorMap;
 uniform vec4 uScreenSize;
@@ -212,12 +219,18 @@ void main(void) {
   // and B shift radially in opposite directions; G stays centered. Since all
   // three reads are blurred (not sharp), there's no fringing when uChroma = 0
   // — the offset just collapses and all three sample the same place.
+${
+  chroma
+    ? `
   vec2 dir = uv - vec2(0.5);
   vec2 off = dir * uChroma;
   vec3 cR = blur9(uv + off, px);
   vec3 cG = blur9(uv, px);
   vec3 cB = blur9(uv - off, px);
-  vec3 impaired = vec3(cR.r, cG.g, cB.b);
+  vec3 impaired = vec3(cR.r, cG.g, cB.b);`
+    : `
+  vec3 impaired = blur9(uv, px);`
+}
   // uStrength is a uniform, so this branch is uniform across the draw; once the
   // fade-in pins it at 1 the full-screen sharp tap + mix is skipped entirely.
   if (uStrength >= 1.0) {
