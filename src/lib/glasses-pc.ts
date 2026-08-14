@@ -6,7 +6,7 @@ import {
   startTrace,
 } from './glasses-anim'
 import { LENS_VERTEX_GLSL, lensFragmentGLSL } from './glasses-shaders'
-import { renderComponents } from './pc-utils'
+import { blurPixelScale, renderComponents } from './pc-utils'
 
 // Origin-prefixed on purpose: AssetRegistry prepends assets.prefix (the
 // playcanvas project path) to any URL its ABSOLUTE_URL regex doesn't match,
@@ -134,6 +134,7 @@ function createLensMaterial(
   xMax: number,
   yMin: number,
   yMax: number,
+  blurScale: number,
 ): pc.ShaderMaterial {
   const m = new pc.ShaderMaterial({
     uniqueName: `progressive-lens-${xMin}-${xMax}-${yMin}-${yMax}`,
@@ -145,7 +146,7 @@ function createLensMaterial(
   m.setParameter('uMaxX', xMax)
   m.setParameter('uMinY', yMin)
   m.setParameter('uMaxY', yMax)
-  m.setParameter('uBlurMax', SOFT_ZONE_BLUR_MAX_PX)
+  m.setParameter('uBlurMax', SOFT_ZONE_BLUR_MAX_PX * blurScale)
   m.setParameter('uLineTrace', 0)
   m.setParameter('uLineFade', 0)
   // Overwritten every frame by createLensCenterUpdate; a sane default covers
@@ -228,6 +229,7 @@ function buildSide(
   frameAsset: pc.Asset,
   frameMat: pc.Material,
   cameraEntity: pc.Entity,
+  blurScale: number,
 ): BuiltSide {
   const group = new pc.Entity(cfg.name)
 
@@ -235,7 +237,7 @@ function buildSide(
     lensAsset.resource as pc.ContainerResource
   ).instantiateRenderEntity()
   const { xMin, xMax, zMin, zMax } = localBounds(lens)
-  const material = createLensMaterial(xMin, xMax, zMin, zMax)
+  const material = createLensMaterial(xMin, xMax, zMin, zMax, blurScale)
   applyMaterial(lens, material)
   setLayer(lens, pc.LAYERID_IMMEDIATE)
 
@@ -320,8 +322,16 @@ export async function setupLenses(
   )
 
   const frameMat = createFrameMaterial()
+  const blurScale = blurPixelScale(app)
   const built = SIDES.map((cfg, i) =>
-    buildSide(cfg, sideAssets[i][0], sideAssets[i][1], frameMat, cameraEntity),
+    buildSide(
+      cfg,
+      sideAssets[i][0],
+      sideAssets[i][1],
+      frameMat,
+      cameraEntity,
+      blurScale,
+    ),
   )
   const glassesGroups = built.map((b) => b.group)
   // Rest position per group, captured so the entrance animation can lerp the
