@@ -70,7 +70,6 @@ const BIKE_ASSET_NAME = 'bike.glb'
 // Tuned visually; don't go below ~1.45 — high-contrast cockpit detail that low
 // in the lens's reading zone scatters into ghost copies under the soft blur.
 const BIKE_SCALE = 1.05
-const BIKE_EULER: [number, number, number] = [0, 0, 0]
 // Vertical lift off the road, tuned visually so the bike sits in frame. Raises
 // the cockpit out of the v03 capture's brick road (at 0 the model sat sunk to
 // the handlebars); a full geometric wheel-seat (+0.29) shoves the bar into the
@@ -84,6 +83,10 @@ const BIKE_Y = 0.12
 // higher = brighter but washes out. Tuned visually.
 const BIKE_SCREEN_MATERIAL = 'Screen'
 const BIKE_SCREEN_EMISSIVE = 0.6
+// Camera's local position under the rig. The scene JSON bakes (-0.01, 0.378,
+// 0.06); this overrides it to sit closer to the bike — lower Y and smaller Z
+// pull it down/forward toward the cockpit. Tuned visually.
+const CAMERA_POS: [number, number, number] = [-0.01, 0.3, 0.02]
 
 // The GLB models the left-hand traffic light; setupTrafficLight plants it plus a
 // mirrored right-hand copy so the pair spans the road. TRAFFIC_LIGHT_Z is the single
@@ -97,9 +100,7 @@ const TRAFFIC_LIGHT_ASSET_NAME = 'trafficlight.glb'
 // after the green before the wrap.
 const TRAFFIC_LIGHT_Z = -4.9
 const TRAFFIC_LIGHT_X = 1.4
-const TRAFFIC_LIGHT_Y = 0.0
 const TRAFFIC_LIGHT_SCALE = 0.33
-const TRAFFIC_LIGHT_EULER: [number, number, number] = [0, 0, 0]
 // The bike stops this far ahead of (i.e. +Z of) the lights, eases off over
 // SLOWDOWN units, and idles at the stop line for WAIT seconds each lap.
 const TRAFFIC_LIGHT_STOP_OFFSET = 2.0
@@ -155,7 +156,6 @@ function createApp(
     useMouse: true,
     useTouch: true,
   })
-  createOptions.keyboard = new pc.Keyboard(window)
   createOptions.mouse = new pc.Mouse(canvas)
   if (pc.platform.touch) createOptions.touch = new pc.TouchDevice(canvas)
 
@@ -290,7 +290,6 @@ function setupRig(app: pc.AppBase) {
       speed: (CYCLE_FORWARD_BASE_SPEED * OUTER_SCALE) / 5,
       startZ: START_Z,
       targetZ: TARGET_Z,
-      loop: true,
       stopZ: TRAFFIC_LIGHT_Z + TRAFFIC_LIGHT_STOP_OFFSET,
       slowDownDistance: TRAFFIC_LIGHT_SLOWDOWN,
       waitDuration: TRAFFIC_LIGHT_WAIT,
@@ -320,8 +319,7 @@ function setupTrafficLight(app: pc.AppBase) {
 function plantTrafficLight(app: pc.AppBase, x: number, scaleX: number, dz = 0) {
   const light = instantiateContainer(app, TRAFFIC_LIGHT_ASSET_NAME)
   if (!light) return
-  light.setLocalPosition(x, TRAFFIC_LIGHT_Y, TRAFFIC_LIGHT_Z + dz)
-  light.setLocalEulerAngles(...TRAFFIC_LIGHT_EULER)
+  light.setLocalPosition(x, 0, TRAFFIC_LIGHT_Z + dz)
   light.setLocalScale(scaleX, TRAFFIC_LIGHT_SCALE, TRAFFIC_LIGHT_SCALE)
   app.root.addChild(light)
   setupTrafficLightCycle(app, light)
@@ -395,7 +393,6 @@ function setupBike(app: pc.AppBase) {
     anchor.addChild(model)
   }
   anchor.setLocalPosition(0, BIKE_Y, 0)
-  anchor.setLocalEulerAngles(...BIKE_EULER)
   anchor.setLocalScale(BIKE_SCALE, BIKE_SCALE, BIKE_SCALE)
 }
 
@@ -431,7 +428,10 @@ function setupScene(app: pc.AppBase): pc.Entity | null {
 
   const cam = app.root.findByName(CAMERA_ENTITY_NAME)
   const cameraEntity = cam instanceof pc.Entity ? cam : null
-  if (cameraEntity) setupImpairedVision(app, cameraEntity)
+  if (cameraEntity) {
+    cameraEntity.setLocalPosition(...CAMERA_POS)
+    setupImpairedVision(app, cameraEntity)
+  }
 
   if (cameraEntity && tiles.length > 0)
     setupTileCulling(app, cameraEntity, tiles)

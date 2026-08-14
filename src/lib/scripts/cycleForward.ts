@@ -1,7 +1,6 @@
 import * as pc from 'playcanvas'
 
 export const CYCLE_FORWARD_BASE_SPEED = 1
-const SHIFT_MULT = 5
 // Linear-in-distance deceleration only reaches zero asymptotically; snap to the
 // stop line once this close so the bike comes to a clean, exact halt.
 const STOP_EPSILON = 0.03
@@ -10,7 +9,6 @@ interface CycleForwardInstance extends pc.ScriptType {
   speed: number
   startZ: number
   targetZ: number
-  loop: boolean
   // Traffic-light stop gate (disabled when slowDownDistance <= 0).
   stopZ: number
   slowDownDistance: number
@@ -27,7 +25,6 @@ export function registerCycleForward(app: pc.AppBase) {
   CycleForward.attributes.add('speed', { type: 'number', default: 4 })
   CycleForward.attributes.add('startZ', { type: 'number', default: 11 })
   CycleForward.attributes.add('targetZ', { type: 'number', default: -30 })
-  CycleForward.attributes.add('loop', { type: 'boolean', default: false })
   CycleForward.attributes.add('stopZ', { type: 'number', default: 0 })
   CycleForward.attributes.add('slowDownDistance', {
     type: 'number',
@@ -40,21 +37,6 @@ export function registerCycleForward(app: pc.AppBase) {
       this._stopped = false
       this._waited = false
       this._waitTimer = 0
-      const base = this.speed
-      const keyboard = this.app.keyboard
-      if (keyboard) {
-        const onKey = () => {
-          this.speed = keyboard.isPressed(pc.KEY_SHIFT)
-            ? base * SHIFT_MULT
-            : base
-        }
-        keyboard.on(pc.EVENT_KEYDOWN, onKey)
-        keyboard.on(pc.EVENT_KEYUP, onKey)
-        this.on('destroy', () => {
-          keyboard.off(pc.EVENT_KEYDOWN, onKey)
-          keyboard.off(pc.EVENT_KEYUP, onKey)
-        })
-      }
     },
 
     update(this: CycleForwardInstance, dt: number) {
@@ -85,16 +67,12 @@ export function registerCycleForward(app: pc.AppBase) {
 
       let nextZ = z - effSpeed * dt
 
+      // Loop: wrap back to the start, carrying the overshoot for a seamless snap.
       if (nextZ <= this.targetZ) {
-        if (this.loop) {
-          const overshoot = this.targetZ - nextZ
-          nextZ = this.startZ - overshoot
-          this._stopped = false
-          this._waited = false
-          this._waitTimer = 0
-        } else {
-          nextZ = this.targetZ
-        }
+        nextZ = this.startZ - (this.targetZ - nextZ)
+        this._stopped = false
+        this._waited = false
+        this._waitTimer = 0
       }
 
       this.entity.setLocalPosition(pos.x, pos.y, nextZ)
