@@ -20,7 +20,26 @@ interface CycleForwardInstance extends pc.ScriptType {
   _waitTimer: number
 }
 
-export function registerCycleForward(app: pc.AppBase) {
+// Piecewise-linear lateral lane path: [worldZ, worldX] samples ordered from
+// high z (lap start) to low z (wrap). The captured street is not perfectly
+// straight — its centerline wanders ±0.3 world units — so the rig follows this
+// measured path like a real cyclist instead of riding a fixed x, which read as
+// the bike slowly veering off the road.
+export type LanePath = [number, number][]
+
+function laneX(path: LanePath, z: number): number {
+  if (z >= path[0][0]) return path[0][1]
+  for (let i = 1; i < path.length; i++) {
+    const [z1, x1] = path[i]
+    if (z >= z1) {
+      const [z0, x0] = path[i - 1]
+      return x0 + ((x0 - x1) * (z - z0)) / (z0 - z1)
+    }
+  }
+  return path[path.length - 1][1]
+}
+
+export function registerCycleForward(app: pc.AppBase, lanePath?: LanePath) {
   const CycleForward = pc.createScript('cycleForward', app)
   if (!CycleForward) throw new Error('Failed to create CycleForward script')
 
@@ -97,7 +116,8 @@ export function registerCycleForward(app: pc.AppBase) {
         }
       }
 
-      this.entity.setLocalPosition(pos.x, pos.y, nextZ)
+      const nextX = lanePath ? laneX(lanePath, nextZ) : pos.x
+      this.entity.setLocalPosition(nextX, pos.y, nextZ)
     },
   })
 }

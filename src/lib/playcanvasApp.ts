@@ -9,6 +9,7 @@ import { setupImpairedVision } from './impaired-vision'
 import { renderComponents } from './pc-utils'
 import {
   CYCLE_FORWARD_BASE_SPEED,
+  type LanePath,
   registerCycleForward,
 } from './scripts/cycleForward'
 import { type LookState, registerLookCamera } from './scripts/lookCamera'
@@ -100,7 +101,7 @@ const TRAFFIC_LIGHT_ASSET_NAME = 'trafficlight.glb'
 // A mid-block crossing stop ~37% through the lap (moved 20% of the loop
 // earlier from the crossroads at the user's request), leaving a long cruise
 // after the green before the wrap.
-const TRAFFIC_LIGHT_Z = -4.8
+const TRAFFIC_LIGHT_Z = -5.2
 const TRAFFIC_LIGHT_X = 1.3
 const TRAFFIC_LIGHT_Y = 0.0
 const TRAFFIC_LIGHT_SCALE = 0.46
@@ -110,6 +111,36 @@ const TRAFFIC_LIGHT_EULER: [number, number, number] = [0, 0, 0]
 const TRAFFIC_LIGHT_STOP_OFFSET = 2.0
 const TRAFFIC_LIGHT_SLOWDOWN = 3.3
 const TRAFFIC_LIGHT_WAIT = 3
+
+// The street's measured centerline wander, sampled from the bundle every 1.65
+// world units (red-brick-path lane-follower over the cropped span, smoothed,
+// zero-mean so the tuned riding line is preserved on average). First and last
+// entries are the same content point one loop period apart, so they are pinned
+// equal to keep the wrap seamless. Re-derive when the bundle's lateral
+// placement (SCENE_SHIFT/SCENE_YAW) or OUTER_SCALE changes.
+const LANE_PATH: LanePath = [
+  [9.81, 0.004],
+  [8.16, 0.237],
+  [6.51, 0.297],
+  [4.86, 0.228],
+  [3.21, 0.098],
+  [1.56, -0.071],
+  [-0.09, -0.073],
+  [-1.74, 0.018],
+  [-3.39, 0.131],
+  [-5.04, 0.14],
+  [-6.69, 0.129],
+  [-8.34, 0.074],
+  [-9.99, -0.062],
+  [-11.64, -0.122],
+  [-13.29, -0.122],
+  [-14.94, -0.031],
+  [-16.59, -0.129],
+  [-18.24, -0.213],
+  [-19.89, -0.307],
+  [-21.54, -0.229],
+  [-23.19, 0.004],
+]
 
 pc.dracoInitialize({
   jsUrl:
@@ -340,9 +371,14 @@ function plantTrafficLight(app: pc.AppBase, x: number, scaleX: number, dz = 0) {
 function setupTrafficLightCycle(app: pc.AppBase, light: pc.Entity) {
   const rig = app.root.findByName(RIG_ENTITY_NAME)
   if (!(rig instanceof pc.Entity)) return
-  const red = light.findByName('red')
-  const green = light.findByName('green')
-  const yellow = light.findByName('yellow')
+  // Bulb nodes by colour; the v02 model suffixes them ("red.001"), so match on
+  // the base name rather than exactly.
+  const bulb = (color: string) =>
+    light.find((n) => n.name === color || n.name.startsWith(`${color}.`))[0] ??
+    null
+  const red = bulb('red')
+  const green = bulb('green')
+  const yellow = bulb('yellow')
   const stopZ = TRAFFIC_LIGHT_Z + TRAFFIC_LIGHT_STOP_OFFSET
   let prevZ = rig.getLocalPosition().z
   const setBulb = (b: pc.GraphNode | null, on: boolean) =>
@@ -457,7 +493,7 @@ export async function bootApp(
   device.maxPixelRatio = Math.min(window.devicePixelRatio || 1, maxPixelRatio)
 
   registerLookCamera(app, lookState)
-  registerCycleForward(app)
+  registerCycleForward(app, LANE_PATH)
 
   app.setCanvasFillMode(pc.FILLMODE_FILL_WINDOW)
   app.setCanvasResolution(pc.RESOLUTION_AUTO)

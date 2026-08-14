@@ -335,8 +335,8 @@
       "name": "trafficlight.glb",
       "type": "container",
       "file": {
-        "hash": "e003f31e5e6a58217e1dc5f3f9e0fb80",
-        "size": 667504,
+        "hash": "d718bdc134d8fab5b6a3091c55fe7ade",
+        "size": 321520,
         "filename": "trafficlight.glb",
         "url": "assets/models/trafficlight.glb"
       },
