@@ -24,10 +24,10 @@ const MAX_PIXEL_RATIO_TOUCH = 0.5
 const MAX_PIXEL_RATIO_DESKTOP = 1.5
 
 // The lap window spans exactly the cropped bundle's street (local z
-// [-1.87, 3.17]): start at the north crop plane (world 5*3.17-11.64) and wrap
+// [-1.85, 3.25]): start at the north crop plane (world 5*3.25-11.64) and wrap
 // at the south one — the wrap lands on the identical spot in the next tile
 // copy, so the seams are only ever crossed at the moment of the snap.
-const START_Z = 4.2
+const START_Z = 4.6
 // The scene loops by tiling two copies of the splat LOOP_PERIOD apart (the rig
 // rides one period, then snaps back). The two tiles sit LOOP_PERIOD/OUTER_SCALE
 // apart in the splat's own local units. Since the 90-deg scene rotation the
@@ -36,7 +36,7 @@ const START_Z = 4.2
 // that span so consecutive copies butt road-to-road: 5.04 * OUTER_SCALE.
 // Larger would open a dead gap at the tile edge; smaller overlaps the copies
 // and the next block's houses punch through this block's.
-const LOOP_PERIOD = 25.2
+const LOOP_PERIOD = 25.5
 const TARGET_Z = START_Z - LOOP_PERIOD
 const OUTER_SCALE = 5
 // Inner gsplat is a child of the outer one; its local Z controls how far apart
@@ -66,7 +66,9 @@ const CAMERA_ENTITY_NAME = 'Camera'
 // Container asset name (config.json) and the bike's local transform under the rig.
 // Scale/rotation are tuned visually against the scene, not derived from the GLB.
 const BIKE_ASSET_NAME = 'bike.glb'
-const BIKE_SCALE = 1.85
+// Tuned visually; don't go below ~1.45 — high-contrast cockpit detail that low
+// in the lens's reading zone scatters into ghost copies under the soft blur.
+const BIKE_SCALE = 1.65
 const BIKE_EULER: [number, number, number] = [0, 0, 0]
 // Vertical lift off the road, tuned visually so the bike sits in frame. Raises
 // the cockpit out of the v03 capture's brick road (at 0 the model sat sunk to

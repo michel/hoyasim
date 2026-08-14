@@ -67,7 +67,9 @@ ALIGN_TRANSLATE="-2.49607,0.0503902,1.4554"
 # SCENE ROTATION (2026-08-14): the ride now follows the OTHER street of the
 # crossroads — the whole scene is turned 90 deg counter-clockwise (bird's eye).
 # Applied AFTER the alignment above, in the bundle-local frame:
-#   SCENE_YAW   -91.0 not -90: the two streets are ~1 deg off perpendicular.
+#   SCENE_YAW   -89.62 not -90: solved so the street runs parallel to the
+#               riding axis — measured by lane-following the red brick path's
+#               centerline (at -91.0 the path drifted 0.6 m left over a lap).
 #   SCENE_PITCH -0.7: this street has a real ~1.2% grade; a small X-rotation
 #               levels it so the flat-riding rig doesn't sink/float at the ends.
 #   SCENE_SHIFT recenters: carriageway onto x=0, road re-seated to local
@@ -76,19 +78,21 @@ ALIGN_TRANSLATE="-2.49607,0.0503902,1.4554"
 #               ⚠️ THIS trailing -t is applied with X AND Y sign-flipped (Z
 #               normal) — measured with unit probes; different from the leading
 #               -t above (only Y flips). Values below are the raw CLI args.
-SCENE_YAW="0,-91.0,0"
+SCENE_YAW="0,-89.62,0"
 SCENE_PITCH="-0.7,0,0"
-#               The extra +0.3 on X (vs the measured carriageway centre of
-#               1.253) shifts the world 1.5 world-units so the bike rides the
-#               street's LEFT lane (dashes on its right), tuned visually.
-SCENE_SHIFT="1.553,-0.0208,0.678"
+#               X places the red path's centerline ~0.12 local units to the
+#               bike's LEFT (world +x is the rider's LEFT when facing -z!), so
+#               the bike rides the street's RIGHT lane with the dashes on its
+#               left — lane offset tuned visually via the lane-follower
+#               calibration: center_local = -0.12 - (t_x - 1.53).
+SCENE_SHIFT="1.38,-0.0202,0.68"
 
-# The rideable street runs local z in [-1.87, +3.17] (5.04 units); beyond both
+# The rideable street runs local z in [-1.85, +3.25] (5.10 units); beyond both
 # ends it tees into houses. Crop to exactly that span so consecutive tile
 # copies butt road-to-road and the rig wraps at the crop planes
 # (LOOP_PERIOD/START_Z in playcanvasApp.ts are derived from these numbers).
 # Box is min-corner,max-corner in the final (post-rotation) frame.
-CROP_BOX="-1000,-1000,-1.87,1000,1000,3.17"
+CROP_BOX="-1000,-1000,-1.85,1000,1000,3.25"
 
 echo "===== PASS 1: align to scene frame + strip SH ====="
 bunx @playcanvas/splat-transform -w "$SRC" \
