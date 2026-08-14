@@ -29,7 +29,7 @@ import sys
 import numpy as np
 
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-BUNDLE = os.path.join(REPO, "public/playcanvas/assets/splat-v6")
+BUNDLE = os.path.join(REPO, "public/playcanvas/assets/splat-v7")
 FMT = {"float": "f4", "double": "f8", "uchar": "u1", "int": "i4",
        "uint": "u4", "short": "i2", "ushort": "u2"}
 

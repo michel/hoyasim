@@ -50,7 +50,7 @@ SRC="${SRC:-$HOME/Downloads/Aanlevermap/Cleaned Up/Omgeving - v03 -100k.compress
 # chunk data (only lod-meta.json gets a cache-busting hash in config.json).
 # Bump the suffix on every rebuild that changes geometry, and update the
 # asset url in public/playcanvas/config.json to match.
-OUT="${OUT:-public/playcanvas/assets/splat-v6}"  # shipped bundle location
+OUT="${OUT:-public/playcanvas/assets/splat-v7}"  # shipped bundle location
 ALIGNED="${ALIGNED:-/tmp/splat_aligned.ply}"     # PASS 1 intermediate (0-SH, in-frame)
 
 # similarity transform: new-capture local frame -> current shipped frame.
@@ -92,10 +92,9 @@ ALIGN_TRANSLATE="-2.49607,0.0503902,1.4554"
 #               -t above (only Y flips). Values below are the raw CLI args.
 SCENE_YAW="0,90.91,0"
 SCENE_PITCH="0.7,0,0"
-#               X puts the bike on the street's LEFT side (dashes on its
-#               right) — the user's preferred lane for the flipped direction,
-#               approved visually. d(road_center_x)/d(t_x) = -1.
-SCENE_SHIFT="-1.417,-0.0202,0.73"
+#               X puts the bike on the street's RIGHT side (dashes on its
+#               left). d(road_center_x)/d(t_x) = -1.
+SCENE_SHIFT="-1.517,-0.0202,0.73"
 
 # The rideable street runs local z in [-1.85, +3.25] (5.10 units); beyond both
 # ends it tees into houses. Crop to exactly that span, then FEATHER the last
@@ -120,6 +119,13 @@ bunx @playcanvas/splat-transform -w "$SRC" \
   -B "$CROP_BOX" \
   -H 0 \
   "$ALIGNED"
+
+echo "===== straighten the road ====="
+# The capture's street has a real ~30 cm S-bend; the bike rides a straight
+# line, so the curve reads as weaving. De-warp: x -= f(z) with f the measured
+# road centerline — road exactly straight, tile joint exact. Must run BEFORE
+# the edge feather (the fade bands must see the straightened road).
+python3 scripts/straighten-road.py "$ALIGNED"
 
 echo "===== feather tile-joint edges ====="
 # shellcheck disable=SC2086
