@@ -23,22 +23,28 @@ const SCENE_PATH = `${PROJECT_PREFIX}2483428.json`
 const MAX_PIXEL_RATIO_TOUCH = 0.5
 const MAX_PIXEL_RATIO_DESKTOP = 1.5
 
+// World magnification of the splat tiles (applied to the outer tile in
+// setupScene, overriding the scene JSON's baked 5). Raised from 5 to 6 so the
+// environment reads larger around the fixed-size bike/camera — the bike then
+// sits in proper proportion instead of dwarfing the street. Every world-space
+// constant below derives from it; the rig speed is scaled to match so the
+// perceived riding pace is unchanged.
+const OUTER_SCALE = 6
 // The lap window spans exactly the cropped bundle's street (local z
-// [-1.85, 3.25]): start at the north crop plane (world 5*3.25-11.64) and wrap
-// at the south one — the wrap lands on the identical spot in the next tile
-// copy, so the seams are only ever crossed at the moment of the snap.
-const START_Z = 4.6
+// [-1.85, 3.25]): start at the north crop plane (OUTER_SCALE*3.25 - 11.64) and
+// wrap at the south one — the wrap lands on the identical spot in the next
+// tile copy, so the seams are only ever crossed at the moment of the snap.
+const START_Z = 7.9
 // The scene loops by tiling two copies of the splat LOOP_PERIOD apart (the rig
 // rides one period, then snaps back). The two tiles sit LOOP_PERIOD/OUTER_SCALE
 // apart in the splat's own local units. Since the 90-deg scene rotation the
 // ride follows the capture's cross street, cropped to its rideable span of
-// 5.04 local units (see CROP_BOX in build-splat.sh) — the separation equals
-// that span so consecutive copies butt road-to-road: 5.04 * OUTER_SCALE.
+// 5.10 local units (see CROP_BOX in build-splat.sh) — the separation equals
+// that span so consecutive copies butt road-to-road: 5.10 * OUTER_SCALE.
 // Larger would open a dead gap at the tile edge; smaller overlaps the copies
 // and the next block's houses punch through this block's.
-const LOOP_PERIOD = 25.5
+const LOOP_PERIOD = 30.6
 const TARGET_Z = START_Z - LOOP_PERIOD
-const OUTER_SCALE = 5
 // Inner gsplat is a child of the outer one; its local Z controls how far apart
 // the two tiles sit in world space (multiplied by the outer's scale).
 const INNER_LOCAL_Z = -LOOP_PERIOD / OUTER_SCALE
@@ -95,14 +101,15 @@ const TRAFFIC_LIGHT_ASSET_NAME = 'trafficlight.glb'
 // build-splat.sh places the junction there — so the bike now stops at a real
 // intersection, ~57% through the lap, with an 11-unit run-out to the wrap.
 const TRAFFIC_LIGHT_Z = -11.5
-const TRAFFIC_LIGHT_X = 1.0
+const TRAFFIC_LIGHT_X = 1.2
 const TRAFFIC_LIGHT_Y = 0.0
-const TRAFFIC_LIGHT_SCALE = 0.35
+const TRAFFIC_LIGHT_SCALE = 0.42
 const TRAFFIC_LIGHT_EULER: [number, number, number] = [0, 0, 0]
 // The bike stops this far ahead of (i.e. +Z of) the lights, eases off over
 // SLOWDOWN units, and idles at the stop line for WAIT seconds each lap.
-const TRAFFIC_LIGHT_STOP_OFFSET = 1.5
-const TRAFFIC_LIGHT_SLOWDOWN = 2.5
+// 1.8 puts the stop line on the crossroads (OUTER_SCALE*0.33 - 11.64 = -9.66).
+const TRAFFIC_LIGHT_STOP_OFFSET = 1.8
+const TRAFFIC_LIGHT_SLOWDOWN = 3
 const TRAFFIC_LIGHT_WAIT = 3
 
 pc.dracoInitialize({
@@ -262,12 +269,13 @@ function configureGsplat(app: pc.AppBase, tiles: pc.Entity[]) {
 // rasterized output is fully clipped. When a tile drifts beyond one full loop
 // period from the camera, disable the entity so the sort is skipped entirely.
 function setupTileCulling(app: pc.AppBase, cam: pc.Entity, tiles: pc.Entity[]) {
-  // Threshold = the tile's north content extent from its origin (~16 world
-  // units) plus ~13 units of headroom, so a tile re-enables while its nearest
-  // content is still distant enough for fog to soften the stream-in.
-  // Deliberately NOT derived from LOOP_PERIOD — the loop length tracks the
-  // rideable street, while this tracks the capture's extent.
-  const cullThreshold = 29
+  // Threshold = the tile's north content extent from its origin
+  // (OUTER_SCALE * 3.25 ≈ 19.5 world units) plus ~13 units of headroom, so a
+  // tile re-enables while its nearest content is still distant enough for fog
+  // to soften the stream-in. Deliberately NOT derived from LOOP_PERIOD — the
+  // loop length tracks the rideable street, while this tracks the capture's
+  // extent.
+  const cullThreshold = 32.5
   app.on('update', () => {
     const camZ = cam.getPosition().z
     for (const tile of tiles)
@@ -282,7 +290,10 @@ function setupRig(app: pc.AppBase) {
   rig.addComponent('script')
   rig.script?.create('cycleForward', {
     attributes: {
-      speed: CYCLE_FORWARD_BASE_SPEED,
+      // World-units/sec, scaled with the world magnification (the scene JSON
+      // and the base speed were tuned at OUTER_SCALE 5) so the perceived
+      // riding pace stays the same when the world grows.
+      speed: (CYCLE_FORWARD_BASE_SPEED * OUTER_SCALE) / 5,
       startZ: START_Z,
       targetZ: TARGET_Z,
       loop: true,
@@ -409,6 +420,8 @@ function setupScene(app: pc.AppBase): pc.Entity | null {
   if (outerSplat instanceof pc.Entity) {
     const p = outerSplat.getLocalPosition()
     outerSplat.setLocalPosition(p.x, p.y, p.z + SPLAY_Z_OFFSET)
+    // The scene JSON bakes scale 5; OUTER_SCALE is authoritative (see its doc).
+    outerSplat.setLocalScale(OUTER_SCALE, OUTER_SCALE, OUTER_SCALE)
   }
   const tiles = [outerSplat, innerSplat].filter(
     (e): e is pc.Entity => e instanceof pc.Entity,
