@@ -29,12 +29,12 @@ const MAX_PIXEL_RATIO_DESKTOP = 1.5
 // sits in proper proportion instead of dwarfing the street. Every world-space
 // constant below derives from it; the rig speed is scaled to match so the
 // perceived riding pace is unchanged.
-const OUTER_SCALE = 6
+const OUTER_SCALE = 6.6
 // The lap window spans exactly the cropped bundle's street (local z
 // [-1.85, 3.25]): start at the north crop plane (OUTER_SCALE*3.25 - 11.64) and
 // wrap at the south one — the wrap lands on the identical spot in the next
 // tile copy, so the seams are only ever crossed at the moment of the snap.
-const START_Z = 7.9
+const START_Z = 9.8
 // The scene loops by tiling two copies of the splat LOOP_PERIOD apart (the rig
 // rides one period, then snaps back). The two tiles sit LOOP_PERIOD/OUTER_SCALE
 // apart in the splat's own local units. Since the 90-deg scene rotation the
@@ -43,7 +43,7 @@ const START_Z = 7.9
 // that span so consecutive copies butt road-to-road: 5.10 * OUTER_SCALE.
 // Larger would open a dead gap at the tile edge; smaller overlaps the copies
 // and the next block's houses punch through this block's.
-const LOOP_PERIOD = 30.6
+const LOOP_PERIOD = 33.66
 const TARGET_Z = START_Z - LOOP_PERIOD
 // Inner gsplat is a child of the outer one; its local Z controls how far apart
 // the two tiles sit in world space (multiplied by the outer's scale).
@@ -101,15 +101,15 @@ const TRAFFIC_LIGHT_ASSET_NAME = 'trafficlight.glb'
 // build-splat.sh places the junction there — so the bike now stops at a real
 // intersection, ~57% through the lap, with an 11-unit run-out to the wrap.
 const TRAFFIC_LIGHT_Z = -11.5
-const TRAFFIC_LIGHT_X = 1.2
+const TRAFFIC_LIGHT_X = 1.3
 const TRAFFIC_LIGHT_Y = 0.0
-const TRAFFIC_LIGHT_SCALE = 0.42
+const TRAFFIC_LIGHT_SCALE = 0.46
 const TRAFFIC_LIGHT_EULER: [number, number, number] = [0, 0, 0]
 // The bike stops this far ahead of (i.e. +Z of) the lights, eases off over
 // SLOWDOWN units, and idles at the stop line for WAIT seconds each lap.
-// 1.8 puts the stop line on the crossroads (OUTER_SCALE*0.33 - 11.64 = -9.66).
-const TRAFFIC_LIGHT_STOP_OFFSET = 1.8
-const TRAFFIC_LIGHT_SLOWDOWN = 3
+// 2.0 puts the stop line on the crossroads (OUTER_SCALE*0.33 - 11.64 = -9.46).
+const TRAFFIC_LIGHT_STOP_OFFSET = 2.0
+const TRAFFIC_LIGHT_SLOWDOWN = 3.3
 const TRAFFIC_LIGHT_WAIT = 3
 
 pc.dracoInitialize({
@@ -275,7 +275,7 @@ function setupTileCulling(app: pc.AppBase, cam: pc.Entity, tiles: pc.Entity[]) {
   // to soften the stream-in. Deliberately NOT derived from LOOP_PERIOD — the
   // loop length tracks the rideable street, while this tracks the capture's
   // extent.
-  const cullThreshold = 32.5
+  const cullThreshold = 34.5
   app.on('update', () => {
     const camZ = cam.getPosition().z
     for (const tile of tiles)

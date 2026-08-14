@@ -45,7 +45,12 @@ set -euo pipefail
 cd "$(dirname "$0")/.."
 
 SRC="${SRC:-$HOME/Downloads/Aanlevermap/Cleaned Up/Omgeving - v03 -100k.compressed2.ply}"  # raw capture (.ply, plain or compressed)
-OUT="${OUT:-public/playcanvas/assets/splat}"     # shipped bundle location
+# The directory name carries a version: chunk URLs inside the bundle are
+# otherwise identical across rebuilds, so browsers/CDNs happily serve STALE
+# chunk data (only lod-meta.json gets a cache-busting hash in config.json).
+# Bump the suffix on every rebuild that changes geometry, and update the
+# asset url in public/playcanvas/config.json to match.
+OUT="${OUT:-public/playcanvas/assets/splat-v2}"  # shipped bundle location
 ALIGNED="${ALIGNED:-/tmp/splat_aligned.ply}"     # PASS 1 intermediate (0-SH, in-frame)
 
 # similarity transform: new-capture local frame -> current shipped frame.
@@ -85,7 +90,7 @@ SCENE_PITCH="-0.7,0,0"
 #               the bike rides the street's RIGHT lane with the dashes on its
 #               left — lane offset tuned visually via the lane-follower
 #               calibration: center_local = -0.12 - (t_x - 1.53).
-SCENE_SHIFT="1.43,-0.0202,0.68"
+SCENE_SHIFT="1.46,-0.0202,0.68"
 
 # The rideable street runs local z in [-1.85, +3.25] (5.10 units); beyond both
 # ends it tees into houses. Crop to exactly that span so consecutive tile
