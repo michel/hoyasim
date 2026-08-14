@@ -29,16 +29,16 @@ const MAX_PIXEL_RATIO_DESKTOP = 1.5
 // sits in proper proportion instead of dwarfing the street. Every world-space
 // constant below derives from it; the rig speed is scaled to match so the
 // perceived riding pace is unchanged.
-const OUTER_SCALE = 6.6
+const OUTER_SCALE = 7.2
 // The lap window spans the bundle's rideable street (local z -1.75..+3.15):
 // start at the north end and wrap at the south one — the wrap lands on the
 // identical spot in the next tile copy.
-const START_Z = 9.1
+const START_Z = 11.0
 // The scene loops by tiling two copies of the splat LOOP_PERIOD apart (the rig
 // rides one period, then snaps back). The two tiles sit LOOP_PERIOD/OUTER_SCALE
 // apart in the splat's own local units — the separation equals the rideable
 // street span so consecutive copies butt road-to-road.
-const LOOP_PERIOD = 32.3
+const LOOP_PERIOD = 35.2
 const TARGET_Z = START_Z - LOOP_PERIOD
 // Inner gsplat is a child of the outer one; its local Z controls how far apart
 // the two tiles sit in world space (multiplied by the outer's scale).
@@ -69,7 +69,7 @@ const CAMERA_ENTITY_NAME = 'Camera'
 const BIKE_ASSET_NAME = 'bike.glb'
 // Tuned visually; don't go below ~1.45 — high-contrast cockpit detail that low
 // in the lens's reading zone scatters into ghost copies under the soft blur.
-const BIKE_SCALE = 1.2
+const BIKE_SCALE = 1.05
 const BIKE_EULER: [number, number, number] = [0, 0, 0]
 // Vertical lift off the road, tuned visually so the bike sits in frame. Raises
 // the cockpit out of the v03 capture's brick road (at 0 the model sat sunk to
@@ -95,10 +95,10 @@ const TRAFFIC_LIGHT_ASSET_NAME = 'trafficlight.glb'
 // A mid-block crossing stop ~37% through the lap (moved 20% of the loop
 // earlier from the crossroads at the user's request), leaving a long cruise
 // after the green before the wrap.
-const TRAFFIC_LIGHT_Z = -5.5
-const TRAFFIC_LIGHT_X = 1.3
+const TRAFFIC_LIGHT_Z = -4.9
+const TRAFFIC_LIGHT_X = 1.4
 const TRAFFIC_LIGHT_Y = 0.0
-const TRAFFIC_LIGHT_SCALE = 0.3
+const TRAFFIC_LIGHT_SCALE = 0.33
 const TRAFFIC_LIGHT_EULER: [number, number, number] = [0, 0, 0]
 // The bike stops this far ahead of (i.e. +Z of) the lights, eases off over
 // SLOWDOWN units, and idles at the stop line for WAIT seconds each lap.
@@ -269,7 +269,7 @@ function setupTileCulling(app: pc.AppBase, cam: pc.Entity, tiles: pc.Entity[]) {
   // to soften the stream-in. Deliberately NOT derived from LOOP_PERIOD — the
   // loop length tracks the rideable street, while this tracks the capture's
   // extent.
-  const cullThreshold = 40
+  const cullThreshold = 42
   app.on('update', () => {
     const camZ = cam.getPosition().z
     for (const tile of tiles)
