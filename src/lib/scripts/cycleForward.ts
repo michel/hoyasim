@@ -20,26 +20,7 @@ interface CycleForwardInstance extends pc.ScriptType {
   _waitTimer: number
 }
 
-// Piecewise-linear lateral lane path: [worldZ, worldX] samples ordered from
-// high z (lap start) to low z (wrap). The captured street is not perfectly
-// straight — its centerline wanders ±0.3 world units — so the rig follows this
-// measured path like a real cyclist instead of riding a fixed x, which read as
-// the bike slowly veering off the road.
-export type LanePath = [number, number][]
-
-function laneX(path: LanePath, z: number): number {
-  if (z >= path[0][0]) return path[0][1]
-  for (let i = 1; i < path.length; i++) {
-    const [z1, x1] = path[i]
-    if (z >= z1) {
-      const [z0, x0] = path[i - 1]
-      return x0 + ((x0 - x1) * (z - z0)) / (z0 - z1)
-    }
-  }
-  return path[path.length - 1][1]
-}
-
-export function registerCycleForward(app: pc.AppBase, lanePath?: LanePath) {
+export function registerCycleForward(app: pc.AppBase) {
   const CycleForward = pc.createScript('cycleForward', app)
   if (!CycleForward) throw new Error('Failed to create CycleForward script')
 
@@ -116,21 +97,7 @@ export function registerCycleForward(app: pc.AppBase, lanePath?: LanePath) {
         }
       }
 
-      if (lanePath) {
-        this.entity.setLocalPosition(laneX(lanePath, nextZ), pos.y, nextZ)
-        // Steer into the path: yaw the rig toward the travel direction so the
-        // camera turns through the street's curve like a ridden bike, instead
-        // of translating sideways (which reads as drifting off course).
-        const ahead = 2
-        const dx = laneX(lanePath, nextZ - ahead) - laneX(lanePath, nextZ)
-        this.entity.setLocalEulerAngles(
-          0,
-          (Math.atan2(-dx, ahead) * 180) / Math.PI,
-          0,
-        )
-      } else {
-        this.entity.setLocalPosition(pos.x, pos.y, nextZ)
-      }
+      this.entity.setLocalPosition(pos.x, pos.y, nextZ)
     },
   })
 }

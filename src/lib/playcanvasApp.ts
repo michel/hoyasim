@@ -9,7 +9,6 @@ import { setupImpairedVision } from './impaired-vision'
 import { renderComponents } from './pc-utils'
 import {
   CYCLE_FORWARD_BASE_SPEED,
-  type LanePath,
   registerCycleForward,
 } from './scripts/cycleForward'
 import { type LookState, registerLookCamera } from './scripts/lookCamera'
@@ -110,37 +109,6 @@ const TRAFFIC_LIGHT_EULER: [number, number, number] = [0, 0, 0]
 const TRAFFIC_LIGHT_STOP_OFFSET = 2.0
 const TRAFFIC_LIGHT_SLOWDOWN = 3.3
 const TRAFFIC_LIGHT_WAIT = 3
-
-// The street's measured centerline wander (red-brick-path lane-follower over
-// the cropped span), smoothed with a PERIODIC kernel around the whole loop so
-// only the street's macro curve survives — sample noise read as weaving — and
-// the first/last entries (one loop period apart) stay continuous for a
-// seamless wrap. Zero-mean, so the tuned riding line is preserved on average.
-// Re-derive when the bundle's lateral placement (SCENE_SHIFT/SCENE_YAW) or
-// OUTER_SCALE changes.
-const LANE_PATH: LanePath = [
-  [8.1, 0.065],
-  [6.5, 0.146],
-  [4.9, 0.158],
-  [3.3, 0.094],
-  [1.7, 0.04],
-  [0.1, 0.018],
-  [-1.5, 0.024],
-  [-3.1, 0.062],
-  [-4.7, 0.095],
-  [-6.3, 0.09],
-  [-7.9, 0.047],
-  [-9.5, -0.005],
-  [-11.1, -0.045],
-  [-12.7, -0.08],
-  [-14.3, -0.111],
-  [-15.9, -0.143],
-  [-17.5, -0.178],
-  [-19.1, -0.188],
-  [-20.7, -0.122],
-  [-22.3, -0.032],
-  [-23.9, 0.065],
-]
 
 pc.dracoInitialize({
   jsUrl:
@@ -493,7 +461,7 @@ export async function bootApp(
   device.maxPixelRatio = Math.min(window.devicePixelRatio || 1, maxPixelRatio)
 
   registerLookCamera(app, lookState)
-  registerCycleForward(app, LANE_PATH)
+  registerCycleForward(app)
 
   app.setCanvasFillMode(pc.FILLMODE_FILL_WINDOW)
   app.setCanvasResolution(pc.RESOLUTION_AUTO)
