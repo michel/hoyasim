@@ -51,6 +51,12 @@ uniform float uFeather;       // ramp width from sharp -> blurred
 uniform float uBlurMax;       // max soft-zone blur radius, pixels
 uniform float uLineTrace;     // 0..1 boundary-line reveal progress (sweeps the trace on)
 uniform float uLineFade;      // 0..1 boundary-line opacity (handles the fade-out)
+// This lens's own optical centre in screen UV, updated per frame from the lens
+// mesh's projected position. The multifocal displacement scales around THIS
+// point — never around the shared screen centre, which let a lens's magnified
+// zone reach across the nose bridge and duplicate content from the other half
+// of the screen (most visibly the handlebar phones on wide/mobile aspects).
+uniform vec2 uLensCenter;
 in vec3 vLocalPos;
 
 const float POWER = ${MULTIFOCAL_POWER.toFixed(3)};
@@ -106,13 +112,17 @@ void main(void) {
   float lensY = clamp((vLocalPos.z - uMinY) / (uMaxY - uMinY), 0.0, 1.0);
   float factor = (CENTER_Y - lensY) * 2.0 * POWER;
 
-  vec2 center = vec2(0.5);
-  // Per-axis tanh asymptote keeps the displaced sample inside [0.001, 0.999]
-  // so minification at the corners never clamps into axis-aligned streaks.
-  vec2 d = (screenUV - center) * (1.0 + factor);
-  d.x = 0.499 * tanh(d.x / 0.499);
-  d.y = 0.499 * tanh(d.y / 0.499);
-  vec2 sampleUV = center + d;
+  vec2 center = uLensCenter;
+  // Displace around this lens's own centre; cap the DISPLACEMENT (sample minus
+  // fragment position, not the radius) with a tanh asymptote so the sample can
+  // shift at most ~2.5% of the screen away from the true content under this
+  // pixel. Magnify/minify then stay local to the lens: the sample can never
+  // wander across the nose bridge into the other lens's half of the grab, at
+  // any aspect ratio or look direction.
+  vec2 disp = (screenUV - center) * factor;
+  disp.x = 0.025 * tanh(disp.x / 0.025);
+  disp.y = 0.025 * tanh(disp.y / 0.025);
+  vec2 sampleUV = screenUV + disp;
 
   // Fade alpha to 0 before the displaced sample reaches the screen edge, so the
   // (blurred) underlying world shows through instead of a clamped streak.

@@ -165,6 +165,9 @@ function createLensMaterial(
   m.setParameter('uBlurMax', SOFT_ZONE_BLUR_MAX_PX)
   m.setParameter('uLineTrace', 0)
   m.setParameter('uLineFade', 0)
+  // Overwritten every frame by createLensCenterUpdate; a sane default covers
+  // the frames before the first update.
+  m.setParameter('uLensCenter', [0.5, 0.5])
   applyProductUniforms(m, DEFAULT_LENS_PRODUCT)
   // Transparent so the lens renders AFTER the scene-color grab pass and can
   // sample uSceneColorMap.
@@ -290,6 +293,33 @@ function buildSide(
   }
 }
 
+// Per-frame: project each lens mesh's world centre into screen UV and hand it
+// to that lens's shader as uLensCenter — the point its multifocal displacement
+// scales around. Projected every frame (not once) so it tracks the entrance
+// drop, window resizes, and any camera/aspect change.
+function createLensCenterUpdate(
+  cameraEntity: pc.Entity,
+  sides: Record<LensSide, SideState | null>,
+) {
+  const screen = new pc.Vec3()
+  return () => {
+    const cam = cameraEntity.camera
+    if (!cam) return
+    const canvas = cam.system.app.graphicsDevice.canvas
+    const w = canvas.clientWidth
+    const h = canvas.clientHeight
+    if (!w || !h) return
+    for (const s of [sides.left, sides.right]) {
+      if (!s) continue
+      const aabb = renderComponents(s.lens)[0]?.meshInstances[0]?.aabb
+      if (!aabb) continue
+      cam.worldToScreen(aabb.center, screen)
+      // worldToScreen returns CSS pixels, y-down; gl_FragCoord UV is y-up.
+      s.material.setParameter('uLensCenter', [screen.x / w, 1 - screen.y / h])
+    }
+  }
+}
+
 // Per-frame trace ramp: sweep the dotted line on, hold, fade out. Costs nothing
 // while idle (no trace pending on either eye).
 function createTraceUpdate(sides: Record<LensSide, SideState | null>) {
@@ -381,7 +411,12 @@ export async function setupLenses(
   const sides: Record<LensSide, SideState | null> = { left: null, right: null }
   for (const b of built) sides[b.side] = b.state
 
-  const onUpdate = createTraceUpdate(sides)
+  const traceUpdate = createTraceUpdate(sides)
+  const lensCenterUpdate = createLensCenterUpdate(cameraEntity, sides)
+  const onUpdate = (dt: number) => {
+    traceUpdate(dt)
+    lensCenterUpdate()
+  }
   app.on('update', onUpdate)
 
   const entrance = createEntrance(app, glassesGroups, finalPositions, () => {
