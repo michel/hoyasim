@@ -103,7 +103,7 @@ const TRAFFIC_LIGHT_ASSET_NAME = 'trafficlight.glb'
 const TRAFFIC_LIGHT_Z = -5.5
 const TRAFFIC_LIGHT_X = 1.3
 const TRAFFIC_LIGHT_Y = 0.0
-const TRAFFIC_LIGHT_SCALE = 0.4
+const TRAFFIC_LIGHT_SCALE = 0.3
 const TRAFFIC_LIGHT_EULER: [number, number, number] = [0, 0, 0]
 // The bike stops this far ahead of (i.e. +Z of) the lights, eases off over
 // SLOWDOWN units, and idles at the stop line for WAIT seconds each lap.
@@ -111,33 +111,35 @@ const TRAFFIC_LIGHT_STOP_OFFSET = 2.0
 const TRAFFIC_LIGHT_SLOWDOWN = 3.3
 const TRAFFIC_LIGHT_WAIT = 3
 
-// The street's measured centerline wander, sampled from the bundle every 1.65
-// world units (red-brick-path lane-follower over the cropped span, smoothed,
-// zero-mean so the tuned riding line is preserved on average). First and last
-// entries are the same content point one loop period apart, so they are pinned
-// equal to keep the wrap seamless. Re-derive when the bundle's lateral
-// placement (SCENE_SHIFT/SCENE_YAW) or OUTER_SCALE changes.
+// The street's measured centerline wander (red-brick-path lane-follower over
+// the cropped span), smoothed with a PERIODIC kernel around the whole loop so
+// only the street's macro curve survives — sample noise read as weaving — and
+// the first/last entries (one loop period apart) stay continuous for a
+// seamless wrap. Zero-mean, so the tuned riding line is preserved on average.
+// Re-derive when the bundle's lateral placement (SCENE_SHIFT/SCENE_YAW) or
+// OUTER_SCALE changes.
 const LANE_PATH: LanePath = [
-  [8.1, 0.25],
-  [6.51, 0.277],
-  [4.86, 0.229],
-  [3.21, 0.101],
-  [1.56, -0.067],
-  [-0.09, -0.068],
-  [-1.74, 0.022],
-  [-3.39, 0.136],
-  [-5.04, 0.144],
-  [-6.69, 0.134],
-  [-8.34, 0.079],
-  [-9.99, -0.057],
-  [-11.64, -0.117],
-  [-13.29, -0.118],
-  [-14.94, -0.026],
-  [-16.59, -0.124],
-  [-18.24, -0.208],
-  [-19.89, -0.302],
-  [-21.54, -0.285],
-  [-23.9, 0.25],
+  [8.1, 0.065],
+  [6.5, 0.146],
+  [4.9, 0.158],
+  [3.3, 0.094],
+  [1.7, 0.04],
+  [0.1, 0.018],
+  [-1.5, 0.024],
+  [-3.1, 0.062],
+  [-4.7, 0.095],
+  [-6.3, 0.09],
+  [-7.9, 0.047],
+  [-9.5, -0.005],
+  [-11.1, -0.045],
+  [-12.7, -0.08],
+  [-14.3, -0.111],
+  [-15.9, -0.143],
+  [-17.5, -0.178],
+  [-19.1, -0.188],
+  [-20.7, -0.122],
+  [-22.3, -0.032],
+  [-23.9, 0.065],
 ]
 
 pc.dracoInitialize({

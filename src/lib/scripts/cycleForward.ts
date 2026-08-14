@@ -116,8 +116,21 @@ export function registerCycleForward(app: pc.AppBase, lanePath?: LanePath) {
         }
       }
 
-      const nextX = lanePath ? laneX(lanePath, nextZ) : pos.x
-      this.entity.setLocalPosition(nextX, pos.y, nextZ)
+      if (lanePath) {
+        this.entity.setLocalPosition(laneX(lanePath, nextZ), pos.y, nextZ)
+        // Steer into the path: yaw the rig toward the travel direction so the
+        // camera turns through the street's curve like a ridden bike, instead
+        // of translating sideways (which reads as drifting off course).
+        const ahead = 2
+        const dx = laneX(lanePath, nextZ - ahead) - laneX(lanePath, nextZ)
+        this.entity.setLocalEulerAngles(
+          0,
+          (Math.atan2(-dx, ahead) * 180) / Math.PI,
+          0,
+        )
+      } else {
+        this.entity.setLocalPosition(pos.x, pos.y, nextZ)
+      }
     },
   })
 }
