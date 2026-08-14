@@ -8,6 +8,9 @@
 // MySense from one another.
 const MULTIFOCAL_POWER = 0.055
 const MULTIFOCAL_CENTER_Y = 0.5
+// Brightness of the impaired (outside-lens) surround; < 1 darkens it so the
+// corrected lens view draws the eye.
+const IMPAIRED_DIM = 0.78
 
 // Weight a tap to 0 if its UV leaves [0,1] so edge texels aren't repeated into
 // the kernel sum — that's what produces axis-aligned streaks near the boundary.
@@ -231,6 +234,9 @@ ${
     : `
   vec3 impaired = blur9(uv, px);`
 }
+  // Dim the impaired surround so the corrected view through the lenses reads
+  // brighter by contrast — the eye goes to the clear, full-brightness glass.
+  impaired *= ${IMPAIRED_DIM.toFixed(2)};
   // uStrength is a uniform, so this branch is uniform across the draw; once the
   // fade-in pins it at 1 the full-screen sharp tap + mix is skipped entirely.
   if (uStrength >= 1.0) {
