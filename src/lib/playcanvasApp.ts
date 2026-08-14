@@ -83,10 +83,6 @@ const BIKE_Y = 0.12
 // higher = brighter but washes out. Tuned visually.
 const BIKE_SCREEN_MATERIAL = 'Screen'
 const BIKE_SCREEN_EMISSIVE = 0.6
-// Camera's local position under the rig. The scene JSON bakes (-0.01, 0.378,
-// 0.06); this overrides it to sit closer to the bike — lower Y and smaller Z
-// pull it down/forward toward the cockpit. Tuned visually.
-const CAMERA_POS: [number, number, number] = [-0.01, 0.3, 0.02]
 
 // The GLB models the left-hand traffic light; setupTrafficLight plants it plus a
 // mirrored right-hand copy so the pair spans the road. TRAFFIC_LIGHT_Z is the single
@@ -428,10 +424,7 @@ function setupScene(app: pc.AppBase): pc.Entity | null {
 
   const cam = app.root.findByName(CAMERA_ENTITY_NAME)
   const cameraEntity = cam instanceof pc.Entity ? cam : null
-  if (cameraEntity) {
-    cameraEntity.setLocalPosition(...CAMERA_POS)
-    setupImpairedVision(app, cameraEntity)
-  }
+  if (cameraEntity) setupImpairedVision(app, cameraEntity)
 
   if (cameraEntity && tiles.length > 0)
     setupTileCulling(app, cameraEntity, tiles)
