@@ -68,11 +68,11 @@ const CAMERA_ENTITY_NAME = 'Camera'
 const BIKE_ASSET_NAME = 'bike.glb'
 const BIKE_SCALE = 1.85
 const BIKE_EULER: [number, number, number] = [0, 0, 0]
-// Vertical lift off the road, tuned visually so the bike sits in frame. 0.12
-// raises the cockpit out of the v03 capture's brick road (at 0 the model sat
-// sunk to the handlebars); a full geometric wheel-seat (+0.29) shoves the bar
-// into the camera, so this stays a framing knob, not a physics one.
-const BIKE_Y = 0.12
+// Vertical lift off the road, tuned visually so the bike sits in frame. Raises
+// the cockpit out of the v03 capture's brick road (at 0 the model sat sunk to
+// the handlebars); a full geometric wheel-seat (+0.29) shoves the bar into the
+// camera, so this stays a framing knob, not a physics one.
+const BIKE_Y = 0.05
 // Material name (from bike.glb) of the e-bike's dashboard display. The texture is
 // a near-white nav-map screenshot, so the screen is rendered unlit (see
 // brightenBikeScreen) with the texture driven purely through emissive at BELOW 1
@@ -293,10 +293,16 @@ function setupRig(app: pc.AppBase) {
 
 // Plants the overhead traffic lights beside the road at the configured Z (parented
 // to the world root — static, so the looping rig passes them once per lap): the
-// left-hand GLB plus a right-hand mirror across the road centreline.
+// left-hand GLB plus a right-hand mirror across the road centreline. A second
+// pair stands one loop period further down, on the trailing tile's copy of the
+// crossroads: right after the wrap the nearest pair sits at exactly the same
+// relative distance as the far pair did just before it, so the lights loop as
+// seamlessly as the splat does (with one pair they pop in at the snap).
 function setupTrafficLight(app: pc.AppBase) {
-  plantTrafficLight(app, TRAFFIC_LIGHT_X, TRAFFIC_LIGHT_SCALE)
-  plantTrafficLight(app, -TRAFFIC_LIGHT_X, -TRAFFIC_LIGHT_SCALE)
+  for (const dz of [0, -LOOP_PERIOD]) {
+    plantTrafficLight(app, TRAFFIC_LIGHT_X, TRAFFIC_LIGHT_SCALE, dz)
+    plantTrafficLight(app, -TRAFFIC_LIGHT_X, -TRAFFIC_LIGHT_SCALE, dz)
+  }
 }
 
 // Instantiates one traffic-light container at lateral offset x, parents it to the
@@ -304,10 +310,10 @@ function setupTrafficLight(app: pc.AppBase) {
 // across the road centreline (X=0); paired with the negated x position that is an
 // exact reflection, so the right light's arm still reaches over the road and its faces
 // stay toward the oncoming bike (a 180° spin would face them away instead).
-function plantTrafficLight(app: pc.AppBase, x: number, scaleX: number) {
+function plantTrafficLight(app: pc.AppBase, x: number, scaleX: number, dz = 0) {
   const light = instantiateContainer(app, TRAFFIC_LIGHT_ASSET_NAME)
   if (!light) return
-  light.setLocalPosition(x, TRAFFIC_LIGHT_Y, TRAFFIC_LIGHT_Z)
+  light.setLocalPosition(x, TRAFFIC_LIGHT_Y, TRAFFIC_LIGHT_Z + dz)
   light.setLocalEulerAngles(...TRAFFIC_LIGHT_EULER)
   light.setLocalScale(scaleX, TRAFFIC_LIGHT_SCALE, TRAFFIC_LIGHT_SCALE)
   app.root.addChild(light)

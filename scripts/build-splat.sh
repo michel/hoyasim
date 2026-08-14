@@ -78,7 +78,10 @@ ALIGN_TRANSLATE="-2.49607,0.0503902,1.4554"
 #               -t above (only Y flips). Values below are the raw CLI args.
 SCENE_YAW="0,-91.0,0"
 SCENE_PITCH="-0.7,0,0"
-SCENE_SHIFT="1.253,-0.0208,0.678"
+#               The extra +0.3 on X (vs the measured carriageway centre of
+#               1.253) shifts the world 1.5 world-units so the bike rides the
+#               street's LEFT lane (dashes on its right), tuned visually.
+SCENE_SHIFT="1.553,-0.0208,0.678"
 
 # The rideable street runs local z in [-1.87, +3.17] (5.04 units); beyond both
 # ends it tees into houses. Crop to exactly that span so consecutive tile
