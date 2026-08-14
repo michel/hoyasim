@@ -50,7 +50,7 @@ SRC="${SRC:-$HOME/Downloads/Aanlevermap/Cleaned Up/Omgeving - v03 -100k.compress
 # chunk data (only lod-meta.json gets a cache-busting hash in config.json).
 # Bump the suffix on every rebuild that changes geometry, and update the
 # asset url in public/playcanvas/config.json to match.
-OUT="${OUT:-public/playcanvas/assets/splat-v4}"  # shipped bundle location
+OUT="${OUT:-public/playcanvas/assets/splat-v5}"  # shipped bundle location
 ALIGNED="${ALIGNED:-/tmp/splat_aligned.ply}"     # PASS 1 intermediate (0-SH, in-frame)
 
 # similarity transform: new-capture local frame -> current shipped frame.
@@ -72,9 +72,14 @@ ALIGN_TRANSLATE="-2.49607,0.0503902,1.4554"
 # SCENE ROTATION (2026-08-14): the ride now follows the OTHER street of the
 # crossroads — the whole scene is turned 90 deg counter-clockwise (bird's eye).
 # Applied AFTER the alignment above, in the bundle-local frame:
-#   SCENE_YAW   -89.62 not -90: solved so the street runs parallel to the
-#               riding axis — measured by lane-following the red brick path's
-#               centerline (at -91.0 the path drifted 0.6 m left over a lap).
+#   SCENE_YAW   -89.09: solved for ENDPOINT CONTINUITY — the road at the south
+#               crop plane must land at the same lateral position as at the
+#               north one, because those two ends are glued together at the
+#               tile joint. (An earlier -89.62 made the street parallel to the
+#               riding axis ON AVERAGE, which left a 30 cm road step at the
+#               joint — the wrong criterion for a loop. The street's real
+#               S-curve now wanders up to ~30 cm around the straight riding
+#               line mid-lap, which is invisible; a step at the joint is not.)
 #   SCENE_PITCH -0.7: this street has a real ~1.2% grade; a small X-rotation
 #               levels it so the flat-riding rig doesn't sink/float at the ends.
 #   SCENE_SHIFT recenters: carriageway onto x=0, road re-seated to local
@@ -83,7 +88,7 @@ ALIGN_TRANSLATE="-2.49607,0.0503902,1.4554"
 #               ⚠️ THIS trailing -t is applied with X AND Y sign-flipped (Z
 #               normal) — measured with unit probes; different from the leading
 #               -t above (only Y flips). Values below are the raw CLI args.
-SCENE_YAW="0,-89.62,0"
+SCENE_YAW="0,-89.09,0"
 SCENE_PITCH="-0.7,0,0"
 #               X places the red path's centerline ~0.12 local units to the
 #               bike's LEFT (world +x is the rider's LEFT when facing -z!), so
