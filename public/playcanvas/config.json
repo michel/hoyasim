@@ -229,8 +229,8 @@
       "type": "gsplat",
       "file": {
         "filename": "lod-meta.json",
-        "size": 91048,
-        "hash": "fbf547462c2bc323fe430a67589f383f",
+        "size": 91028,
+        "hash": "8b35fff692a1c79daedd7acc78110d8f",
         "url": "assets/splat/lod-meta.json"
       },
       "data": null,

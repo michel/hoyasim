@@ -85,7 +85,7 @@ SCENE_PITCH="-0.7,0,0"
 #               the bike rides the street's RIGHT lane with the dashes on its
 #               left — lane offset tuned visually via the lane-follower
 #               calibration: center_local = -0.12 - (t_x - 1.53).
-SCENE_SHIFT="1.38,-0.0202,0.68"
+SCENE_SHIFT="1.40,-0.0202,0.68"
 
 # The rideable street runs local z in [-1.85, +3.25] (5.10 units); beyond both
 # ends it tees into houses. Crop to exactly that span so consecutive tile
