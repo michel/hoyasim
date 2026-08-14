@@ -157,6 +157,9 @@ export function setupBike(app: pc.AppBase) {
     anchor.addChild(model)
   }
   anchor.setLocalPosition(0, BIKE_Y, 0)
+  // NOT a no-op knob: the scene JSON bakes rotation [177, 0, 180] on this
+  // anchor — without this reset the bike renders turned around and tilted.
+  anchor.setLocalEulerAngles(0, 0, 0)
   anchor.setLocalScale(BIKE_SCALE, BIKE_SCALE, BIKE_SCALE)
 }
 
