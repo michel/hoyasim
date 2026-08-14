@@ -50,7 +50,7 @@ SRC="${SRC:-$HOME/Downloads/Aanlevermap/Cleaned Up/Omgeving - v03 -100k.compress
 # chunk data (only lod-meta.json gets a cache-busting hash in config.json).
 # Bump the suffix on every rebuild that changes geometry, and update the
 # asset url in public/playcanvas/config.json to match.
-OUT="${OUT:-public/playcanvas/assets/splat-v3}"  # shipped bundle location
+OUT="${OUT:-public/playcanvas/assets/splat-v4}"  # shipped bundle location
 ALIGNED="${ALIGNED:-/tmp/splat_aligned.ply}"     # PASS 1 intermediate (0-SH, in-frame)
 
 # similarity transform: new-capture local frame -> current shipped frame.

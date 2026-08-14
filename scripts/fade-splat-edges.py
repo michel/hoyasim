@@ -48,6 +48,22 @@ def main():
     a[south] = (z[south] - s_edge) / (s_end - s_edge)
     north = z > n_start
     a[north] = (n_edge - z[north]) / (n_edge - n_start)
+
+    # Road paint (the white dashes/markings) is irregular, so the two tiles'
+    # stripes can never phase-align in the overlap — mismatched double stripes
+    # were the most visible seam artifact. Erase the paint entirely across the
+    # crossfade (plus a short pre-roll) so the joint reads as a stretch of
+    # worn-off markings instead.
+    y = np.asarray(mm["y"], np.float64)
+    x = np.asarray(mm["x"], np.float64)
+    r, g, b = (np.asarray(mm[k], np.float64)
+               for k in ("f_dc_0", "f_dc_1", "f_dc_2"))
+    lum = (r + g + b) / 3
+    paint = ((y > -0.05) & (y < 0.01) & (np.abs(x) < 0.4) & (lum > 1.1)
+             & (np.abs(r - g) < 0.3) & (np.abs(g - b) < 0.3))
+    PRE = 0.15
+    a[paint & ((z < s_end + PRE) | (z > n_start - PRE))] = 0.01
+
     np.clip(a, 0.01, 1.0, out=a)
     faded = a < 1.0
     # opacity is a sigmoid logit; adding ln(a) scales the low-opacity regime by
@@ -57,7 +73,7 @@ def main():
     )
     mm.flush()
     print(f"faded {faded.sum()} of {len(z)} gaussians "
-          f"(south {south.sum()}, north {north.sum()})")
+          f"(south {south.sum()}, north {north.sum()}, paint {paint.sum()})")
 
 
 if __name__ == "__main__":
