@@ -1,145 +1,53 @@
 #!/usr/bin/env bash
 #
-# build-splat.sh — turn a raw Gaussian-splat capture into the streamed LOD bundle
-# that ships under public/playcanvas/assets/splat/.
+# build-splat.sh — turn the raw Gaussian-splat capture into the streamed LOD
+# bundle that ships under public/playcanvas/assets/.
 #
-# The shipped bundle is NOT a single file: it is a spatial octree of small WebP
-# chunks, each available at four detail tiers (LOD 0 = full, 3 = coarsest), plus
-# a lod-meta.json manifest. PlayCanvas streams in only the chunks the camera can
-# see and picks a tier per chunk at runtime. See the README ("The Gaussian Splat
-# Environment") for how the runtime consumes it.
+# Two passes of @playcanvas/splat-transform (via bunx, no install needed):
 #
-# This script is the single source of truth for HOW that bundle is built. It runs
-# two passes of @playcanvas/splat-transform (via bunx, no install needed):
-#
-#   PASS 1 — normalise the capture into the scene's coordinate frame and match the
-#            shipped bundle's format (0 spherical-harmonic bands).
-#   PASS 2 — build the 4-tier LOD octree (this is what "creates the LOD").
+#   PASS 1 — place the capture in the scene frame and strip SH to match the
+#            shipped 0-SH format.
+#   PASS 2 — build the 4-tier LOD octree (spatial chunks the runtime streams).
 #
 # Usage:  bun run build-splat            # uses the defaults below
 #         SRC=/path/to/new.ply bun run build-splat
 #
-# ---------------------------------------------------------------------------
-# FRAME ALIGNMENT (PASS 1) — the part you must re-derive for a new capture
-# ---------------------------------------------------------------------------
-# The scene's placement of the splat (rotation/scale/loop tiling) is hand-tuned in
-# src/lib/playcanvasApp.ts against the EXISTING bundle's local coordinate frame.
-# A fresh render almost never comes out in that same frame — it is typically a
-# different scale, recentred, and sometimes reoriented. So before building the LOD
-# we transform the capture so its solid geometry lands exactly on top of the
-# current bundle. Then playcanvasApp.ts needs no changes and the swap is drop-in.
-#
-# The current ALIGN_* values below map the 2026-08-13 "Omgeving v03" cleaned
-# render onto the original shipped frame. They were derived, not guessed: decode
-# the current bundle back to a point cloud and best-fit a similarity transform
-# (uniform scale + rotation + translation) from the new capture onto it. v03 came
-# out in a genuinely different frame (~91 deg rotation + 0.0264 scale vs the old
-# 0.0495), so unlike fixed2.ply the `-r` rotation is required. Reproduce /
-# re-derive with scripts/derive-splat-align.py.
-#
-# splat-transform applies ACTIONS IN ORDER, so `-r` (rotate) then `-s` (scale)
-# then `-t` (translate) realises  p' = scale * (R @ p) + translate  (the order
-# that matches the solver; uniform scale commutes with R).
-# `-H 0` strips all SH bands above DC to match the shipped 0-SH bundle.
+# The bundle directory name carries a version (splat-v8, -v9, ...): chunk URLs
+# are identical across rebuilds, so browsers/CDNs serve stale chunks unless the
+# directory changes. Bump it on every geometry rebuild and update the asset url
+# + size/hash in public/playcanvas/config.json (printed at the end).
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
-SRC="${SRC:-$HOME/Downloads/Aanlevermap/Cleaned Up/Omgeving - v03 -100k.compressed2.ply}"  # raw capture (.ply, plain or compressed)
-# The directory name carries a version: chunk URLs inside the bundle are
-# otherwise identical across rebuilds, so browsers/CDNs happily serve STALE
-# chunk data (only lod-meta.json gets a cache-busting hash in config.json).
-# Bump the suffix on every rebuild that changes geometry, and update the
-# asset url in public/playcanvas/config.json to match.
-OUT="${OUT:-public/playcanvas/assets/splat-v7}"  # shipped bundle location
-ALIGNED="${ALIGNED:-/tmp/splat_aligned.ply}"     # PASS 1 intermediate (0-SH, in-frame)
+SRC="${SRC:-$HOME/Downloads/Aanlevermap/Cleaned Up/Omgeving - v03 -100k.compressed2.ply}"
+OUT="${OUT:-public/playcanvas/assets/splat-v8}"
+ALIGNED="${ALIGNED:-/tmp/splat_aligned.ply}"
 
-# similarity transform: new-capture local frame -> current shipped frame.
-# derive-splat-align.py best-fits the WHOLE cloud (overlap 1.000), which seats X/Z
-# but NOT the gravity axis: a fresh render's floater distribution pulls the global
-# Y fit, so the dense road plane (what the bike + traffic light rest on) lands off.
-# Worse, splat-transform applies the -t *Y* with a sign flip (PLY->SOG Y-axis
-# convention; X/Z are unaffected) — d(road_world_Y)/d(t_y) = -1 exactly. So derive's
-# t_y is not the road-seat value. Instead solve t_y directly: run PASS 1 only at two
-# t_y probes, measure the dense road slab (LOD-0 |x|<0.1,|z|<1, densest Y bin), and
-# pick t_y so the road centreline lands on the OLD bundle's plane (local -0.00887,
-# world -0.0443). For v03 the slope re-measured to exactly -1 and t_y solved to
-# +0.0503902 (derive gave +0.0531902), seating the road within 0.0004 local. Keeps
-# the swap drop-in — no object re-seating in playcanvasApp.ts.
-ALIGN_ROTATE="-148.3097,-88.9157,147.5934"
-ALIGN_SCALE="0.026437995666495091"
-ALIGN_TRANSLATE="-2.49607,0.0503902,1.4554"
+# Scene placement, solved against the raw capture (probe road landmarks):
+#   ROTATE     near-identity — the capture is already street-along-z; the 0.58
+#              roll levels the road crossways.
+#   SCALE      world size (the scene magnifies a further OUTER_SCALE x in
+#              src/lib/playcanvasApp.ts).
+#   TRANSLATE  seats the road under the bike: lane offset (note: the CLI
+#              applies this X sign-flipped), road plane at local y -0.009,
+#              street span onto the lap window (local z -1.75..+3.25).
+ROTATE="-0.0117,-0.0126,0.5810"
+SCALE="0.026437995666495091"
+TRANSLATE="-0.047,0,3.20"
 
-# SCENE ROTATION (2026-08-14): the ride follows the capture's cross street,
-# and since the direction flip the bike rides it FROM THE OTHER END (yaw is
-# the 90-deg-CCW solve + 180). Applied AFTER the alignment above, in the
-# bundle-local frame:
-#   SCENE_YAW   -89.09: solved for ENDPOINT CONTINUITY — the road at the south
-#               crop plane must land at the same lateral position as at the
-#               north one, because those two ends are glued together at the
-#               tile joint. (An earlier -89.62 made the street parallel to the
-#               riding axis ON AVERAGE, which left a 30 cm road step at the
-#               joint — the wrong criterion for a loop. The street's real
-#               S-curve now wanders up to ~30 cm around the straight riding
-#               line mid-lap, which is invisible; a step at the joint is not.)
-#   SCENE_PITCH +0.7 (sign flips with the direction flip): the street has a
-#               real ~1.2% grade; a small X-rotation
-#               levels it so the flat-riding rig doesn't sink/float at the ends.
-#   SCENE_SHIFT recenters: carriageway onto x=0, road re-seated to local
-#               y=-0.0089, and the crossroads placed at local z=+0.33 so the
-#               traffic-light stop line (world -10) lands exactly at it.
-#               ⚠️ THIS trailing -t is applied with X AND Y sign-flipped (Z
-#               normal) — measured with unit probes; different from the leading
-#               -t above (only Y flips). Values below are the raw CLI args.
-SCENE_YAW="0,90.91,0"
-SCENE_PITCH="0.7,0,0"
-#               X puts the bike on the street's RIGHT side (dashes on its
-#               left). d(road_center_x)/d(t_x) = -1.
-SCENE_SHIFT="-1.517,-0.0202,0.73"
-
-# The rideable street runs local z in [-1.85, +3.25] (5.10 units); beyond both
-# ends it tees into houses. Crop to exactly that span, then FEATHER the last
-# 0.25 units of opacity at each end (fade-splat-edges.py below): the tiles
-# overlap by exactly the fade band, tile A fades out while tile B fades in
-# (alphas sum to 1), so the joint is a soft crossfade instead of a visible
-# seam of sliced houses. LOOP_PERIOD/START_Z in playcanvasApp.ts derive from
-# (span - fade) = 4.85 local units.
-# Box is min-corner,max-corner in the final (post-rotation) frame.
-CROP_BOX="-1000,-1000,-1.85,1000,1000,3.25"
-FADE="-1.85 -1.60 3.00 3.25"
-
-echo "===== PASS 1: align to scene frame + strip SH ====="
+echo "===== PASS 1: place in scene frame + strip SH ====="
 bunx @playcanvas/splat-transform -w "$SRC" \
   -N \
-  -r "$ALIGN_ROTATE" \
-  -s "$ALIGN_SCALE" \
-  -t "$ALIGN_TRANSLATE" \
-  -r "$SCENE_YAW" \
-  -r "$SCENE_PITCH" \
-  -t "$SCENE_SHIFT" \
-  -B "$CROP_BOX" \
+  -r "$ROTATE" \
+  -s "$SCALE" \
+  -t "$TRANSLATE" \
   -H 0 \
   "$ALIGNED"
 
-echo "===== straighten the road ====="
-# The capture's street has a real ~30 cm S-bend; the bike rides a straight
-# line, so the curve reads as weaving. De-warp: x -= f(z) with f the measured
-# road centerline — road exactly straight, tile joint exact. Must run BEFORE
-# the edge feather (the fade bands must see the straightened road).
-python3 scripts/straighten-road.py "$ALIGNED"
-
-echo "===== feather tile-joint edges ====="
-# shellcheck disable=SC2086
-python3 scripts/fade-splat-edges.py "$ALIGNED" $FADE
-
 echo "===== PASS 2: build 4-tier LOD bundle (~128K-gaussian chunks) ====="
-# --decimate halves (then quarters, then eighths) each coarser tier via pairwise
-# merge. Since splat-transform 3.3.0 a decimate must be the FINAL action writing a
-# .ply, so each tier is its own invocation; the assembly run then tags each input
-# with -l N (LOD level of the PRECEDING input) and chunks the octree.
-# --lod-chunk-count 128 caps each chunk at ~128K gaussians so per-frame streaming
-# uploads stay cheap (this was `-C 128` before 3.3.0 repurposed -C). These
-# percentages and the chunk size define the bundle's quality/size/streaming-
-# smoothness trade-off.
+# --decimate halves (then quarters, then eighths) each coarser tier; since
+# splat-transform 3.3.0 each decimate is its own invocation and the last run
+# assembles the tiers. --lod-chunk-count 128 keeps per-frame streaming cheap.
 for tier in "50:1" "25:2" "12.5:3"; do
   pct="${tier%%:*}"; lvl="${tier##*:}"
   bunx @playcanvas/splat-transform -w "$ALIGNED" --decimate "$pct%" "/tmp/splat_lod$lvl.ply"
@@ -153,8 +61,7 @@ bunx @playcanvas/splat-transform -w \
   --lod-chunk-count 128 \
   "$OUT/lod-meta.json"
 
-# splat-transform emits minified JSON; the repo keeps the bundle manifests
-# biome-formatted, so normalise them (and refresh config size/hash afterwards).
+# splat-transform emits minified JSON; the repo keeps manifests biome-formatted.
 echo "===== format manifests to repo convention ====="
 bunx biome format --write "$OUT" >/dev/null
 
@@ -164,5 +71,5 @@ echo "chunks per LOD:"; ls "$OUT" | sed -n 's/^\([0-9]\)_.*/\1/p' | sort | uniq 
 echo "lod-meta size:"; stat -f '%z' "$OUT/lod-meta.json"
 echo "lod-meta hash:"; md5 -q "$OUT/lod-meta.json"
 echo
-echo "Next: update file.size + file.hash for asset 287139133 in"
-echo "public/playcanvas/config.json with the two values above (cache-bust hint)."
+echo "Next: update url/file.size/file.hash for asset 287139133 in"
+echo "public/playcanvas/config.json."

@@ -30,19 +30,15 @@ const MAX_PIXEL_RATIO_DESKTOP = 1.5
 // constant below derives from it; the rig speed is scaled to match so the
 // perceived riding pace is unchanged.
 const OUTER_SCALE = 6.6
-// The lap window spans exactly the cropped bundle's street (local z
-// [-1.85, 3.25]): start at the north crop plane (OUTER_SCALE*3.25 - 11.64) and
-// wrap at the south one — the wrap lands on the identical spot in the next
-// tile copy, so the seams are only ever crossed at the moment of the snap.
-const START_Z = 8.1
+// The lap window spans the bundle's rideable street (local z -1.75..+3.15):
+// start at the north end and wrap at the south one — the wrap lands on the
+// identical spot in the next tile copy.
+const START_Z = 9.1
 // The scene loops by tiling two copies of the splat LOOP_PERIOD apart (the rig
 // rides one period, then snaps back). The two tiles sit LOOP_PERIOD/OUTER_SCALE
-// apart in the splat's own local units. Since the 90-deg scene rotation the
-// ride follows the capture's cross street, cropped to 5.10 local units with
-// a 0.25-unit opacity feather at each end (see CROP_BOX/FADE in
-// build-splat.sh) — the separation is (span - fade) * OUTER_SCALE so the two
-// copies' feathered ends overlap in a crossfade instead of a visible seam.
-const LOOP_PERIOD = 32.0
+// apart in the splat's own local units — the separation equals the rideable
+// street span so consecutive copies butt road-to-road.
+const LOOP_PERIOD = 32.3
 const TARGET_Z = START_Z - LOOP_PERIOD
 // Inner gsplat is a child of the outer one; its local Z controls how far apart
 // the two tiles sit in world space (multiplied by the outer's scale).
@@ -273,7 +269,7 @@ function setupTileCulling(app: pc.AppBase, cam: pc.Entity, tiles: pc.Entity[]) {
   // to soften the stream-in. Deliberately NOT derived from LOOP_PERIOD — the
   // loop length tracks the rideable street, while this tracks the capture's
   // extent.
-  const cullThreshold = 34.5
+  const cullThreshold = 40
   app.on('update', () => {
     const camZ = cam.getPosition().z
     for (const tile of tiles)
