@@ -6,7 +6,7 @@
 // Premium progressive multifocal, shared by all three products. The soft-zone
 // blur (not this curve) is what distinguishes Balansis / MySelf Profile /
 // MySense from one another.
-const MULTIFOCAL_POWER = 0.055
+const MULTIFOCAL_POWER = 0.08
 const MULTIFOCAL_CENTER_Y = 0.5
 
 // Weight a tap to 0 if its UV leaves [0,1] so edge texels aren't repeated into
