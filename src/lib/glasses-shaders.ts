@@ -119,15 +119,18 @@ void main(void) {
   float factor = (CENTER_Y - lensY) * 2.0 * POWER;
 
   vec2 center = uLensCenter;
-  // Displace around this lens's own centre; cap the DISPLACEMENT (sample minus
-  // fragment position, not the radius) with a tanh asymptote so the sample can
-  // shift at most ~2.5% of the screen away from the true content under this
-  // pixel. Magnify/minify then stay local to the lens: the sample can never
-  // wander across the nose bridge into the other lens's half of the grab, at
-  // any aspect ratio or look direction.
-  vec2 disp = (screenUV - center) * factor;
-  disp.x = 0.025 * tanh(disp.x / 0.025);
-  disp.y = 0.025 * tanh(disp.y / 0.025);
+  // Displace around this lens's own centre. Work in aspect-corrected units
+  // (UV x scaled by W/H) so the zoom is isotropic in PIXELS — raw UV units on
+  // a wide window displace far more horizontally than vertically, which turned
+  // the vertical progressive into a sideways smear. Cap the displacement
+  // RADIALLY with a tanh asymptote (~2.5% of screen height) so the sample
+  // stays local to the lens and never crosses the nose bridge; a per-axis cap
+  // saturates each axis at a different pixel distance, shearing high-contrast
+  // content (the cockpit phones) into ghost slabs with dark smeared bezels.
+  float aspect = uScreenSize.x * uScreenSize.w;
+  vec2 d = (screenUV - center) * vec2(aspect, 1.0) * factor;
+  float len = max(length(d), 1e-6);
+  vec2 disp = d * (0.025 * tanh(len / 0.025) / len) / vec2(aspect, 1.0);
   vec2 sampleUV = screenUV + disp;
 
   // Fade alpha to 0 before the displaced sample reaches the screen edge, so the
@@ -199,20 +202,13 @@ uniform float uChroma;
 uniform float uStrength;
 ${INBOUNDS_GLSL}
 
+// Prefiltered blur: sample the scene grab's mip chain at a level matching the
+// blur radius. A sparse 9-tap ring at a 16px radius resolved each tap as its
+// own translucent copy on high-contrast content (the cockpit phone/handlebar
+// read as a stack of ghost panes with dark rims); the mip chain is a dense
+// box filter, so it cannot produce discrete copies.
 vec3 blur9(vec2 base, vec2 px) {
-  vec3 c = vec3(0.0);
-  float wsum = 0.0;
-  vec2 s; float k;
-  s = base + vec2( 0.0,  0.0); k = 0.227027 * inBounds(s); c += texture(uSceneColorMap, s).rgb * k; wsum += k;
-  s = base + vec2( px.x, 0.0); k = 0.1945946 * inBounds(s); c += texture(uSceneColorMap, s).rgb * k; wsum += k;
-  s = base + vec2(-px.x, 0.0); k = 0.1945946 * inBounds(s); c += texture(uSceneColorMap, s).rgb * k; wsum += k;
-  s = base + vec2( 0.0,  px.y); k = 0.1216216 * inBounds(s); c += texture(uSceneColorMap, s).rgb * k; wsum += k;
-  s = base + vec2( 0.0, -px.y); k = 0.1216216 * inBounds(s); c += texture(uSceneColorMap, s).rgb * k; wsum += k;
-  s = base + vec2( px.x,  px.y); k = 0.054054 * inBounds(s); c += texture(uSceneColorMap, s).rgb * k; wsum += k;
-  s = base + vec2(-px.x, -px.y); k = 0.054054 * inBounds(s); c += texture(uSceneColorMap, s).rgb * k; wsum += k;
-  s = base + vec2( px.x, -px.y); k = 0.054054 * inBounds(s); c += texture(uSceneColorMap, s).rgb * k; wsum += k;
-  s = base + vec2(-px.x,  px.y); k = 0.054054 * inBounds(s); c += texture(uSceneColorMap, s).rgb * k; wsum += k;
-  return c / max(wsum, 1e-4);
+  return textureLod(uSceneColorMap, base, log2(max(uBlurRadius, 1.0))).rgb;
 }
 
 void main(void) {

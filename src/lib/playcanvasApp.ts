@@ -295,6 +295,8 @@ function setupScene(app: pc.AppBase): pc.Entity | null {
     (e): e is pc.Entity => e instanceof pc.Entity,
   )
   configureGsplat(app, tiles)
+  // ISOLATION STEP 8: splat hidden
+  for (const t of tiles) t.enabled = false
 
   setupRig(app)
 
