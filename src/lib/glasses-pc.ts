@@ -7,6 +7,7 @@ import {
 } from './glasses-anim'
 import { LENS_FRAGMENT_GLSL, LENS_VERTEX_GLSL } from './glasses-shaders'
 import { renderComponents } from './pc-utils'
+import { notifyTuning, onTuningChange, tuning } from './tuning'
 
 // Origin-prefixed on purpose: AssetRegistry prepends assets.prefix (the
 // playcanvas project path) to any URL its ABSOLUTE_URL regex doesn't match,
@@ -91,21 +92,38 @@ function localBounds(entity: pc.Entity): {
 // Balansis blurs the most. All three share the same progressive-focus corridor.
 export type LensProduct = 'Balansis' | 'MySelf Profile' | 'MySense'
 
-interface LensProductProfile {
+export interface LensProductProfile {
   cornerWidth: number
   cornerHeight: number
   feather: number
 }
 
-// Starting values traced from the customer's renders (mirror-symmetric). Tune
-// on device against the source images.
-const LENS_PRODUCTS: Record<LensProduct, LensProductProfile> = {
+// Mirror-symmetric wing profiles, tuned by eye. Live-adjustable per product
+// from the tuning panel (setProductProfile); DEFAULT_LENS_PRODUCTS is the
+// shipped look.
+const DEFAULT_LENS_PRODUCTS: Record<LensProduct, LensProductProfile> = {
   // Entry: largest soft corners, narrowest clear field.
-  Balansis: { cornerWidth: 0.35, cornerHeight: 0.7, feather: 0.07 },
+  Balansis: { cornerWidth: 0.26, cornerHeight: 0.52, feather: 0.12 },
   // Mid: moderate corners.
-  'MySelf Profile': { cornerWidth: 0.27, cornerHeight: 0.62, feather: 0.07 },
+  'MySelf Profile': { cornerWidth: 0.2, cornerHeight: 0.45, feather: 0.12 },
   // Premium: smallest soft corners, widest clear field.
-  MySense: { cornerWidth: 0.18, cornerHeight: 0.5, feather: 0.07 },
+  MySense: { cornerWidth: 0.13, cornerHeight: 0.36, feather: 0.12 },
+}
+
+export const LENS_PRODUCTS: Record<LensProduct, LensProductProfile> =
+  structuredClone(DEFAULT_LENS_PRODUCTS)
+
+export function setProductProfile(
+  product: LensProduct,
+  patch: Partial<LensProductProfile>,
+) {
+  Object.assign(LENS_PRODUCTS[product], patch)
+  notifyTuning()
+}
+
+export function resetProductProfiles() {
+  Object.assign(LENS_PRODUCTS, structuredClone(DEFAULT_LENS_PRODUCTS))
+  notifyTuning()
 }
 
 export const LENS_PRODUCT_ORDER: LensProduct[] = [
@@ -122,6 +140,18 @@ function applyProductUniforms(m: pc.ShaderMaterial, product: LensProduct) {
   m.setParameter('uCornerWidth', p.cornerWidth)
   m.setParameter('uCornerHeight', p.cornerHeight)
   m.setParameter('uFeather', p.feather)
+}
+
+function applyTuning(m: pc.ShaderMaterial) {
+  m.setParameter('uTopStrength', tuning.topStrengthPx)
+  m.setParameter('uTopNearLimit', tuning.topNearLimit)
+  m.setParameter('uTopTransition', tuning.topTransition)
+  m.setParameter('uBottomStrength', tuning.bottomStrengthPx)
+  m.setParameter('uBottomFarLimit', tuning.bottomFarLimit)
+  m.setParameter('uBottomTransition', tuning.bottomTransition)
+  m.setParameter('uCorridorTop', tuning.corridorTop)
+  m.setParameter('uCorridorBottom', tuning.corridorBottom)
+  m.setParameter('uSoftZoneBlurMax', tuning.softZoneBlurMaxPx)
 }
 
 function createLensMaterial(
@@ -144,6 +174,7 @@ function createLensMaterial(
   m.setParameter('uPxScale', pxScale)
   m.setParameter('uLineTrace', 0)
   m.setParameter('uLineFade', 0)
+  applyTuning(m)
   applyProductUniforms(m, DEFAULT_LENS_PRODUCT)
   // Transparent so the lens renders AFTER the scene-color grab pass and can
   // sample uSceneColorMap.
@@ -274,6 +305,13 @@ export async function setupLenses(
 
   const onUpdate = createTraceUpdate(sides)
   app.on('update', onUpdate)
+  const offTuning = onTuningChange(() => {
+    for (const s of [sides.left, sides.right]) {
+      if (!s) continue
+      applyTuning(s.material)
+      applyProductUniforms(s.material, s.product)
+    }
+  })
 
   const entrance = createEntrance(app, glassesGroups, finalPositions, () => {
     // Trace both lenses' boundaries once they've settled, so the customer sees
@@ -294,6 +332,7 @@ export async function setupLenses(
     },
     destroy() {
       app.off('update', onUpdate)
+      offTuning()
       entrance.cancel()
       for (const g of glassesGroups) g.destroy()
       if (cam) cam.renderSceneDepthMap = false

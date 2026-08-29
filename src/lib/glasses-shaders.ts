@@ -5,33 +5,21 @@
 
 // Progressive FOCUS is the headline effect, shared by all three products (the
 // soft-zone blur is what distinguishes Balansis / MySelf Profile / MySense). A
-// presbyopic eye can no longer refocus, so the lens does it by gaze height: the
-// distance zone (top) focuses at infinity, the corridor ramps the power, and
-// the near zone (bottom) focuses at the handlebar phones. Blur grows with the
-// dioptric defocus |1/d - 1/focus| and saturates at one full add. Distances are
-// world units — tune NEAR_FOCUS_DIST by eye against the phones. Content within
-// FOCUS_TOLERANCE (in units of one add) of the focus target is drawn fully
-// sharp, so the phones, which span some depth, read crisp in the reading zone.
-// Marketing-exaggerated on purpose: a real corridor sits lower and is longer;
-// here the near zone starts just under the centre line so the handlebar phones
-// read sharp from the natural riding view.
-const NEAR_FOCUS_DIST = 0.18
-const CORRIDOR_TOP = 0.4
-const CORRIDOR_BOTTOM = 0.6
-const FOCUS_TOLERANCE = 0.15
-// Blur radius ladder, in CSS pixels (the shader scales by uPxScale, framebuffer
-// pixels per CSS pixel, so a 0.5x phone and a 1.5x desktop get the same look):
-// soft-zone wings < defocus < uncorrected overlay, so the periphery reads
-// "soft", a wrong zone reads "no glasses", and nothing inside the lens is ever
-// worse than outside it.
-const SOFT_ZONE_BLUR_MAX_PX = 7.0
-const DEFOCUS_BLUR_MAX_PX = 8.0
-const IMPAIRED_BLUR_RADIUS_PX = 10.0
+// presbyopic eye can no longer refocus, so the lens does it by gaze height.
+// The lens is modelled as two lenses with their own rule, blended across the
+// corridor: the distance lens (top) blurs whatever is NEARER than its near
+// limit — the phones drifting up into it — and keeps the street sharp; the
+// reading lens (bottom) blurs whatever is FARTHER than its far limit and keeps
+// the phones sharp. Each limit has its own transition width, so the edge
+// between "close" and "far" can be placed clear of the cockpit. Marketing-
+// exaggerated on purpose: a real corridor sits lower and is longer; here the
+// reading lens starts just under the centre line so the handlebar phones read
+// sharp from the natural riding view. The values (distances in world units,
+// corridor in lens height, blur radii in CSS pixels — the shaders scale by
+// uPxScale) are uniforms fed from tuning.ts, live-adjustable from the panel.
+
 // Chromatic aberration offset of the overlay, in screen UV.
 const IMPAIRED_CHROMA_STRENGTH = 0.001
-// Brightness of the impaired (outside-lens) surround; < 1 darkens it so the
-// corrected lens view draws the eye.
-const IMPAIRED_DIM = 0.78
 
 // Smooth variable-radius blur shared by both programs: a golden-angle (Vogel)
 // disk of taps over the scene grab's mip chain. The mip level does the heavy
@@ -43,15 +31,19 @@ const IMPAIRED_DIM = 0.78
 // phones. A tap whose UV leaves [0,1] is weighted to 0 so edge texels aren't
 // repeated into the sum — that produces axis-aligned streaks at the border.
 // Eight prefiltered taps cover any radius used here; more only costs fill.
+// depthAware (the lens): a tap that lies NEARER than the pixel being blurred
+// is rejected, so a blurred background never gathers the sharp phones in
+// front of it — that gather is what smeared the phones' edges into a halo.
+// The overlay blurs everything alike and skips the depth reads.
 const BLUR_TAPS = 8
-const DISK_BLUR_GLSL = `
+const diskBlurGLSL = (depthAware: boolean) => `
 uniform float uPxScale;  // framebuffer pixels per CSS pixel
 float inBounds(vec2 uv) {
   vec2 m = step(vec2(0.0), uv) * step(uv, vec2(1.0));
   return m.x * m.y;
 }
 
-vec3 diskBlur(vec2 uv, float radiusCss) {
+vec3 diskBlur(vec2 uv, float radiusCss, float centerDepth) {
   float radiusPx = radiusCss * uPxScale;
   if (radiusPx < 0.5) return textureLod(uSceneColorMap, uv, 0.0).rgb;
   float lod = log2(max(radiusPx * 0.5, 1.0));
@@ -63,7 +55,12 @@ vec3 diskBlur(vec2 uv, float radiusCss) {
     float ang = fi * 2.39996323;         // golden angle
     float rad = sqrt(fi / ${BLUR_TAPS}.0); // even area coverage
     vec2 s = uv + r * (rad * vec2(cos(ang), sin(ang)));
-    float k = inBounds(s);
+    float k = inBounds(s);${
+      depthAware
+        ? `
+    k *= step(centerDepth * 0.8, getLinearScreenDepth(s));`
+        : ''
+    }
     c += textureLod(uSceneColorMap, s, lod).rgb * k;
     w += k;
   }
@@ -108,29 +105,34 @@ uniform float uCornerHeight;  // vertical climb up from the lens bottom edge
 uniform float uFeather;       // ramp width from sharp -> blurred
 uniform float uLineTrace;     // 0..1 boundary-line reveal progress (sweeps the trace on)
 uniform float uLineFade;      // 0..1 boundary-line opacity (handles the fade-out)
+// Progressive focus (see tuning.ts). Distances in world units, blur in CSS px.
+uniform float uTopStrength;      // top lens: blur of things nearer than the limit
+uniform float uTopNearLimit;     // top lens: close/far edge
+uniform float uTopTransition;    // top lens: half-width of that edge
+uniform float uBottomStrength;   // bottom lens: blur of things farther than the limit
+uniform float uBottomFarLimit;   // bottom lens: close/far edge
+uniform float uBottomTransition; // bottom lens: half-width of that edge
+uniform float uCorridorTop;      // lensY where the top lens ends
+uniform float uCorridorBottom;   // lensY where the bottom lens starts
+uniform float uSoftZoneBlurMax;  // CSS px inside the wings
 in vec3 vLocalPos;
 
-const float NEAR_FOCUS_DIST = ${NEAR_FOCUS_DIST.toFixed(3)};
-const float CORRIDOR_TOP = ${CORRIDOR_TOP.toFixed(3)};
-const float CORRIDOR_BOTTOM = ${CORRIDOR_BOTTOM.toFixed(3)};
-const float FOCUS_TOLERANCE = ${FOCUS_TOLERANCE.toFixed(3)};
-const float DEFOCUS_BLUR_MAX_PX = ${DEFOCUS_BLUR_MAX_PX.toFixed(1)};
-const float SOFT_ZONE_BLUR_MAX_PX = ${SOFT_ZONE_BLUR_MAX_PX.toFixed(1)};
 const float LINE_LEVEL = 0.5;     // soft-zone contour the boundary line traces
 const float LINE_HALF_PX = 6.0;        // line half-width in pixels
 const float LINE_DASH_COUNT = 11.0;    // dash + gap cycles along each corner arc
 const float HALF_PI = 1.5707963;
-${DISK_BLUR_GLSL}
+${diskBlurGLSL(true)}
 
-// Defocus blur radius (CSS px) at lens height lensY (0 = top) for scene depth
-// d. add is the focus target in units of one full add: 0 (infinity) in the
-// distance zone, 1 (the phones) in the near zone; NEAR_FOCUS_DIST / d is the
-// scene depth in the same units. Within FOCUS_TOLERANCE of the target the
-// blur is exactly zero.
-float defocusPx(float lensY, float d) {
-  float add = smoothstep(CORRIDOR_TOP, CORRIDOR_BOTTOM, lensY);
-  float defocus = abs(NEAR_FOCUS_DIST / max(d, 1e-4) - add) - FOCUS_TOLERANCE;
-  return DEFOCUS_BLUR_MAX_PX * clamp(defocus / (1.0 - FOCUS_TOLERANCE), 0.0, 1.0);
+// Focus blur radius (CSS px) at lens height lensY (0 = top) for scene depth d:
+// the top lens blurs what is nearer than its limit, the bottom lens what is
+// farther than its limit, each ramping over its own transition; the corridor
+// blends the two by lens height.
+float focusBlurPx(float lensY, float d) {
+  float top = uTopStrength *
+    (1.0 - smoothstep(uTopNearLimit - uTopTransition, uTopNearLimit + uTopTransition, d));
+  float bottom = uBottomStrength *
+    smoothstep(uBottomFarLimit - uBottomTransition, uBottomFarLimit + uBottomTransition, d);
+  return mix(top, bottom, smoothstep(uCorridorTop, uCorridorBottom, lensY));
 }
 
 // Soft-zone blur amount [0,1] from the corner-normalised position (see main).
@@ -167,8 +169,9 @@ void main(void) {
   // the distance this part of the lens focuses at; the wings take over where
   // their blur is larger. One prefiltered disk at that radius keeps the zone
   // boundary smooth — the feather ramps blurAmt, so the radius ramps too.
-  float focusPx = defocusPx(lensY, getLinearScreenDepth(screenUV));
-  vec3 color = diskBlur(screenUV, max(focusPx, blurAmt * SOFT_ZONE_BLUR_MAX_PX));
+  float depth = getLinearScreenDepth(screenUV);
+  float focusPx = focusBlurPx(lensY, depth);
+  vec3 color = diskBlur(screenUV, max(focusPx, blurAmt * uSoftZoneBlurMax), depth);
 
   // Boundary-line trace. Animated on put-on and on every product switch to show
   // where this product's clear field ends. uLineFade is a uniform, so this
@@ -211,9 +214,10 @@ precision highp float;
 uniform sampler2D uSceneColorMap;
 uniform vec4 uScreenSize;
 uniform float uStrength;
-const float BLUR_RADIUS_PX = ${IMPAIRED_BLUR_RADIUS_PX.toFixed(1)};
+uniform float uBlurRadius;  // CSS px (see tuning.ts)
+uniform float uDim;         // brightness of the impaired surround
 const float CHROMA = ${IMPAIRED_CHROMA_STRENGTH.toFixed(4)};
-${DISK_BLUR_GLSL}
+${diskBlurGLSL(false)}
 void main(void) {
   vec2 uv = gl_FragCoord.xy * uScreenSize.zw;
   // Chromatic aberration: blur each channel at a slightly offset base UV. R
@@ -225,16 +229,16 @@ ${
     ? `
   vec2 dir = uv - vec2(0.5);
   vec2 off = dir * CHROMA;
-  vec3 cR = diskBlur(uv + off, BLUR_RADIUS_PX);
-  vec3 cG = diskBlur(uv, BLUR_RADIUS_PX);
-  vec3 cB = diskBlur(uv - off, BLUR_RADIUS_PX);
+  vec3 cR = diskBlur(uv + off, uBlurRadius, 0.0);
+  vec3 cG = diskBlur(uv, uBlurRadius, 0.0);
+  vec3 cB = diskBlur(uv - off, uBlurRadius, 0.0);
   vec3 impaired = vec3(cR.r, cG.g, cB.b);`
     : `
-  vec3 impaired = diskBlur(uv, BLUR_RADIUS_PX);`
+  vec3 impaired = diskBlur(uv, uBlurRadius, 0.0);`
 }
   // Dim the impaired surround so the corrected view through the lenses reads
   // brighter by contrast — the eye goes to the clear, full-brightness glass.
-  impaired *= ${IMPAIRED_DIM.toFixed(2)};
+  impaired *= uDim;
   // uStrength is a uniform, so this branch is uniform across the draw; once the
   // fade-in pins it at 1 the full-screen sharp tap + mix is skipped entirely.
   if (uStrength >= 1.0) {

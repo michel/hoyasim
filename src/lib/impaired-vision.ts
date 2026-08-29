@@ -1,5 +1,6 @@
 import * as pc from 'playcanvas'
 import { IMPAIRED_VERTEX_GLSL, impairedFragmentGLSL } from './glasses-shaders'
+import { onTuningChange, tuning } from './tuning'
 
 const IMPAIRED_FADE_IN_SEC = 1.0
 
@@ -45,6 +46,12 @@ function setupImpairedVisionOverlay(app: pc.AppBase) {
   })
   material.setParameter('uPxScale', app.graphicsDevice.maxPixelRatio)
   material.setParameter('uStrength', 0)
+  const applyTuning = () => {
+    material.setParameter('uBlurRadius', tuning.impairedBlurRadiusPx)
+    material.setParameter('uDim', tuning.impairedDim)
+  }
+  applyTuning()
+  app.once('destroy', onTuningChange(applyTuning))
   material.depthWrite = false
   material.depthTest = false
   material.blendType = pc.BLEND_NONE

@@ -7,6 +7,7 @@ import {
 } from 'lucide-react'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import hoyaLogo from '@/assets/hoya-logo.svg'
+import TuningPanel from '@/components/TuningPanel'
 import { Button } from '@/components/ui/button'
 import { useDeviceOrientation } from '@/hooks/useDeviceOrientation'
 import { usePointerControls } from '@/hooks/usePointerControls'
@@ -105,6 +106,18 @@ export default function PlayCanvasView() {
   const [puttingOnGlasses, setPuttingOnGlasses] = useState(false)
   const [product, setProduct] = useState<LensProduct>(DEFAULT_LENS_PRODUCT)
   const [hasCycledLens, setHasCycledLens] = useState(false)
+  // Developer tuning panel: ?tune in the URL opens it, T toggles it.
+  const [tuningOpen, setTuningOpen] = useState(() =>
+    new URLSearchParams(window.location.search).has('tune'),
+  )
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 't' && !(e.target instanceof HTMLInputElement))
+        setTuningOpen((open) => !open)
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [])
 
   const lookState = useMemo(createLookState, [])
 
@@ -221,6 +234,7 @@ export default function PlayCanvasView() {
           </div>
         </div>
       )}
+      {!loading && !error && tuningOpen && <TuningPanel product={product} />}
       {!loading && !error && glassesOn && (
         <>
           <LensSelector
