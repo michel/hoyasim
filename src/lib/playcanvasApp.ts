@@ -26,11 +26,9 @@ const CONFIG_FILENAME = `${PROJECT_PREFIX}config.json`
 const SCENE_PATH = `${PROJECT_PREFIX}2483428.json`
 
 // Mobile GPUs scale quadratically with pixel count; gsplat fill is the bottleneck.
-// Touch caps at CSS resolution (1.0): below it the upscale reads pixelated on
-// an iPhone, while native DPR is ~9x the fill at 3x. CSS resolution also maps
-// to the device grid at a clean integer ratio. The blur radii track this cap
-// via blurPixelScale, so changing it doesn't change the designed blur look.
-const MAX_PIXEL_RATIO_TOUCH = 1.0
+// Touch devices render below CSS pixels and rely on browser upscaling; the
+// lens already softens half the screen so the loss is hard to spot.
+const MAX_PIXEL_RATIO_TOUCH = 0.5
 const MAX_PIXEL_RATIO_DESKTOP = 1.5
 
 // World magnification of the splat tiles (applied to the outer tile in
@@ -176,6 +174,17 @@ function configureGsplat(app: pc.AppBase, tiles: pc.Entity[]) {
     : pc.platform.touch
       ? 500_000
       : 4_000_000
+  // Mobile clamps to LOD 2/3. iOS Safari additionally pins to a single LOD
+  // because Metal's WebGL texture allocator doesn't reclaim freed chunks
+  // promptly — repeated load/evict cycles compound into FPS drift over time on
+  // iPhone (not reproducible in desktop Chrome). Pinning to LOD 3 means the same
+  // 3 chunk files are uploaded once and never churned, killing memory pressure.
+  if (pc.platform.ios) {
+    app.scene.gsplat.lodRangeMin = 3
+    app.scene.gsplat.lodRangeMax = 3
+  } else if (pc.platform.touch) {
+    app.scene.gsplat.lodRangeMin = 2
+  }
   // LOD streaming tuning:
   //   - underfill: draw a coarser cached LOD while the desired tier streams in.
   //   - cooldownTicks ~2s: evict off-screen chunks aggressively so panning
@@ -183,29 +192,13 @@ function configureGsplat(app: pc.AppBase, tiles: pc.Entity[]) {
   //   - behindPenalty: trailing-tile chunks coarsen pre-emptively so the
   //     post-wrap LOD upgrade jump is smaller.
   //   - lodUpdateDistance: re-evaluate LOD only every 3m of camera motion.
-  //   - radialSorting: sort order that stays artifact-free as the camera
-  //     rotates in place (exactly what mobile head-look does; the engine trades
-  //     it off against translation, our secondary risk).
-  //   - lodUpdateAngle: also re-evaluate LOD after 20° of camera rotation.
-  //     Translation short-circuits the check, so this only fires while the rig
-  //     is stationary at the traffic light — head-look there never travels the
-  //     3m lodUpdateDistance, and without an angle trigger the behindPenalty
-  //     coarsening never reacts to panning. Kept well under a head-look's
-  //     swing so it actually trips.
+  //   - radialSorting: cheaper sort that stays stable as the camera rotates in
+  //     place (exactly what mobile head-look does).
   app.scene.gsplat.lodUnderfillLimit = 2
   app.scene.gsplat.cooldownTicks = 120
   app.scene.gsplat.lodBehindPenalty = 3
   app.scene.gsplat.lodUpdateDistance = 3
   app.scene.gsplat.radialSorting = true
-  app.scene.gsplat.lodUpdateAngle = 20
-  if (pc.platform.touch) {
-    // Vertex-stage culls, both invisible at mobile's reduced pixel ratio but
-    // otherwise still costing sort + fill: splats under 2% peak alpha, and
-    // splats projecting under 3 framebuffer pixels (sub-0.5% of screen height —
-    // distant micro-detail the fog and impaired blur already swallow).
-    app.scene.gsplat.alphaClipForward = 0.02
-    app.scene.gsplat.minPixelSize = 3
-  }
   for (const e of tiles) {
     if (!e.gsplat) continue
     // Unified rendering is the default (and only) mode since pc 2.21, and the
@@ -214,19 +207,6 @@ function configureGsplat(app: pc.AppBase, tiles: pc.Entity[]) {
     // the camera as it loops around behind. Touch gets a steeper falloff.
     e.gsplat.lodBaseDistance = pc.platform.touch ? 0.5 : 1
     e.gsplat.lodMultiplier = pc.platform.touch ? 2 : 1.5
-    // LOD clamps live on the COMPONENT since pc 2.20 — the scene-level
-    // properties are deprecated warn-only stubs that discard the value.
-    // Mobile clamps to LOD 2/3. iOS Safari additionally pins to a single LOD
-    // because Metal's WebGL texture allocator doesn't reclaim freed chunks
-    // promptly — repeated load/evict cycles compound into FPS drift over time
-    // on iPhone. Pinning to LOD 3 means the same few chunk files are uploaded
-    // once and never churned, and the finer (larger) tiers are never fetched.
-    if (pc.platform.ios) {
-      e.gsplat.lodRangeMin = 3
-      e.gsplat.lodRangeMax = 3
-    } else if (pc.platform.touch) {
-      e.gsplat.lodRangeMin = 2
-    }
   }
 }
 
@@ -320,6 +300,11 @@ export async function bootApp(
 
   const app = createApp(canvas, device)
 
+  const maxPixelRatio = pc.platform.touch
+    ? MAX_PIXEL_RATIO_TOUCH
+    : MAX_PIXEL_RATIO_DESKTOP
+  device.maxPixelRatio = Math.min(window.devicePixelRatio || 1, maxPixelRatio)
+
   registerLookCamera(app, lookState)
   registerCycleForward(app)
 
@@ -335,14 +320,6 @@ export async function bootApp(
   window.addEventListener('resize', onResize)
 
   await asPromise((done) => app.configure(CONFIG_FILENAME, done))
-  // MUST come after configure: config.json ships useDevicePixelRatio, which
-  // makes _parseApplicationProperties overwrite maxPixelRatio with the full
-  // window.devicePixelRatio — capping earlier is silently undone (phones then
-  // render at native DPR, ~36x the fill this cap intends at 3x DPR).
-  const maxPixelRatio = pc.platform.touch
-    ? MAX_PIXEL_RATIO_TOUCH
-    : MAX_PIXEL_RATIO_DESKTOP
-  device.maxPixelRatio = Math.min(window.devicePixelRatio || 1, maxPixelRatio)
   await asPromise((done) => app.preload(() => done()))
   await asPromise((done) => app.scenes.loadScene(SCENE_PATH, done))
   app.start()
