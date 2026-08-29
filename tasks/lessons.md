@@ -17,3 +17,13 @@
 - **The loop length tracks the RIDEABLE road, not the content span.** Measure
   where the road ends on the riding line; crop the bundle there (`-B`) and wrap
   the lap at that edge (the pre-v03 scene did the same implicitly).
+
+## 2026-08-14 — bike turned around after "no-op knob" cleanup
+
+- **A `[0,0,0]` transform call on a scene-baked entity is a reset, not a
+  no-op.** The ponytail audit deleted `setLocalEulerAngles(0,0,0)` on the bike
+  anchor; the scene JSON bakes `[177, 0, 180]` there, so the call was
+  load-bearing and the bike rendered turned around. Before deleting any
+  "redundant" transform on an entity that comes from the PlayCanvas scene,
+  check its baked transform in `public/playcanvas/2483428.json` first — and
+  when a zero-reset must stay, comment WHY so the next audit doesn't re-delete it.
