@@ -31,6 +31,8 @@ const LENS_RIGHT_POS = new pc.Vec3(LENS_X, 0, -0.4875)
 // periphery looks "soft" rather than "blind".
 const SOFT_ZONE_BLUR_MAX_PX = 12.0
 
+const DEPTH_CLEAR_LAYER_NAME = 'GlassesDepthClear'
+
 type AssetType = ConstructorParameters<typeof pc.Asset>[1]
 
 // Reuses a registry asset when one exists (e.g. glasses taken off and put back
@@ -171,6 +173,32 @@ function createFrameMaterial(): pc.StandardMaterial {
 }
 
 export type LensSide = 'left' | 'right'
+
+// Inserts an empty depth-clearing layer just before IMMEDIATE, where the
+// glasses render, so they are never depth-tested against the world. They sit
+// on the face — nothing in the scene can come between the eye and the lens —
+// yet the handlebar and phones, closer than the lens plane when you look down
+// or sideways, poked through and left hard-edged patches of the impaired
+// overlay inside the lens (double vision). Clearing on IMMEDIATE itself would
+// also clear between its opaque (frame) and transparent (lens) passes and let
+// the lens paint over the frame rim; a separate layer keeps that intact.
+// The layer outlives take-off, so repeat setups find it and return early.
+function ensureDepthClearBeforeGlasses(
+  app: pc.AppBase,
+  cameraEntity: pc.Entity,
+) {
+  const layers = app.scene.layers
+  if (layers.getLayerByName(DEPTH_CLEAR_LAYER_NAME)) return
+  const immediate = layers.getLayerById(pc.LAYERID_IMMEDIATE)
+  const cam = cameraEntity.camera
+  if (!immediate || !cam) return
+  const clear = new pc.Layer({
+    name: DEPTH_CLEAR_LAYER_NAME,
+    clearDepthBuffer: true,
+  })
+  cam.layers = [...cam.layers, clear.id]
+  layers.insertOpaque(clear, layers.getOpaqueIndex(immediate))
+}
 
 interface SideConfig {
   side: LensSide
@@ -319,6 +347,7 @@ export async function setupLenses(
     ),
   )
 
+  ensureDepthClearBeforeGlasses(app, cameraEntity)
   const frameMat = createFrameMaterial()
   const built = SIDES.map((cfg, i) =>
     buildSide(cfg, sideAssets[i][0], sideAssets[i][1], frameMat, cameraEntity),
