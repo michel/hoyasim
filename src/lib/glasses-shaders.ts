@@ -58,10 +58,10 @@ uniform float uBlurMax;       // max soft-zone blur radius, pixels
 uniform float uLineTrace;     // 0..1 boundary-line reveal progress (sweeps the trace on)
 uniform float uLineFade;      // 0..1 boundary-line opacity (handles the fade-out)
 // This lens's own optical centre in screen UV, updated per frame from the lens
-// mesh's projected position. The multifocal displacement scales around THIS
-// point — never around the shared screen centre, which let a lens's magnified
-// zone reach across the nose bridge and duplicate content from the other half
-// of the screen (most visibly the handlebar phones on wide/mobile aspects).
+// mesh's projected position. The multifocal displacement scales around its
+// horizontal centre LINE (y) — never around the shared screen centre, which
+// let a lens's magnified zone reach across the nose bridge and duplicate
+// content from the other half of the screen.
 uniform vec2 uLensCenter;
 in vec3 vLocalPos;
 
@@ -118,16 +118,15 @@ void main(void) {
   float lensY = clamp((vLocalPos.z - uMinY) / (uMaxY - uMinY), 0.0, 1.0);
   float factor = (CENTER_Y - lensY) * 2.0 * POWER;
 
-  vec2 center = uLensCenter;
-  // Displace around this lens's own centre; cap the DISPLACEMENT (sample minus
-  // fragment position, not the radius) with a tanh asymptote so the sample can
-  // shift at most ~2.5% of the screen away from the true content under this
-  // pixel. Magnify/minify then stay local to the lens: the sample can never
-  // wander across the nose bridge into the other lens's half of the grab, at
-  // any aspect ratio or look direction.
-  vec2 disp = (screenUV - center) * factor;
-  disp.x = 0.025 * tanh(disp.x / 0.025);
-  disp.y = 0.025 * tanh(disp.y / 0.025);
+  // Displace along the vertical axis only, around this lens's centre line: the
+  // progressive power runs top -> bottom, so the zoom must read as vertical
+  // compression at the top and vertical expansion below. A radial scale about
+  // the centre point displaced mostly SIDEWAYS wherever content sat left or
+  // right of it (the handlebar phones), which read as a left/right zoom. Cap
+  // the displacement with a tanh asymptote so the sample can shift at most
+  // ~2.5% of the screen away from the true content under this pixel.
+  float dy = (screenUV.y - uLensCenter.y) * factor;
+  vec2 disp = vec2(0.0, 0.025 * tanh(dy / 0.025));
   vec2 sampleUV = screenUV + disp;
 
   // Fade alpha to 0 before the displaced sample reaches the screen edge, so the
