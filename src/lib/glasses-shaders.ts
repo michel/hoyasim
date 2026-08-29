@@ -5,9 +5,12 @@
 
 // Premium progressive multifocal, shared by all three products. The soft-zone
 // blur (not this curve) is what distinguishes Balansis / MySelf Profile /
-// MySense from one another.
-const MULTIFOCAL_POWER = 0.055
+// MySense from one another. POWER is the magnification swing: the top edge of
+// the lens minifies by (1 - POWER), the bottom edge magnifies by (1 + POWER).
+// DISP_CAP bounds how far a sample may move, in screen HEIGHTS.
+const MULTIFOCAL_POWER = 0.2
 const MULTIFOCAL_CENTER_Y = 0.5
+const MULTIFOCAL_DISP_CAP = 0.04
 // Brightness of the impaired (outside-lens) surround; < 1 darkens it so the
 // corrected lens view draws the eye.
 const IMPAIRED_DIM = 0.78
@@ -58,15 +61,16 @@ uniform float uBlurMax;       // max soft-zone blur radius, pixels
 uniform float uLineTrace;     // 0..1 boundary-line reveal progress (sweeps the trace on)
 uniform float uLineFade;      // 0..1 boundary-line opacity (handles the fade-out)
 // This lens's own optical centre in screen UV, updated per frame from the lens
-// mesh's projected position. The multifocal displacement scales around its
-// horizontal centre LINE (y) — never around the shared screen centre, which
-// let a lens's magnified zone reach across the nose bridge and duplicate
-// content from the other half of the screen.
+// mesh's projected position. The multifocal zoom is centred on THIS point —
+// never on the shared screen centre, which let a lens's magnified zone reach
+// across the nose bridge and duplicate content from the other half of the
+// screen (most visibly the handlebar phones on wide/mobile aspects).
 uniform vec2 uLensCenter;
 in vec3 vLocalPos;
 
 const float POWER = ${MULTIFOCAL_POWER.toFixed(3)};
 const float CENTER_Y = ${MULTIFOCAL_CENTER_Y.toFixed(3)};
+const float DISP_CAP = ${MULTIFOCAL_DISP_CAP.toFixed(3)};
 const float LINE_LEVEL = 0.5;     // soft-zone contour the boundary line traces
 const float LINE_HALF_PX = 6.0;        // line half-width in pixels
 const float LINE_DASH_COUNT = 11.0;    // dash + gap cycles along each corner arc
@@ -114,19 +118,24 @@ void main(void) {
   vec2 screenUV = gl_FragCoord.xy * uScreenSize.zw;
 
   // vLocalPos.z is the lens GLB's vertical axis (0 = visual top, 1 = bottom).
-  // Multifocal progressive: minify above the neutral band, magnify below it.
   float lensY = clamp((vLocalPos.z - uMinY) / (uMaxY - uMinY), 0.0, 1.0);
-  float factor = (CENTER_Y - lensY) * 2.0 * POWER;
 
-  // Displace along the vertical axis only, around this lens's centre line: the
-  // progressive power runs top -> bottom, so the zoom must read as vertical
-  // compression at the top and vertical expansion below. A radial scale about
-  // the centre point displaced mostly SIDEWAYS wherever content sat left or
-  // right of it (the handlebar phones), which read as a left/right zoom. Cap
-  // the displacement with a tanh asymptote so the sample can shift at most
-  // ~2.5% of the screen away from the true content under this pixel.
-  float dy = (screenUV.y - uLensCenter.y) * factor;
-  vec2 disp = vec2(0.0, 0.025 * tanh(dy / 0.025));
+  // Progressive zoom about this lens's own centre: the distance zone (upper
+  // half) minifies so the wearer takes in more of the far scene, the reading
+  // zone (lower half) magnifies so the handlebar phones read larger. w runs
+  // -1 at the top edge .. +1 at the bottom edge, 0 on the centre line. A scale
+  // is unit-free, so the zoom itself is isotropic in pixels — but the cap must
+  // be too: measure the displacement in screen-HEIGHT units on both axes and
+  // cap it radially with a tanh asymptote. A per-axis cap in UV units saturated
+  // the vertical axis at a fraction of the horizontal one on wide windows and
+  // smeared the zoom sideways. The cap also keeps samples out of the other
+  // lens's half of the grab (duplicated phones across the nose bridge).
+  float w = (lensY - CENTER_Y) * 2.0;
+  float mag = 1.0 + w * POWER;
+  float aspect = uScreenSize.x * uScreenSize.w;
+  vec2 d = (screenUV - uLensCenter) * vec2(aspect, 1.0) * (1.0 / mag - 1.0);
+  float len = max(length(d), 1e-6);
+  vec2 disp = d * (DISP_CAP * tanh(len / DISP_CAP) / len) / vec2(aspect, 1.0);
   vec2 sampleUV = screenUV + disp;
 
   // Fade alpha to 0 before the displaced sample reaches the screen edge, so the
