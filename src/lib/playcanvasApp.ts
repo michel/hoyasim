@@ -293,17 +293,12 @@ export async function bootApp(
   lookState: LookState,
 ): Promise<BootedApp> {
   const device = await pc.createGraphicsDevice(canvas, {
-    deviceTypes: ['webgl2', 'webgl1'],
+    deviceTypes: ['webgl2'],
     powerPreference: 'high-performance',
     antialias: false,
   })
 
   const app = createApp(canvas, device)
-
-  const maxPixelRatio = pc.platform.touch
-    ? MAX_PIXEL_RATIO_TOUCH
-    : MAX_PIXEL_RATIO_DESKTOP
-  device.maxPixelRatio = Math.min(window.devicePixelRatio || 1, maxPixelRatio)
 
   registerLookCamera(app, lookState)
   registerCycleForward(app)
@@ -320,6 +315,13 @@ export async function bootApp(
   window.addEventListener('resize', onResize)
 
   await asPromise((done) => app.configure(CONFIG_FILENAME, done))
+  // MUST come after configure: config.json ships useDevicePixelRatio, which
+  // makes the engine overwrite maxPixelRatio with the full window ratio —
+  // capping earlier was silently undone, and phones rendered at native DPR.
+  const maxPixelRatio = pc.platform.touch
+    ? MAX_PIXEL_RATIO_TOUCH
+    : MAX_PIXEL_RATIO_DESKTOP
+  device.maxPixelRatio = Math.min(window.devicePixelRatio || 1, maxPixelRatio)
   await asPromise((done) => app.preload(() => done()))
   await asPromise((done) => app.scenes.loadScene(SCENE_PATH, done))
   app.start()

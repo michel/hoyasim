@@ -152,3 +152,13 @@ all visual button styling is unchanged. Logic: `hasCycledLens` (in-memory, defau
 `false`) flips to `true` on the first cycle of either side; the left selector gets
 `showHint={!hasCycledLens}`. Net diff is small and touches only `PlayCanvasView.tsx`.
 tsc + biome clean. Functional/visual check still to run in the browser.
+
+## 2026-08-29 — depth-based progressive focus (replaces the zoom as the headline effect)
+
+- [x] Enable `renderSceneDepthMap` on the camera (impaired-vision.ts, next to the colour grab)
+- [x] Lens shader: linearise `uSceneDepthMap` via `camera_params`; focus target from lensY (distance zone top, corridor, near zone bottom); defocus in world-dioptres; mip-based variable blur (`textureLod`) capped at DEFOCUS_BLUR_MAX_PX; soft-zone astigmatism blur on top
+- [x] Shrink the zoom to a realistic ~3 % step
+- [x] Tune NEAR_FOCUS_DIST / corridor against the scene (phone ≈ 0.18 world units) — near zone starts at lensY 0.4 so the phones are sharp from the natural view; blur max 14 px; magnification 8 %
+- [x] Verify: tsc, biome, aislop clean; browser: street sharp through the top, phones sharp in the near zone, road blurred through it, phones soften when they drift up; Balansis wings blur the inner phone; no console errors
+- [x] Impaired overlay: 9-tap kernel → single mip fetch (iPhone perf, no ghost panes)
+- [x] Simplify review (reuse/simplification/efficiency/altitude) + ponytail review applied; adversarial correctness workflow (3 lenses × 3 refuters)

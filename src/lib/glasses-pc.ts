@@ -5,7 +5,7 @@ import {
   ENTRANCE_DROP,
   startTrace,
 } from './glasses-anim'
-import { LENS_VERTEX_GLSL, lensFragmentGLSL } from './glasses-shaders'
+import { LENS_FRAGMENT_GLSL, LENS_VERTEX_GLSL } from './glasses-shaders'
 import { renderComponents } from './pc-utils'
 
 // Origin-prefixed on purpose: AssetRegistry prepends assets.prefix (the
@@ -25,11 +25,6 @@ const LENS_SCALE = new pc.Vec3(
 const LENS_X = 0.39375
 const LENS_LEFT_POS = new pc.Vec3(-LENS_X, 0, -0.4875)
 const LENS_RIGHT_POS = new pc.Vec3(LENS_X, 0, -0.4875)
-
-// Max soft-zone blur radius in pixels. Demo-exaggerated so the tier difference
-// reads on a phone, but capped below the uncorrected overlay (16px) so the
-// periphery looks "soft" rather than "blind".
-const SOFT_ZONE_BLUR_MAX_PX = 12.0
 
 type AssetType = ConstructorParameters<typeof pc.Asset>[1]
 
@@ -93,7 +88,7 @@ function localBounds(entity: pc.Entity): {
 
 // Each product is the same lens shader with a different soft-zone profile. The
 // soft zone (two lower corners) widens as the tier drops: MySense barely blurs,
-// Balansis blurs the most. All three share the premium multifocal curve above.
+// Balansis blurs the most. All three share the same progressive-focus corridor.
 export type LensProduct = 'Balansis' | 'MySelf Profile' | 'MySense'
 
 interface LensProductProfile {
@@ -134,23 +129,21 @@ function createLensMaterial(
   xMax: number,
   yMin: number,
   yMax: number,
+  pxScale: number,
 ): pc.ShaderMaterial {
   const m = new pc.ShaderMaterial({
     uniqueName: `progressive-lens-${xMin}-${xMax}-${yMin}-${yMax}`,
     vertexGLSL: LENS_VERTEX_GLSL,
-    fragmentGLSL: lensFragmentGLSL(pc.platform.touch ? 8 : 16),
+    fragmentGLSL: LENS_FRAGMENT_GLSL,
     attributes: { vertex_position: pc.SEMANTIC_POSITION },
   })
   m.setParameter('uMinX', xMin)
   m.setParameter('uMaxX', xMax)
   m.setParameter('uMinY', yMin)
   m.setParameter('uMaxY', yMax)
-  m.setParameter('uBlurMax', SOFT_ZONE_BLUR_MAX_PX)
+  m.setParameter('uPxScale', pxScale)
   m.setParameter('uLineTrace', 0)
   m.setParameter('uLineFade', 0)
-  // Overwritten every frame by createLensCenterUpdate; a sane default covers
-  // the frames before the first update.
-  m.setParameter('uLensCenter', [0.5, 0.5])
   applyProductUniforms(m, DEFAULT_LENS_PRODUCT)
   // Transparent so the lens renders AFTER the scene-color grab pass and can
   // sample uSceneColorMap.
@@ -198,7 +191,6 @@ export interface GlassesController {
 }
 
 export interface SideState {
-  lens: pc.Entity
   material: pc.ShaderMaterial
   product: LensProduct
   // Seconds since the boundary-line trace started, or null when idle.
@@ -218,6 +210,7 @@ function buildSide(
   cfg: SideConfig,
   lensAsset: pc.Asset,
   cameraEntity: pc.Entity,
+  pxScale: number,
 ): BuiltSide {
   const group = new pc.Entity(cfg.name)
 
@@ -225,7 +218,7 @@ function buildSide(
     lensAsset.resource as pc.ContainerResource
   ).instantiateRenderEntity()
   const { xMin, xMax, zMin, zMax } = localBounds(lens)
-  const material = createLensMaterial(xMin, xMax, zMin, zMax)
+  const material = createLensMaterial(xMin, xMax, zMin, zMax, pxScale)
   applyMaterial(lens, material)
   setLayer(lens, pc.LAYERID_IMMEDIATE)
 
@@ -244,38 +237,10 @@ function buildSide(
     finalPosition: cfg.position,
     side: cfg.side,
     state: {
-      lens,
       material,
       product: DEFAULT_LENS_PRODUCT,
       traceElapsed: null,
     },
-  }
-}
-
-// Per-frame: project each lens mesh's world centre into screen UV and hand it
-// to that lens's shader as uLensCenter — the point its multifocal displacement
-// scales around. Projected every frame (not once) so it tracks the entrance
-// drop, window resizes, and any camera/aspect change.
-function createLensCenterUpdate(
-  cameraEntity: pc.Entity,
-  sides: Record<LensSide, SideState | null>,
-) {
-  const screen = new pc.Vec3()
-  return () => {
-    const cam = cameraEntity.camera
-    if (!cam) return
-    const canvas = cam.system.app.graphicsDevice.canvas
-    const w = canvas.clientWidth
-    const h = canvas.clientHeight
-    if (!w || !h) return
-    for (const s of [sides.left, sides.right]) {
-      if (!s) continue
-      const aabb = renderComponents(s.lens)[0]?.meshInstances[0]?.aabb
-      if (!aabb) continue
-      cam.worldToScreen(aabb.center, screen)
-      // worldToScreen returns CSS pixels, y-down; gl_FragCoord UV is y-up.
-      s.material.setParameter('uLensCenter', [screen.x / w, 1 - screen.y / h])
-    }
   }
 }
 
@@ -292,8 +257,13 @@ export async function setupLenses(
     ),
   )
 
+  // The lens shader blurs by defocus, so it needs the engine's scene depth
+  // grab (a full-res depth blit every frame) — only while the glasses are on.
+  const cam = cameraEntity.camera
+  if (cam) cam.renderSceneDepthMap = true
+  const pxScale = app.graphicsDevice.maxPixelRatio
   const built = SIDES.map((cfg, i) =>
-    buildSide(cfg, lensAssets[i], cameraEntity),
+    buildSide(cfg, lensAssets[i], cameraEntity, pxScale),
   )
   const glassesGroups = built.map((b) => b.group)
   // Rest position per group, captured so the entrance animation can lerp the
@@ -302,12 +272,7 @@ export async function setupLenses(
   const sides: Record<LensSide, SideState | null> = { left: null, right: null }
   for (const b of built) sides[b.side] = b.state
 
-  const traceUpdate = createTraceUpdate(sides)
-  const lensCenterUpdate = createLensCenterUpdate(cameraEntity, sides)
-  const onUpdate = (dt: number) => {
-    traceUpdate(dt)
-    lensCenterUpdate()
-  }
+  const onUpdate = createTraceUpdate(sides)
   app.on('update', onUpdate)
 
   const entrance = createEntrance(app, glassesGroups, finalPositions, () => {
@@ -331,6 +296,7 @@ export async function setupLenses(
       app.off('update', onUpdate)
       entrance.cancel()
       for (const g of glassesGroups) g.destroy()
+      if (cam) cam.renderSceneDepthMap = false
     },
   }
 }
