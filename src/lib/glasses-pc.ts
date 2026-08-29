@@ -31,8 +31,6 @@ const LENS_RIGHT_POS = new pc.Vec3(LENS_X, 0, -0.4875)
 // periphery looks "soft" rather than "blind".
 const SOFT_ZONE_BLUR_MAX_PX = 12.0
 
-const DEPTH_CLEAR_LAYER_NAME = 'GlassesDepthClear'
-
 type AssetType = ConstructorParameters<typeof pc.Asset>[1]
 
 // Reuses a registry asset when one exists (e.g. glasses taken off and put back
@@ -116,9 +114,9 @@ const LENS_PRODUCTS: Record<LensProduct, LensProductProfile> = {
 }
 
 export const LENS_PRODUCT_ORDER: LensProduct[] = [
+  'MySense',
   'Balansis',
   'MySelf Profile',
-  'MySense',
 ]
 
 // Every fresh controller (and the UI mirroring it) starts both eyes here.
@@ -158,53 +156,21 @@ function createLensMaterial(
   // sample uSceneColorMap.
   m.blendType = pc.BLEND_NORMAL
   m.depthWrite = false
-  m.update()
-  return m
-}
-
-function createFrameMaterial(): pc.StandardMaterial {
-  const m = new pc.StandardMaterial()
-  m.diffuse.set(0, 0, 0)
-  m.useMetalness = true
-  m.metalness = 0
-  m.gloss = 0.9
+  // Never depth-test against the world: the glasses sit on the face, so nothing
+  // in the scene can come between the eye and the lens — yet the handlebar and
+  // phones, closer than the lens plane when you look down or sideways, poked
+  // through and left hard-edged patches of the impaired overlay in the lens.
+  m.depthTest = false
   m.update()
   return m
 }
 
 export type LensSide = 'left' | 'right'
 
-// Inserts an empty depth-clearing layer just before IMMEDIATE, where the
-// glasses render, so they are never depth-tested against the world. They sit
-// on the face — nothing in the scene can come between the eye and the lens —
-// yet the handlebar and phones, closer than the lens plane when you look down
-// or sideways, poked through and left hard-edged patches of the impaired
-// overlay inside the lens (double vision). Clearing on IMMEDIATE itself would
-// also clear between its opaque (frame) and transparent (lens) passes and let
-// the lens paint over the frame rim; a separate layer keeps that intact.
-// The layer outlives take-off, so repeat setups find it and return early.
-function ensureDepthClearBeforeGlasses(
-  app: pc.AppBase,
-  cameraEntity: pc.Entity,
-) {
-  const layers = app.scene.layers
-  if (layers.getLayerByName(DEPTH_CLEAR_LAYER_NAME)) return
-  const immediate = layers.getLayerById(pc.LAYERID_IMMEDIATE)
-  const cam = cameraEntity.camera
-  if (!immediate || !cam) return
-  const clear = new pc.Layer({
-    name: DEPTH_CLEAR_LAYER_NAME,
-    clearDepthBuffer: true,
-  })
-  cam.layers = [...cam.layers, clear.id]
-  layers.insertOpaque(clear, layers.getOpaqueIndex(immediate))
-}
-
 interface SideConfig {
   side: LensSide
   name: string
   lensFile: string
-  frameFile: string
   position: pc.Vec3
 }
 
@@ -213,14 +179,12 @@ const SIDES: SideConfig[] = [
     side: 'left',
     name: 'GlassesLeft',
     lensFile: 'lens_left.glb',
-    frameFile: 'lens_frame_left.glb',
     position: LENS_LEFT_POS,
   },
   {
     side: 'right',
     name: 'GlassesRight',
     lensFile: 'lens_right.glb',
-    frameFile: 'lens_frame_right.glb',
     position: LENS_RIGHT_POS,
   },
 ]
@@ -248,13 +212,11 @@ interface BuiltSide {
   state: SideState
 }
 
-// Instantiates one lens + frame group as a child of the camera, dropped above
-// its rest position so the entrance can slide it down.
+// Instantiates one lens group as a child of the camera, dropped above its rest
+// position so the entrance can slide it down.
 function buildSide(
   cfg: SideConfig,
   lensAsset: pc.Asset,
-  frameAsset: pc.Asset,
-  frameMat: pc.Material,
   cameraEntity: pc.Entity,
 ): BuiltSide {
   const group = new pc.Entity(cfg.name)
@@ -267,16 +229,7 @@ function buildSide(
   applyMaterial(lens, material)
   setLayer(lens, pc.LAYERID_IMMEDIATE)
 
-  const frame = (
-    frameAsset.resource as pc.ContainerResource
-  ).instantiateRenderEntity()
-  applyMaterial(frame, frameMat)
-  // Frame's opaque pass runs after the grab and before the lens transparent
-  // pass within IMMEDIATE, so the lens shader doesn't sample the frame.
-  setLayer(frame, pc.LAYERID_IMMEDIATE)
-
   group.addChild(lens)
-  group.addChild(frame)
   // Start dropped above the rest position; playPutOnAnimation slides it down.
   group.setLocalPosition(
     cfg.position.x,
@@ -326,31 +279,21 @@ function createLensCenterUpdate(
   }
 }
 
-// Adds the lens + frame meshes as children of the camera. Each lens samples
+// Adds the lens meshes as children of the camera. Each lens samples
 // the pre-overlay scene grab so the area it covers reads back as sharp; the
 // impaired overlay remains visible everywhere outside the lens geometry.
 export async function setupLenses(
   app: pc.AppBase,
   cameraEntity: pc.Entity,
 ): Promise<GlassesController> {
-  const sideAssets = await Promise.all(
+  const lensAssets = await Promise.all(
     SIDES.map((s) =>
-      Promise.all([
-        loadAsset(app, s.lensFile, 'container', `${ASSETS_PATH}${s.lensFile}`),
-        loadAsset(
-          app,
-          s.frameFile,
-          'container',
-          `${ASSETS_PATH}${s.frameFile}`,
-        ),
-      ]),
+      loadAsset(app, s.lensFile, 'container', `${ASSETS_PATH}${s.lensFile}`),
     ),
   )
 
-  ensureDepthClearBeforeGlasses(app, cameraEntity)
-  const frameMat = createFrameMaterial()
   const built = SIDES.map((cfg, i) =>
-    buildSide(cfg, sideAssets[i][0], sideAssets[i][1], frameMat, cameraEntity),
+    buildSide(cfg, lensAssets[i], cameraEntity),
   )
   const glassesGroups = built.map((b) => b.group)
   // Rest position per group, captured so the entrance animation can lerp the
