@@ -1,5 +1,6 @@
 import * as pc from 'playcanvas'
 import { IMPAIRED_VERTEX_GLSL, impairedFragmentGLSL } from './glasses-shaders'
+import { blurPixelScale } from './pc-utils'
 
 const IMPAIRED_BLUR_RADIUS_PX = 16.0
 const IMPAIRED_CHROMA_STRENGTH = 0.001
@@ -45,7 +46,10 @@ function setupImpairedVisionOverlay(app: pc.AppBase) {
     fragmentGLSL: impairedFragmentGLSL(!pc.platform.touch),
     attributes: { vertex_position: pc.SEMANTIC_POSITION },
   })
-  material.setParameter('uBlurRadius', IMPAIRED_BLUR_RADIUS_PX)
+  material.setParameter(
+    'uBlurRadius',
+    IMPAIRED_BLUR_RADIUS_PX * blurPixelScale(app),
+  )
   material.setParameter('uChroma', IMPAIRED_CHROMA_STRENGTH)
   material.setParameter('uStrength', 0)
   material.depthWrite = false
