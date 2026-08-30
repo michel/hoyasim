@@ -26,10 +26,18 @@ const CONFIG_FILENAME = `${PROJECT_PREFIX}config.json`
 const SCENE_PATH = `${PROJECT_PREFIX}2483428.json`
 
 // Mobile GPUs scale quadratically with pixel count; gsplat fill is the bottleneck.
-// Touch devices render below CSS pixels and rely on browser upscaling; the
-// lens already softens half the screen so the loss is hard to spot.
-const MAX_PIXEL_RATIO_TOUCH = 0.5
+// Touch caps at CSS resolution (1.0): below it the upscale reads soft on an
+// iPhone, while native DPR is ~9x the fill at 3x. CSS resolution also maps to
+// the device grid at a clean integer ratio. Blur radii track this cap via
+// uPxScale, so changing it doesn't change the designed blur look.
+const MAX_PIXEL_RATIO_TOUCH = 1.0
 const MAX_PIXEL_RATIO_DESKTOP = 1.5
+// Vertical FOV on touch. The scene's 74° becomes a ~117° horizontal view on a
+// landscape phone, which shrinks the cockpit — and the phone screens the demo
+// is about reading — to a sliver. 52° puts them ~1.5x larger; the glasses
+// scale down by the same factor (glasses-pc TOUCH_LENS_FACTOR) so the lens
+// outline stays on screen.
+export const TOUCH_FOV = 52
 
 // World magnification of the splat tiles (applied to the outer tile in
 // setupScene, overriding the scene JSON's baked 5). Raised from 5 to 6 so the
@@ -166,25 +174,10 @@ function stripShadows(app: pc.AppBase) {
 // Globally LOD-balance both tiles to stay under a target splat count, then tune
 // streaming so the looping camera doesn't accumulate GPU memory over time.
 function configureGsplat(app: pc.AppBase, tiles: pc.Entity[]) {
-  // Mobile is fill-bound, so it gets a tighter budget than desktop. iOS gets
-  // the tightest because thermal throttling kicks in after a couple of loop
-  // cycles — less per-frame GPU work = slower heat buildup = stable FPS longer.
-  app.scene.gsplat.splatBudget = pc.platform.ios
-    ? 200_000
-    : pc.platform.touch
-      ? 500_000
-      : 4_000_000
-  // Mobile clamps to LOD 2/3. iOS Safari additionally pins to a single LOD
-  // because Metal's WebGL texture allocator doesn't reclaim freed chunks
-  // promptly — repeated load/evict cycles compound into FPS drift over time on
-  // iPhone (not reproducible in desktop Chrome). Pinning to LOD 3 means the same
-  // 3 chunk files are uploaded once and never churned, killing memory pressure.
-  if (pc.platform.ios) {
-    app.scene.gsplat.lodRangeMin = 3
-    app.scene.gsplat.lodRangeMax = 3
-  } else if (pc.platform.touch) {
-    app.scene.gsplat.lodRangeMin = 2
-  }
+  // Mobile is fill-bound, so it gets a tighter budget than desktop. (iOS used
+  // to get 200k for thermal headroom; at CSS-resolution rendering the street
+  // read too sparse, so it shares the touch budget now.)
+  app.scene.gsplat.splatBudget = pc.platform.touch ? 500_000 : 4_000_000
   // LOD streaming tuning:
   //   - underfill: draw a coarser cached LOD while the desired tier streams in.
   //   - cooldownTicks ~2s: evict off-screen chunks aggressively so panning
@@ -280,6 +273,8 @@ function setupScene(app: pc.AppBase): pc.Entity | null {
 
   const cam = app.root.findByName(CAMERA_ENTITY_NAME)
   const cameraEntity = cam instanceof pc.Entity ? cam : null
+  if (cameraEntity?.camera && pc.platform.touch)
+    cameraEntity.camera.fov = TOUCH_FOV
   if (cameraEntity) setupImpairedVision(app, cameraEntity)
 
   if (cameraEntity && tiles.length > 0)

@@ -118,8 +118,8 @@ uniform float uSoftZoneBlurMax;  // CSS px inside the wings
 in vec3 vLocalPos;
 
 const float LINE_LEVEL = 0.5;     // soft-zone contour the boundary line traces
-const float LINE_HALF_PX = 6.0;        // line half-width in pixels
-const float LINE_DASH_COUNT = 11.0;    // dash + gap cycles along each corner arc
+const float LINE_HALF_CSS = 3.5;       // line half-width, CSS pixels
+const float DASH_CYCLE_CSS = 45.0;     // dash + gap length along the arc, CSS pixels
 const float HALF_PI = 1.5707963;
 ${diskBlurGLSL(true)}
 
@@ -180,7 +180,7 @@ void main(void) {
   // on from the top of the zone downward by uLineTrace, then faded by uLineFade.
   if (uLineFade > 0.001) {
     float d = abs(blurAmt - LINE_LEVEL);
-    float aa = max(fwidth(blurAmt) * LINE_HALF_PX, 1e-5);
+    float aa = max(fwidth(blurAmt) * LINE_HALF_CSS * uPxScale, 1e-5);
     float core = 1.0 - smoothstep(0.0, aa, d);
     // Dash by the polar angle around this corner's origin (lens-local lower
     // corner, normalised by the zone reach). The angle rises monotonically along
@@ -188,7 +188,12 @@ void main(void) {
     // unbroken through the corner. A screen-space tangent projection broke up
     // there because the tangent rotates — and flips sign — across the curve.
     float theta = atan(cornerN.y, cornerN.x);
-    float dash = step(0.5, fract(theta * LINE_DASH_COUNT / HALF_PI));
+    // Dash count from the arc's on-screen length (quarter arc ≈ HALF_PI x
+    // corner height x lens height in pixels), so dashes keep the same spacing
+    // on a phone-sized lens as on a desktop one instead of bunching up.
+    float lensPx = 1.0 / max(fwidth(lensY), 1e-5);
+    float dashes = max(3.0, floor(HALF_PI * uCornerHeight * lensPx / (DASH_CYCLE_CSS * uPxScale)));
+    float dash = step(0.5, fract(theta * dashes / HALF_PI));
     float thr = uCornerHeight * (1.0 - uLineTrace);
     float reveal = smoothstep(thr, thr + 0.03, lensYUp);
     color = mix(color, vec3(1.0), core * dash * reveal * uLineFade);

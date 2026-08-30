@@ -1,4 +1,5 @@
 import * as pc from 'playcanvas'
+import { createNavScreenTexture } from './nav-screen'
 import { renderComponents } from './pc-utils'
 
 // The props baked into (or planted onto) the PlayCanvas scene: the e-bike the
@@ -125,18 +126,20 @@ function setupTrafficLightCycle(app: pc.AppBase, light: pc.Entity) {
 // Brightens the bike's textures by re-using each material's albedo map as an
 // additive emissive source. Only StandardMaterials carrying a colour map are
 // touched, and any material already driving its own emissive map is left alone.
-// Renders the e-bike's dashboard screen as a clear, self-lit display. The GLB
-// already wires the screen's texture as an emissive map but with a black
-// emissive factor. Driving the texture purely through emissive AND disabling
+// Renders the e-bike's dashboard screen as a clear, self-lit display showing
+// the generated navigation screen (big type — the demo is about reading it
+// through the lens). Driving the texture purely through emissive AND disabling
 // lighting avoids the double-exposure (lit diffuse + emissive) that otherwise
 // pushes the graphic past ACES tonemapping into a blown-out white panel.
-function brightenBikeScreen(model: pc.Entity) {
+function brightenBikeScreen(model: pc.Entity, device: pc.GraphicsDevice) {
+  const screen = createNavScreenTexture(device)
   for (const r of renderComponents(model)) {
     for (const mi of r.meshInstances) {
       const m = mi.material
       if (!(m instanceof pc.StandardMaterial)) continue
       if (m.name !== BIKE_SCREEN_MATERIAL) continue
-      if (!m.emissiveMap) m.emissiveMap = m.diffuseMap
+      if (screen) m.diffuseMap = screen
+      m.emissiveMap = m.diffuseMap
       m.useLighting = false
       m.emissive.set(1, 1, 1)
       m.emissiveIntensity = BIKE_SCREEN_EMISSIVE
@@ -153,7 +156,7 @@ export function setupBike(app: pc.AppBase) {
   if (anchor.render) anchor.removeComponent('render')
   const model = instantiateContainer(app, BIKE_ASSET_NAME)
   if (model) {
-    brightenBikeScreen(model)
+    brightenBikeScreen(model, app.graphicsDevice)
     anchor.addChild(model)
   }
   anchor.setLocalPosition(0, BIKE_Y, 0)

@@ -15,7 +15,11 @@ import { notifyTuning, onTuningChange, tuning } from './tuning'
 // out of that rewrite.
 const ASSETS_PATH = `${window.location.origin}${import.meta.env.BASE_URL}assets/glasses/`
 
-const LENS_SCALE_MULT = 1.08
+// Touch runs a narrower camera FOV (playcanvasApp TOUCH_FOV) so the cockpit
+// reads larger; the glasses shrink by the inverse so their outline still fits
+// the screen — the phones grow, the frame does not.
+const TOUCH_LENS_FACTOR = pc.platform.touch ? 0.7 : 1
+const LENS_SCALE_MULT = 1.08 * TOUCH_LENS_FACTOR
 const LENS_SCALE = new pc.Vec3(
   0.16875 * LENS_SCALE_MULT,
   0.16875 * LENS_SCALE_MULT,
@@ -23,7 +27,7 @@ const LENS_SCALE = new pc.Vec3(
 )
 // Spread the lenses outward so the glasses frame each eye with a clear bridge
 // between, rather than crowding the centre of the screen.
-const LENS_X = 0.39375
+const LENS_X = 0.39375 * TOUCH_LENS_FACTOR
 const LENS_LEFT_POS = new pc.Vec3(-LENS_X, 0, -0.4875)
 const LENS_RIGHT_POS = new pc.Vec3(LENS_X, 0, -0.4875)
 
