@@ -11,7 +11,11 @@ type DeviceOrientationEventStatic = typeof DeviceOrientationEvent & {
 const DeviceOrientationEventiOS =
   DeviceOrientationEvent as DeviceOrientationEventStatic
 
-const isIOS = typeof DeviceOrientationEventiOS.requestPermission === 'function'
+// Touch-only: desktop Chrome (152+) ships requestPermission too and grants it
+// with no sensor behind it, which would swap mouse drag for a frozen gyro.
+const needsPermission =
+  pc.platform.touch &&
+  typeof DeviceOrientationEventiOS.requestPermission === 'function'
 
 // -90 degrees around X axis, aligns the camera frame with the device frame.
 const WORLD_CORRECTION = new pc.Quat().setFromAxisAngle(pc.Vec3.RIGHT, -90)
@@ -44,7 +48,7 @@ function eulerYXZToQuat(
 export function useDeviceOrientation(lookState: LookState) {
   const [gyroActive, setGyroActive] = useState(gyroGranted)
   const [showEnableButton, setShowEnableButton] = useState(
-    isIOS && !gyroGranted,
+    needsPermission && !gyroGranted,
   )
 
   useEffect(() => {
@@ -99,7 +103,7 @@ export function useDeviceOrientation(lookState: LookState) {
   }, [gyroActive, lookState])
 
   useEffect(() => {
-    if (isIOS) return
+    if (needsPermission) return
     const testOrientation = (event: DeviceOrientationEvent) => {
       if (event.alpha !== null) {
         gyroGranted = true
