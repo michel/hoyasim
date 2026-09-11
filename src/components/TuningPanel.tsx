@@ -17,6 +17,13 @@ import {
 } from '@/lib/tuning'
 
 const PROFILE_RANGES: Record<keyof LensProductProfile, TuningRange> = {
+  corridorTop: { label: 'Corridor: top lens ends', min: 0, max: 1, step: 0.01 },
+  corridorBottom: {
+    label: 'Corridor: bottom lens starts',
+    min: 0,
+    max: 1,
+    step: 0.01,
+  },
   cornerWidth: { label: 'Wing width', min: 0, max: 0.5, step: 0.01 },
   cornerHeight: { label: 'Wing height', min: 0, max: 1, step: 0.01 },
   feather: { label: 'Wing feather', min: 0, max: 0.4, step: 0.01 },
@@ -112,7 +119,7 @@ export default function TuningPanel({ product }: { product: LensProduct }) {
           ))}
         </div>
       ))}
-      <div className="mt-2 mb-1 font-semibold">{product} wings</div>
+      <div className="mt-2 mb-1 font-semibold">{product}</div>
       <TuningSlider tuningKey="softZoneBlurMaxPx" rerender={rerender} />
       {(Object.keys(PROFILE_RANGES) as (keyof LensProductProfile)[]).map(
         (key) => (

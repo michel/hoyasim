@@ -11,8 +11,14 @@ export interface LookState {
 const LAT_MIN = -85
 const LAT_MAX = 85
 
+// On touch, start pitched down so the handlebar phones — the reading target —
+// sit centred in the first view a customer gets (the eye also moves in toward
+// the bar there, playcanvasApp TOUCH_CAMERA_POS). Gyro or a drag takes over
+// from here; desktop keeps the level start.
+const START_LAT = pc.platform.touch ? -25 : 0
+
 export function createLookState(): LookState {
-  return { lon: 0, lat: 0, gyroQuat: new pc.Quat(), gyroActive: false }
+  return { lon: 0, lat: START_LAT, gyroQuat: new pc.Quat(), gyroActive: false }
 }
 
 export function registerLookCamera(app: pc.AppBase, state: LookState) {

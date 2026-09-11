@@ -15,27 +15,25 @@ export interface EffectTuning {
   bottomStrengthPx: number
   bottomFarLimit: number
   bottomTransition: number
-  // Corridor: lens heights where the top lens ends and the bottom lens starts.
-  corridorTop: number
-  corridorBottom: number
   // Per-product wings (peripheral astigmatism) and the uncorrected surround.
+  // The corridor is a per-product property (glasses-pc LENS_PRODUCTS).
   softZoneBlurMaxPx: number
   impairedBlurRadiusPx: number
   impairedDim: number
 }
 
+// The customer's v01 profiles (2026-09-11): distance vision is fully corrected
+// (top lens off), the reading lens blurs everything past the cockpit hard.
 export const DEFAULT_TUNING: EffectTuning = {
-  topStrengthPx: 3.5,
-  topNearLimit: 0.4,
-  topTransition: 0.15,
-  bottomStrengthPx: 3.5,
-  bottomFarLimit: 0.6,
-  bottomTransition: 0.2,
-  corridorTop: 0.4,
-  corridorBottom: 0.6,
+  topStrengthPx: 0,
+  topNearLimit: 0.1,
+  topTransition: 0.01,
+  bottomStrengthPx: 10,
+  bottomFarLimit: 0.42,
+  bottomTransition: 0.01,
   softZoneBlurMaxPx: 6.5,
-  impairedBlurRadiusPx: 2,
-  impairedDim: 0.88,
+  impairedBlurRadiusPx: 5,
+  impairedDim: 0.7,
 }
 
 export interface TuningRange {
@@ -62,13 +60,6 @@ export const TUNING_RANGES: Record<keyof EffectTuning, TuningRange> = {
   },
   bottomFarLimit: { label: 'Far = farther than', min: 0.1, max: 5, step: 0.01 },
   bottomTransition: { label: 'Edge softness', min: 0.01, max: 2, step: 0.01 },
-  corridorTop: { label: 'Top lens ends at', min: 0, max: 1, step: 0.01 },
-  corridorBottom: {
-    label: 'Bottom lens starts at',
-    min: 0,
-    max: 1,
-    step: 0.01,
-  },
   softZoneBlurMaxPx: { label: 'Wing blur (px)', min: 0, max: 30, step: 0.5 },
   impairedBlurRadiusPx: {
     label: 'Uncorrected blur (px)',
@@ -89,10 +80,6 @@ export const TUNING_GROUPS: { title: string; keys: (keyof EffectTuning)[] }[] =
     {
       title: 'Bottom lens (reading)',
       keys: ['bottomStrengthPx', 'bottomFarLimit', 'bottomTransition'],
-    },
-    {
-      title: 'Corridor (lens height, 0 = top)',
-      keys: ['corridorTop', 'corridorBottom'],
     },
     {
       title: 'Uncorrected surround',

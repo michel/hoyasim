@@ -91,27 +91,49 @@ function localBounds(entity: pc.Entity): {
   return { xMin, xMax, zMin, zMax }
 }
 
-// Each product is the same lens shader with a different soft-zone profile. The
-// soft zone (two lower corners) widens as the tier drops: MySense barely blurs,
-// Balansis blurs the most. All three share the same progressive-focus corridor.
+// Each product is the same lens shader with its own soft-zone profile AND its
+// own corridor: the lens heights where the distance lens hands over to the
+// reading lens. The corridor is the tier story in the customer's v01 profiles
+// — MySense blends over almost half the lens, Balansis switches abruptly —
+// while the wings (two lower corners) widen as the tier drops.
 export type LensProduct = 'Balansis' | 'MySelf Profile' | 'MySense'
 
 export interface LensProductProfile {
   cornerWidth: number
   cornerHeight: number
   feather: number
+  corridorTop: number
+  corridorBottom: number
 }
 
-// Mirror-symmetric wing profiles, tuned by eye. Live-adjustable per product
-// from the tuning panel (setProductProfile); DEFAULT_LENS_PRODUCTS is the
-// shipped look.
+// The customer's v01 profiles (2026-09-11). Live-adjustable per product from
+// the tuning panel (setProductProfile); DEFAULT_LENS_PRODUCTS is the shipped
+// look.
 const DEFAULT_LENS_PRODUCTS: Record<LensProduct, LensProductProfile> = {
-  // Entry: largest soft corners, narrowest clear field.
-  Balansis: { cornerWidth: 0.26, cornerHeight: 0.52, feather: 0.12 },
-  // Mid: moderate corners.
-  'MySelf Profile': { cornerWidth: 0.2, cornerHeight: 0.45, feather: 0.12 },
-  // Premium: smallest soft corners, widest clear field.
-  MySense: { cornerWidth: 0.13, cornerHeight: 0.36, feather: 0.12 },
+  // Entry: largest soft corners, near-instant corridor.
+  Balansis: {
+    cornerWidth: 0.26,
+    cornerHeight: 0.52,
+    feather: 0.12,
+    corridorTop: 0.52,
+    corridorBottom: 0.54,
+  },
+  // Mid: moderate corners, short corridor.
+  'MySelf Profile': {
+    cornerWidth: 0.2,
+    cornerHeight: 0.45,
+    feather: 0.12,
+    corridorTop: 0.5,
+    corridorBottom: 0.6,
+  },
+  // Premium: smallest soft corners, longest and smoothest corridor.
+  MySense: {
+    cornerWidth: 0.13,
+    cornerHeight: 0.36,
+    feather: 0.12,
+    corridorTop: 0.47,
+    corridorBottom: 0.84,
+  },
 }
 
 export const LENS_PRODUCTS: Record<LensProduct, LensProductProfile> =
@@ -144,6 +166,8 @@ function applyProductUniforms(m: pc.ShaderMaterial, product: LensProduct) {
   m.setParameter('uCornerWidth', p.cornerWidth)
   m.setParameter('uCornerHeight', p.cornerHeight)
   m.setParameter('uFeather', p.feather)
+  m.setParameter('uCorridorTop', p.corridorTop)
+  m.setParameter('uCorridorBottom', p.corridorBottom)
 }
 
 function applyTuning(m: pc.ShaderMaterial) {
@@ -153,8 +177,6 @@ function applyTuning(m: pc.ShaderMaterial) {
   m.setParameter('uBottomStrength', tuning.bottomStrengthPx)
   m.setParameter('uBottomFarLimit', tuning.bottomFarLimit)
   m.setParameter('uBottomTransition', tuning.bottomTransition)
-  m.setParameter('uCorridorTop', tuning.corridorTop)
-  m.setParameter('uCorridorBottom', tuning.corridorBottom)
   m.setParameter('uSoftZoneBlurMax', tuning.softZoneBlurMaxPx)
 }
 

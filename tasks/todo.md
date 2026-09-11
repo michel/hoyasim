@@ -162,3 +162,10 @@ tsc + biome clean. Functional/visual check still to run in the browser.
 - [x] Verify: tsc, biome, aislop clean; browser: street sharp through the top, phones sharp in the near zone, road blurred through it, phones soften when they drift up; Balansis wings blur the inner phone; no console errors
 - [x] Impaired overlay: 9-tap kernel → single mip fetch (iPhone perf, no ghost panes)
 - [x] Simplify review (reuse/simplification/efficiency/altitude) + ponytail review applied; adversarial correctness workflow (3 lenses × 3 refuters)
+
+## 2026-09-11 — customer v01 profiles + centered navigator
+
+- [x] Corridor per product (MySense 0.47–0.84, MySelf 0.50–0.60, Balansis 0.52–0.54); shared v01 tuning baked
+- [x] Tuning panel: corridor sliders in the product section
+- [x] Centered navigator built, then reverted on request; final approach: touch camera moves in toward the bar (TOUCH_CAMERA_POS) + start pitch −25° so the phones sit centred and large — no geometry scaling (node scaling tore screens off bodies: Iphone node = screen faces only, nested under the handlebar node)
+- [x] Verified desktop (per-product corridors, unchanged view) + emulated iPhone (phones readable, centred); biome/tsc clean, aislop findings all pre-existing

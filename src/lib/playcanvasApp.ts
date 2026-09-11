@@ -38,6 +38,11 @@ const MAX_PIXEL_RATIO_DESKTOP = 1.5
 // scale down by the same factor (glasses-pc TOUCH_LENS_FACTOR) so the lens
 // outline stays on screen.
 export const TOUCH_FOV = 52
+// On touch the eye also moves in toward the handlebar (rig-local; the scene
+// bakes the camera at (-0.01, 0.378, 0.06)) so the phones — the reading
+// target — fill the view without scaling any geometry. Keep the phones
+// (~0.29 up, -0.10 forward in rig space) beyond the 0.1 near clip.
+const TOUCH_CAMERA_POS = new pc.Vec3(-0.01, 0.37, 0)
 
 // World magnification of the splat tiles (applied to the outer tile in
 // setupScene, overriding the scene JSON's baked 5). Raised from 5 to 6 so the
@@ -273,8 +278,10 @@ function setupScene(app: pc.AppBase): pc.Entity | null {
 
   const cam = app.root.findByName(CAMERA_ENTITY_NAME)
   const cameraEntity = cam instanceof pc.Entity ? cam : null
-  if (cameraEntity?.camera && pc.platform.touch)
+  if (cameraEntity?.camera && pc.platform.touch) {
     cameraEntity.camera.fov = TOUCH_FOV
+    cameraEntity.setLocalPosition(TOUCH_CAMERA_POS)
+  }
   if (cameraEntity) setupImpairedVision(app, cameraEntity)
 
   if (cameraEntity && tiles.length > 0)
