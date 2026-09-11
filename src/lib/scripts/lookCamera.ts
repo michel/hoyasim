@@ -12,10 +12,11 @@ const LAT_MIN = -85
 const LAT_MAX = 85
 
 // On touch, start pitched down so the handlebar phones — the reading target —
-// sit centred in the first view a customer gets (the eye also moves in toward
-// the bar there, playcanvasApp TOUCH_CAMERA_POS). Gyro or a drag takes over
-// from here; desktop keeps the level start.
-const START_LAT = pc.platform.touch ? -25 : 0
+// sit dead centre (vertically) in the first view a customer gets (the eye also
+// moves in toward the bar there, playcanvasApp TOUCH_CAMERA_POS). -29.5 points
+// the view axis at the phone screens' bounds centre from that eye position.
+// Gyro or a drag takes over from here; desktop keeps the level start.
+const START_LAT = pc.platform.touch ? -29.5 : 0
 
 export function createLookState(): LookState {
   return { lon: 0, lat: START_LAT, gyroQuat: new pc.Quat(), gyroActive: false }
@@ -24,13 +25,6 @@ export function createLookState(): LookState {
 export function registerLookCamera(app: pc.AppBase, state: LookState) {
   const LookCamera = pc.createScript('lookCamera', app)
   if (!LookCamera) throw new Error('Failed to create LookCamera script')
-
-  // Attributes match the values baked into the scene JSON's attached component
-  // so PlayCanvas can populate them; this script reads its inputs from `state`.
-  LookCamera.attributes.add('sensitivity', { type: 'number', default: 0.2 })
-  LookCamera.attributes.add('pitchMin', { type: 'number', default: -45 })
-  LookCamera.attributes.add('pitchMax', { type: 'number', default: 45 })
-  LookCamera.attributes.add('yawRange', { type: 'number', default: 180 })
 
   LookCamera.extend({
     update(this: pc.ScriptType) {

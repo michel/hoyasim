@@ -15,10 +15,6 @@ import {
   TRAFFIC_LIGHT_STOP_Z,
   TRAFFIC_LIGHT_WAIT,
 } from './scene-props'
-import {
-  CYCLE_FORWARD_BASE_SPEED,
-  registerCycleForward,
-} from './scripts/cycleForward'
 import { type LookState, registerLookCamera } from './scripts/lookCamera'
 
 const PROJECT_PREFIX = `${import.meta.env.BASE_URL}playcanvas/`
@@ -61,6 +57,13 @@ const START_Z = 11.0
 // street span so consecutive copies butt road-to-road.
 const LOOP_PERIOD = 35.2
 const TARGET_Z = START_Z - LOOP_PERIOD
+// World-units/sec, scaled with the world magnification (the scene JSON and the
+// base speed were tuned at OUTER_SCALE 5) so the perceived riding pace stays
+// the same when the world grows.
+const RIG_SPEED = (1 * OUTER_SCALE) / 5
+// Linear-in-distance deceleration only reaches zero asymptotically; snap to the
+// stop line once this close so the bike comes to a clean, exact halt.
+const STOP_EPSILON = 0.03
 // Inner gsplat is a child of the outer one; its local Z controls how far apart
 // the two tiles sit in world space (multiplied by the outer's scale).
 const INNER_LOCAL_Z = -LOOP_PERIOD / OUTER_SCALE
@@ -120,7 +123,6 @@ function createApp(
     pc.MaterialHandler,
     pc.TextureHandler,
     pc.JsonHandler,
-    pc.ScriptHandler,
     pc.SceneHandler,
     pc.CubemapHandler,
     pc.HierarchyHandler,
@@ -136,8 +138,6 @@ function createApp(
   if (pc.platform.touch) createOptions.touch = new pc.TouchDevice(canvas)
 
   createOptions.assetPrefix = PROJECT_PREFIX
-  createOptions.scriptPrefix = PROJECT_PREFIX
-  createOptions.scriptsOrder = []
   // RenderComponentSystem asserts that a BatchManager exists. AppBase doesn't
   // wire one automatically (pc.Application does), so do it here to silence the
   // assert. We don't actually use batching.
@@ -165,14 +165,11 @@ function setupFog(app: pc.AppBase) {
 }
 
 // The gsplat bakes lighting; dynamic shadows add cost without visible benefit.
-// Strip shadow flags from every render component and light before the first frame.
+// Strip shadow flags from every render component before the first frame.
 function stripShadows(app: pc.AppBase) {
   for (const r of renderComponents(app.root)) {
     r.castShadows = false
     r.receiveShadows = false
-  }
-  for (const l of app.root.findComponents('light') as pc.LightComponent[]) {
-    l.castShadows = false
   }
 }
 
@@ -226,23 +223,53 @@ function setupTileCulling(app: pc.AppBase, cam: pc.Entity, tiles: pc.Entity[]) {
   })
 }
 
-// Attaches the looping forward-cycle script to the rig captured from the scene.
+// Drives the rig captured from the scene through its looping forward cycle:
+// ride, ease off at the traffic light, wait, then wrap back to the start.
 function setupRig(app: pc.AppBase) {
   const rig = app.root.findByName(RIG_ENTITY_NAME)
   if (!(rig instanceof pc.Entity)) return
-  rig.addComponent('script')
-  rig.script?.create('cycleForward', {
-    attributes: {
-      // World-units/sec, scaled with the world magnification (the scene JSON
-      // and the base speed were tuned at OUTER_SCALE 5) so the perceived
-      // riding pace stays the same when the world grows.
-      speed: (CYCLE_FORWARD_BASE_SPEED * OUTER_SCALE) / 5,
-      startZ: START_Z,
-      targetZ: TARGET_Z,
-      stopZ: TRAFFIC_LIGHT_STOP_Z,
-      slowDownDistance: TRAFFIC_LIGHT_SLOWDOWN,
-      waitDuration: TRAFFIC_LIGHT_WAIT,
-    },
+
+  let stopped = false
+  let waited = false
+  let waitTimer = 0
+
+  app.on('update', (dt: number) => {
+    const pos = rig.getLocalPosition()
+    let z = pos.z
+    let effSpeed = RIG_SPEED
+
+    // Ease off toward, then idle at, the traffic-light stop line — once per
+    // lap. dist > 0 while approaching from the +Z (start) side.
+    if (TRAFFIC_LIGHT_SLOWDOWN > 0 && !waited) {
+      const dist = z - TRAFFIC_LIGHT_STOP_Z
+      if (stopped) {
+        waitTimer += dt
+        effSpeed = 0
+        if (waitTimer >= TRAFFIC_LIGHT_WAIT) {
+          waited = true
+          stopped = false
+        }
+      } else if (dist <= STOP_EPSILON) {
+        stopped = true
+        waitTimer = 0
+        effSpeed = 0
+        z = TRAFFIC_LIGHT_STOP_Z
+      } else if (dist <= TRAFFIC_LIGHT_SLOWDOWN) {
+        effSpeed = RIG_SPEED * (dist / TRAFFIC_LIGHT_SLOWDOWN)
+      }
+    }
+
+    let nextZ = z - effSpeed * dt
+
+    // Loop: wrap back to the start, carrying the overshoot for a seamless snap.
+    if (nextZ <= TARGET_Z) {
+      nextZ = START_Z - (TARGET_Z - nextZ)
+      stopped = false
+      waited = false
+      waitTimer = 0
+    }
+
+    rig.setLocalPosition(pos.x, pos.y, nextZ)
   })
 }
 
@@ -250,6 +277,12 @@ function setupRig(app: pc.AppBase) {
 // the impaired-vision overlay. Returns the camera entity the lenses attach to
 // (null when the camera is missing).
 function setupScene(app: pc.AppBase): pc.Entity | null {
+  // Rig first: its update closure must register before setupTrafficLightCycle's
+  // so the bulbs read the current frame's rig z (script-component updates used
+  // to run before app 'update' listeners; ordering within the listeners keeps
+  // that behaviour).
+  setupRig(app)
+
   setupBike(app)
   setupTrafficLight(app, LOOP_PERIOD)
 
@@ -274,10 +307,13 @@ function setupScene(app: pc.AppBase): pc.Entity | null {
   )
   configureGsplat(app, tiles)
 
-  setupRig(app)
-
   const cam = app.root.findByName(CAMERA_ENTITY_NAME)
   const cameraEntity = cam instanceof pc.Entity ? cam : null
+  // The scene bakes nearClip 0.1, which is 0.1 WORLD units (the renderer's view
+  // matrix ignores the camera entity's 0.3 scale) — the phone tops sit at view
+  // depth 0.038+ from TOUCH_CAMERA_POS and get sliced off. Lens quads are at
+  // 0.138, so 0.02 clears everything with margin.
+  if (cameraEntity?.camera) cameraEntity.camera.nearClip = 0.02
   if (cameraEntity?.camera && pc.platform.touch) {
     cameraEntity.camera.fov = TOUCH_FOV
     cameraEntity.setLocalPosition(TOUCH_CAMERA_POS)
@@ -303,7 +339,6 @@ export async function bootApp(
   const app = createApp(canvas, device)
 
   registerLookCamera(app, lookState)
-  registerCycleForward(app)
 
   app.setCanvasFillMode(pc.FILLMODE_FILL_WINDOW)
   app.setCanvasResolution(pc.RESOLUTION_AUTO)
