@@ -56,41 +56,6 @@ function loadAsset(
   })
 }
 
-function applyMaterial(entity: pc.Entity, material: pc.Material) {
-  for (const r of renderComponents(entity))
-    for (const mi of r.meshInstances) mi.material = material
-}
-
-function setLayer(entity: pc.Entity, layerId: number) {
-  for (const r of renderComponents(entity)) r.layers = [layerId]
-}
-
-// Planar bounds of the lens mesh in its own local space. x is the lens's
-// horizontal axis, z its vertical axis (y is the thin depth/normal). Anchoring
-// the soft zone to these bounds keeps its corners a fixed fraction of the lens
-// at any window size or aspect ratio — the screen projection no longer matters.
-function localBounds(entity: pc.Entity): {
-  xMin: number
-  xMax: number
-  zMin: number
-  zMax: number
-} {
-  let xMin = Number.POSITIVE_INFINITY
-  let xMax = Number.NEGATIVE_INFINITY
-  let zMin = Number.POSITIVE_INFINITY
-  let zMax = Number.NEGATIVE_INFINITY
-  for (const r of renderComponents(entity)) {
-    for (const mi of r.meshInstances) {
-      const aabb = mi.mesh.aabb
-      xMin = Math.min(xMin, aabb.center.x - aabb.halfExtents.x)
-      xMax = Math.max(xMax, aabb.center.x + aabb.halfExtents.x)
-      zMin = Math.min(zMin, aabb.center.z - aabb.halfExtents.z)
-      zMax = Math.max(zMax, aabb.center.z + aabb.halfExtents.z)
-    }
-  }
-  return { xMin, xMax, zMin, zMax }
-}
-
 // Each product is the same lens shader with its own soft-zone profile AND its
 // own corridor: the lens heights where the distance lens hands over to the
 // reading lens. The corridor is the tier story in the customer's v01 profiles
@@ -274,10 +239,28 @@ function buildSide(
   const lens = (
     lensAsset.resource as pc.ContainerResource
   ).instantiateRenderEntity()
-  const { xMin, xMax, zMin, zMax } = localBounds(lens)
-  const material = createLensMaterial(xMin, xMax, zMin, zMax, pxScale)
-  applyMaterial(lens, material)
-  setLayer(lens, pc.LAYERID_IMMEDIATE)
+  // Each lens GLB is a single node / mesh / primitive: one render component,
+  // one mesh instance is the whole lens.
+  const render = renderComponents(lens)[0]
+  const mi = render.meshInstances[0]
+  // Planar bounds of the lens mesh in its own local space. x is the lens's
+  // horizontal axis, z its vertical axis (y is the thin depth/normal).
+  // Anchoring the soft zone to these bounds keeps its corners a fixed
+  // fraction of the lens at any window size or aspect ratio — the screen
+  // projection no longer matters.
+  const { center, halfExtents } = mi.mesh.aabb
+  const material = createLensMaterial(
+    center.x - halfExtents.x,
+    center.x + halfExtents.x,
+    center.z - halfExtents.z,
+    center.z + halfExtents.z,
+    pxScale,
+  )
+  // Material per mesh instance, not render.material: that setter is a no-op
+  // for 'asset'-type renders. Assign it before the layer — the layer's
+  // opaque/transparent split reads the mesh instance's material.
+  mi.material = material
+  render.layers = [pc.LAYERID_IMMEDIATE]
 
   group.addChild(lens)
   // Start dropped above the rest position; playPutOnAnimation slides it down.

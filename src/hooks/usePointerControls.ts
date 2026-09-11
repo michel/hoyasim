@@ -11,58 +11,42 @@ export function usePointerControls(
   useEffect(() => {
     if (!canvas || gyroActive) return
 
+    let activeId: number | null = null
     let startX = 0
     let startY = 0
     let startLon = 0
     let startLat = 0
 
-    const getXY = (
-      e: MouseEvent | TouchEvent,
-    ): { x: number; y: number } | null => {
-      if ('touches' in e) {
-        if (e.touches.length === 0) return null
-        return { x: e.touches[0].clientX, y: e.touches[0].clientY }
-      }
-      return { x: e.clientX, y: e.clientY }
-    }
-
-    const onMove = (e: MouseEvent | TouchEvent) => {
-      const pos = getXY(e)
-      if (!pos) return
-      lookState.lon = (startX - pos.x) * DRAG_SENSITIVITY + startLon
-      lookState.lat = (pos.y - startY) * DRAG_SENSITIVITY + startLat
-    }
-
-    const onUp = () => {
-      window.removeEventListener('mousemove', onMove)
-      window.removeEventListener('mouseup', onUp)
-      window.removeEventListener('touchmove', onMove)
-      window.removeEventListener('touchend', onUp)
-    }
-
-    const onDown = (e: MouseEvent | TouchEvent) => {
-      const pos = getXY(e)
-      if (!pos) return
-      startX = pos.x
-      startY = pos.y
+    // A second finger must not re-anchor the drag: the first pointer keeps it.
+    const onDown = (e: PointerEvent) => {
+      if (activeId !== null) return
+      activeId = e.pointerId
+      startX = e.clientX
+      startY = e.clientY
       startLon = lookState.lon
       startLat = lookState.lat
-      if ('touches' in e) {
-        window.addEventListener('touchmove', onMove, { passive: false })
-        window.addEventListener('touchend', onUp)
-      } else {
-        window.addEventListener('mousemove', onMove)
-        window.addEventListener('mouseup', onUp)
-      }
     }
 
-    canvas.addEventListener('mousedown', onDown)
-    canvas.addEventListener('touchstart', onDown, { passive: false })
+    const onMove = (e: PointerEvent) => {
+      if (e.pointerId !== activeId) return
+      lookState.lon = (startX - e.clientX) * DRAG_SENSITIVITY + startLon
+      lookState.lat = (e.clientY - startY) * DRAG_SENSITIVITY + startLat
+    }
+
+    const onUp = (e: PointerEvent) => {
+      if (e.pointerId === activeId) activeId = null
+    }
+
+    canvas.addEventListener('pointerdown', onDown)
+    window.addEventListener('pointermove', onMove)
+    window.addEventListener('pointerup', onUp)
+    window.addEventListener('pointercancel', onUp)
 
     return () => {
-      canvas.removeEventListener('mousedown', onDown)
-      canvas.removeEventListener('touchstart', onDown)
-      onUp()
+      canvas.removeEventListener('pointerdown', onDown)
+      window.removeEventListener('pointermove', onMove)
+      window.removeEventListener('pointerup', onUp)
+      window.removeEventListener('pointercancel', onUp)
     }
   }, [canvas, lookState, gyroActive])
 }

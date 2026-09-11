@@ -36,16 +36,9 @@ export default defineConfig({
     VitePWA({
       // Emits a SW that unregisters itself and clears caches on activation,
       // so any previously installed worker stops serving cached assets.
+      // Nothing is precached: the ~35 MB splat blew past workbox's 2 MB limit.
       selfDestroying: true,
       injectRegister: false,
-      registerType: 'autoUpdate',
-      workbox: {
-        skipWaiting: true,
-        clientsClaim: true,
-        // Splat asset is ~35 MB; default 2 MB cache limit would skip it
-        maximumFileSizeToCacheInBytes: 64 * 1024 * 1024,
-      },
-      includeAssets: ['favicon.ico', 'apple-touch-icon.png', 'mask-icon.svg'],
       manifest: {
         name: 'hoyasim',
         short_name: 'hoyasim',
@@ -53,24 +46,6 @@ export default defineConfig({
         theme_color: '#ffffff',
         orientation: 'landscape',
         display: 'fullscreen',
-        icons: [
-          {
-            src: 'pwa-192x192.png',
-            sizes: '192x192',
-            type: 'image/png',
-          },
-          {
-            src: 'pwa-512x512.png',
-            sizes: '512x512',
-            type: 'image/png',
-          },
-          {
-            src: 'pwa-512x512.png',
-            sizes: '512x512',
-            type: 'image/png',
-            purpose: 'any maskable',
-          },
-        ],
       },
     }),
   ],

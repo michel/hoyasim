@@ -17,14 +17,22 @@ const FONT = '"Helvetica Neue", Helvetica, Arial, sans-serif'
 
 type Ctx = CanvasRenderingContext2D
 
-function line(ctx: Ctx, pts: number[][], width: number, color: string) {
+function line(
+  ctx: Ctx,
+  x1: number,
+  y1: number,
+  x2: number,
+  y2: number,
+  width: number,
+  color: string,
+) {
   ctx.strokeStyle = color
   ctx.lineWidth = width
   ctx.lineCap = 'round'
   ctx.lineJoin = 'round'
   ctx.beginPath()
-  ctx.moveTo(pts[0][0], pts[0][1])
-  for (const [x, y] of pts.slice(1)) ctx.lineTo(x, y)
+  ctx.moveTo(x1, y1)
+  ctx.lineTo(x2, y2)
   ctx.stroke()
 }
 
@@ -59,15 +67,7 @@ function fitText(
 }
 
 function drawStraightArrow(ctx: Ctx, x: number, y: number) {
-  line(
-    ctx,
-    [
-      [x, y + 190],
-      [x, y + 40],
-    ],
-    34,
-    '#fff',
-  )
+  line(ctx, x, y + 190, x, y + 40, 34, '#fff')
   ctx.fillStyle = '#fff'
   ctx.beginPath()
   ctx.moveTo(x, y - 40)
@@ -99,38 +99,17 @@ function drawMap(ctx: Ctx, w: number, h: number) {
     [0.33, 'Groenestraat'],
     [0.68, 'St. Annastraat'],
   ]
-  const main = [
-    [w * 0.5, 0],
-    [w * 0.5, h],
-  ]
   // Casing first, then the lighter core, main street a step wider than the
   // cross streets.
   const strokeStreets = (width: number, color: string) => {
-    for (const [y] of cross)
-      line(
-        ctx,
-        [
-          [0, y * h],
-          [w, y * h],
-        ],
-        width,
-        color,
-      )
-    line(ctx, main, width + 20, color)
+    for (const [y] of cross) line(ctx, 0, y * h, w, y * h, width, color)
+    line(ctx, w * 0.5, 0, w * 0.5, h, width + 20, color)
   }
   strokeStreets(34, '#cfd4da')
   strokeStreets(26, '#ffffff')
   for (const [y, name] of cross) label(ctx, name, w * 0.06, y * h - 26)
   label(ctx, 'Willemsweg', w * 0.5 + 40, h * 0.2, -Math.PI / 2)
-  line(
-    ctx,
-    [
-      [w * 0.5, h * 0.92],
-      [w * 0.5, h * 0.04],
-    ],
-    30,
-    BLUE,
-  )
+  line(ctx, w * 0.5, h * 0.92, w * 0.5, h * 0.04, 30, BLUE)
   ctx.fillStyle = '#ef4444'
   ctx.beginPath()
   ctx.arc(w * 0.5, h * 0.04, 22, 0, Math.PI * 2)

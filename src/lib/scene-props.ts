@@ -8,7 +8,7 @@ import { renderComponents } from './pc-utils'
 // against the current splat bundle.
 
 // Entity names baked into the PlayCanvas scene JSON.
-export const BIKE_ENTITY_NAME = 'Render'
+const BIKE_ENTITY_NAME = 'Render'
 export const RIG_ENTITY_NAME = 'waa'
 
 // Container asset name (config.json) and the bike's local transform under the rig.
@@ -47,8 +47,8 @@ const TRAFFIC_LIGHT_SCALE = 0.33
 // The bike stops this far ahead of (i.e. +Z of) the lights, eases off over
 // SLOWDOWN units, and idles at the stop line for WAIT seconds each lap.
 const TRAFFIC_LIGHT_STOP_OFFSET = 2.0
-const TRAFFIC_LIGHT_SLOWDOWN = 3.3
-const TRAFFIC_LIGHT_WAIT = 3
+export const TRAFFIC_LIGHT_SLOWDOWN = 3.3
+export const TRAFFIC_LIGHT_WAIT = 3
 
 // Looks up a preloaded container asset (config.json) and instantiates its
 // render hierarchy, or null when the asset is missing.
@@ -166,7 +166,6 @@ export function setupBike(app: pc.AppBase) {
   anchor.setLocalScale(BIKE_SCALE, BIKE_SCALE, BIKE_SCALE)
 }
 
-// The bike's stop line and approach envelope, consumed by the rig's forward
-// script so the ride and the lights agree on where "stopped at the light" is.
+// The bike's stop line, consumed (with the SLOWDOWN/WAIT envelope above) by the
+// rig's forward script so the ride and the lights agree on where "stopped" is.
 export const TRAFFIC_LIGHT_STOP_Z = TRAFFIC_LIGHT_Z + TRAFFIC_LIGHT_STOP_OFFSET
-export { TRAFFIC_LIGHT_SLOWDOWN, TRAFFIC_LIGHT_WAIT }

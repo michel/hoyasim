@@ -60,8 +60,6 @@ Open the ngrok HTTPS URL on your iPhone. Tap the gyroscope button in the scene t
 | `bun run dev`        | Start dev server on port 5173        |
 | `bun run build`      | Type-check and build for production  |
 | `bun run preview`    | Preview the production build locally |
-| `bun run test`       | Run tests                            |
-| `bun run test:watch` | Run tests in watch mode              |
 | `bun run type-check` | Type-check only (no build)           |
 | `bun run lint`       | Check for issues with Biome          |
 | `bun run format`     | Auto-format all files                |
@@ -77,7 +75,7 @@ src/
 ├── lib/
 │   ├── playcanvasApp.ts    # PlayCanvas bootstrap — scene, gsplat LOD tuning, render loop
 │   ├── glasses-pc.ts       # AR glasses rendering — lenses, distortion, frame geometry
-│   ├── scripts/            # PlayCanvas scripts (cycleForward, lookCamera)
+│   ├── scripts/            # PlayCanvas scripts attached from the scene JSON (lookCamera)
 │   └── utils.ts            # Shared helpers
 └── assets/                 # Logo and static assets
 ```
@@ -102,27 +100,7 @@ bun run build-splat                      # uses the v03 capture from ~/Downloads
 SRC=/path/to/new_capture.ply bun run build-splat
 ```
 
-It runs [`@playcanvas/splat-transform`](https://github.com/playcanvas/splat-transform) (via `bunx`, no install) in **two passes**:
-
-```bash
-# PASS 1 — place the capture in the scene frame, strip SH to the shipped 0-SH format
-bunx @playcanvas/splat-transform -w "$SRC" \
-  -N -r "$ROTATE" -s "$SCALE" -t "$TRANSLATE" -H 0 "$ALIGNED"
-
-# PASS 2 — build the 4-tier LOD octree (this is what "creates the LOD").
-# Since splat-transform 3.3.0 each decimation is its own invocation (must be the
-# final action, writing a .ply); the last run assembles the tiers into the octree.
-bunx @playcanvas/splat-transform -w "$ALIGNED" --decimate 50%   /tmp/splat_lod1.ply
-bunx @playcanvas/splat-transform -w "$ALIGNED" --decimate 25%   /tmp/splat_lod2.ply
-bunx @playcanvas/splat-transform -w "$ALIGNED" --decimate 12.5% /tmp/splat_lod3.ply
-bunx @playcanvas/splat-transform -w \
-  "$ALIGNED" -l 0 \
-  /tmp/splat_lod1.ply -l 1 \
-  /tmp/splat_lod2.ply -l 2 \
-  /tmp/splat_lod3.ply -l 3 \
-  --lod-chunk-count 128 \
-  "public/playcanvas/assets/splat-v8/lod-meta.json"
-```
+It runs [`@playcanvas/splat-transform`](https://github.com/playcanvas/splat-transform) (via `bunx`, no install) in **two passes**: PASS 1 places the capture in the scene frame and strips SH to the shipped 0-SH format; PASS 2 decimates three coarser tiers and assembles the 4-tier LOD octree. The exact invocations, the placement constants and the output path live in `scripts/build-splat.sh` — read it there rather than here, and note that since splat-transform 3.3.0 each `--decimate` must be its own invocation writing a `.ply`, with the final run assembling the tiers.
 
 Expect a few minutes and ~3 GB peak RAM on a multi-million-gaussian splat. The current bundle (from the 3.9M-gaussian `Omgeving - v03` cleaned render) is 46 chunks (22 at LOD 0, 13 at LOD 1, 7 at LOD 2, 4 at LOD 3), ~93 MB total, 0 SH bands.
 
@@ -134,16 +112,7 @@ Expect a few minutes and ~3 GB peak RAM on a multi-million-gaussian splat. The c
 > Note: splat-transform applies parts of `-t` sign-flipped (Y always; X after
 > rotations) — solve empirically, don't reason about signs.
 
-**What each flag does — this is how you "create the LOD":**
-
-| Flag             | Meaning                                                                                                                                                                                                                                                                                                                                                                                     |
-| ---------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `-w`             | Overwrite the output directory if it exists.                                                                                                                                                                                                                                                                                                                                                |
-| `"$PLY" -l N`    | Add the file as **LOD level N**. Repeat the input once per tier. `-l 0` is full resolution; higher numbers are coarser.                                                                                                                                                                                                                                                                     |
-| `--decimate 50%` | Progressive pairwise-merge the _preceding_ input down to N% (or an absolute count) of its gaussians. Best quality-per-splat reduction. Applied per input, so each tier is decimated independently. LOD 0 has no `--decimate` (full quality).                                                                                                                                                |
-| `-C 128`         | **LOD chunk size ≈ 128K gaussians per chunk** (`--lod-chunk-count`, in thousands; default 512). Smaller chunks = more files, but each streamed upload is ~4× cheaper, which spreads the per-frame upload spike (e.g. when the camera loops past new geometry) across more frames. **Required** to reproduce the shipped 41-chunk layout — omitting it gives a coarser 12-chunk/512K bundle. |
-
-To trade quality for size, change the `--decimate` percentages or the number of `-l` tiers. To trade file count for smoother streaming, tune `-C`.
+**Tuning knobs** (all in `scripts/build-splat.sh`): the `--decimate` percentages and the number of `-l` tiers trade quality for size — `-l 0` is full resolution and carries no `--decimate`. `--lod-chunk-count` (in thousands; default 512, the bundle ships 128) trades file count for streaming smoothness: smaller chunks mean more files, but each streamed upload is ~4× cheaper, spreading the per-frame upload spike across more frames.
 
 #### Optional: clean the capture first
 
@@ -191,7 +160,7 @@ iOS is deliberately pinned to a single LOD: Metal's WebGL texture allocator does
 
 ## Tech Stack
 
-React 19, PlayCanvas (WebGPU/WebGL2, Gaussian splatting), TypeScript, Vite, Tailwind CSS 4, Biome, Vitest
+React 19, PlayCanvas (WebGPU/WebGL2, Gaussian splatting), TypeScript, Vite, Tailwind CSS 4, Biome
 
 ## Deployment
 

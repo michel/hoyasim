@@ -5,18 +5,9 @@ import { createRoot } from 'react-dom/client'
 import { BrowserRouter, Route, Routes } from 'react-router-dom'
 import './index.css'
 
-registerSW({
-  immediate: true,
-  onRegisteredSW(_url, registration) {
-    if (!registration) return
-    setInterval(() => {
-      if (!document.hidden) registration.update()
-    }, 5 * 60_000)
-  },
-  onNeedRefresh() {
-    window.location.reload()
-  },
-})
+// injectRegister is false in vite.config.ts, so this is the only thing that
+// registers the self-destructing worker that evicts legacy PWA caches.
+registerSW({ immediate: true })
 
 const Home = lazy(() => import('./pages/Home'))
 const Scene = lazy(() => import('./pages/Scene'))

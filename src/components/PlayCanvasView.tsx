@@ -180,7 +180,12 @@ export default function PlayCanvasView() {
         ref={canvasRef}
         id="application-canvas"
         aria-label="Interactive 3D vision simulator"
-        style={{ display: 'block', width: '100%', height: '100%' }}
+        style={{
+          display: 'block',
+          width: '100%',
+          height: '100%',
+          touchAction: 'none',
+        }}
       />
       {loading && !error && (
         <div className="absolute inset-0 z-20 flex flex-col items-center justify-center gap-4 bg-white">
