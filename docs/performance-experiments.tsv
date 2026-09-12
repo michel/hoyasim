@@ -19,3 +19,9 @@ fallback-final	2.21.4	webgl2	10	fallback	WebGPU unavailable in test page; origin
 fallback-final-smoke	2.21.4	webgl2	n/a	passed	All five sampled captures pixel-identical; lens matrices and ride positions exactly equal; interactions pass.
 native-repeat	2.21.4	webgpu	30	invalid-capture	Uncapped RAF starved Playwright element-stability screenshot heuristic; no retained results. Capture now clips the stable viewport directly; exceptions recorded explicitly.
 native-repeat-2	2.21.4	webgpu	30	invalid-host-load	MySense 549.5 callbacks/sec during host load averages 81.27/37.59/18.44; repeat interrupted with SIGINT. Not comparable to earlier screening; baseline-repeat not run.
+iphone-baseline-1	2.21.4	webgl2	30	invalid-calibration	Safari CDP bridge returned Promise object immediately because awaitPromise is unsupported; no accepted measurements. In-page completion/result retrieval added.
+iphone-baseline-2	2.21.4	webgl2	30	physical-baseline	iPhone16ProMax iOS26.6.2; 956x376; off/MySense/Balansis/MySelf 39.26/34.23/36.07/35.86 FPS; p95 34/36/35/35 ms; no errors; captures saved.
+iphone-candidate-1	2.21.4	webgpu	30	physical-profiled	iPhone same956x376; off/MySense/Balansis/MySelf 55.68/53.61/45.29/50.72 FPS; p95 18/32/32/31 ms. GPU queries enabled, unlike unsupported WebGL queries; repeat final FPS with profiling disabled.
+iphone-baseline-final	2.21.4	webgl2	30	physical-unprofiled	GPU profiling off; all four956x376: 39.05/34.56/34.06/35.89 FPS; p95 35/36/35/36 ms; no errors; clean captures.
+iphone-candidate-final	2.21.4	webgpu	30	rejected-fidelity	Queries off: 59.88/59.94/59.93/59.92 FPS vs baseline39.05/34.56/34.06/35.89; +53.3/73.4/76.0/66.9%. Non-identical images and user-observed worse rendering fail zero-difference gate.
+restore-original-renderer	2.21.4	webgl2	n/a	retained-baseline	All production rendering files restored to e48f074. iPhone test session restarted on original build with normal ride and controls. No accepted optimization shipped.

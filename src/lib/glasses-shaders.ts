@@ -35,7 +35,7 @@ const IMPAIRED_CHROMA_STRENGTH = 0.001
 // is rejected, so a blurred background never gathers the sharp phones in
 // front of it — that gather is what smeared the phones' edges into a halo.
 // The overlay blurs everything alike and skips the depth reads.
-export const BLUR_TAPS = 8
+const BLUR_TAPS = 8
 const diskBlurGLSL = (depthAware: boolean) => `
 uniform float uPxScale;  // framebuffer pixels per CSS pixel
 float inBounds(vec2 uv) {

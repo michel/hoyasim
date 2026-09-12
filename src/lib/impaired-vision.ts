@@ -1,9 +1,5 @@
 import * as pc from 'playcanvas'
 import { IMPAIRED_VERTEX_GLSL, impairedFragmentGLSL } from './glasses-shaders'
-import {
-  IMPAIRED_FRAGMENT_WGSL,
-  IMPAIRED_VERTEX_WGSL,
-} from './glasses-shaders-wgsl'
 import { onTuningChange, tuning } from './tuning'
 
 const IMPAIRED_FADE_IN_SEC = 1.0
@@ -46,8 +42,6 @@ function setupImpairedVisionOverlay(app: pc.AppBase) {
     uniqueName: 'impaired-vision-overlay',
     vertexGLSL: IMPAIRED_VERTEX_GLSL,
     fragmentGLSL: impairedFragmentGLSL(!pc.platform.touch),
-    vertexWGSL: IMPAIRED_VERTEX_WGSL,
-    fragmentWGSL: IMPAIRED_FRAGMENT_WGSL,
     attributes: { vertex_position: pc.SEMANTIC_POSITION },
   })
   material.setParameter('uPxScale', app.graphicsDevice.maxPixelRatio)

@@ -309,10 +309,6 @@ function setupScene(app: pc.AppBase): pc.Entity | null {
 
   const cam = app.root.findByName(CAMERA_ENTITY_NAME)
   const cameraEntity = cam instanceof pc.Entity ? cam : null
-  // The mesh renderer uses a rigid view, but GPU splat projection inverts the
-  // camera's full transform. Its baked 0.3 scale otherwise triples fog depth.
-  // Lens geometry keeps that original scale on GlassesMount instead.
-  if (app.graphicsDevice.isWebGPU) cameraEntity?.setLocalScale(1, 1, 1)
   // The scene bakes nearClip 0.1, which is 0.1 WORLD units (the renderer's view
   // matrix ignores the camera entity's 0.3 scale) — the phone tops sit at view
   // depth 0.038+ from TOUCH_CAMERA_POS and get sliced off. Lens quads are at
@@ -335,7 +331,7 @@ export async function bootApp(
   lookState: LookState,
 ): Promise<BootedApp> {
   const device = await pc.createGraphicsDevice(canvas, {
-    deviceTypes: pc.platform.touch ? ['webgpu', 'webgl2'] : ['webgl2'],
+    deviceTypes: ['webgl2'],
     powerPreference: 'high-performance',
     antialias: false,
   })

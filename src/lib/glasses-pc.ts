@@ -6,7 +6,6 @@ import {
   startTrace,
 } from './glasses-anim'
 import { LENS_FRAGMENT_GLSL, LENS_VERTEX_GLSL } from './glasses-shaders'
-import { LENS_FRAGMENT_WGSL, LENS_VERTEX_WGSL } from './glasses-shaders-wgsl'
 import { renderComponents } from './pc-utils'
 import { notifyTuning, onTuningChange, tuning } from './tuning'
 
@@ -157,8 +156,6 @@ function createLensMaterial(
     uniqueName: `progressive-lens-${xMin}-${xMax}-${yMin}-${yMax}`,
     vertexGLSL: LENS_VERTEX_GLSL,
     fragmentGLSL: LENS_FRAGMENT_GLSL,
-    vertexWGSL: LENS_VERTEX_WGSL,
-    fragmentWGSL: LENS_FRAGMENT_WGSL,
     attributes: { vertex_position: pc.SEMANTIC_POSITION },
   })
   m.setParameter('uMinX', xMin)
@@ -234,7 +231,7 @@ interface BuiltSide {
 function buildSide(
   cfg: SideConfig,
   lensAsset: pc.Asset,
-  lensParent: pc.Entity,
+  cameraEntity: pc.Entity,
   pxScale: number,
 ): BuiltSide {
   const group = new pc.Entity(cfg.name)
@@ -273,7 +270,7 @@ function buildSide(
     cfg.position.z,
   )
   group.setLocalScale(LENS_SCALE)
-  lensParent.addChild(group)
+  cameraEntity.addChild(group)
 
   return {
     group,
@@ -305,13 +302,8 @@ export async function setupLenses(
   const cam = cameraEntity.camera
   if (cam) cam.renderSceneDepthMap = true
   const pxScale = app.graphicsDevice.maxPixelRatio
-  // Preserve the scene camera's original lens coordinate system without
-  // scaling the camera view/depth used by the WebGPU splat renderer.
-  const mount = new pc.Entity('GlassesMount')
-  if (app.graphicsDevice.isWebGPU) mount.setLocalScale(0.3, 0.3, 0.3)
-  cameraEntity.addChild(mount)
   const built = SIDES.map((cfg, i) =>
-    buildSide(cfg, lensAssets[i], mount, pxScale),
+    buildSide(cfg, lensAssets[i], cameraEntity, pxScale),
   )
   const glassesGroups = built.map((b) => b.group)
   // Rest position per group, captured so the entrance animation can lerp the
@@ -351,7 +343,7 @@ export async function setupLenses(
       app.off('update', onUpdate)
       offTuning()
       entrance.cancel()
-      mount.destroy()
+      for (const g of glassesGroups) g.destroy()
       if (cam) cam.renderSceneDepthMap = false
     },
   }

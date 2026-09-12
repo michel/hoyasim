@@ -1,5 +1,25 @@
 # Mobile rendering performance research
 
+## Current decision: WebGPU rejected; original renderer restored
+
+The physical iPhone test exceeded the FPS target in the measured workload, but **failed the user's strict requirement of no visual-fidelity or UX difference**. Matching baseline captures were pixel-identical across repeats, while the WebGPU captures differed. The user also reported visibly worse splat/rendering quality on the phone. The WebGPU changes have therefore been removed from the working application; production source is restored exactly to `e48f074`. The experiment remains in commit `e1b3c22` and the saved test builds for diagnosis. No accepted performance optimization has been shipped.
+
+Final physical test: iPhone 16 Pro Max, iOS 26.6.2, visible Safari, 956 × 376 framebuffer, DPR cap 1, 500,000 splat budget, identical 30-second camera replay, **GPU profiling disabled for both**. Each row is one paired run, not a three-repeat sustained-performance certification.
+
+| State | Baseline FPS | Rejected WebGPU FPS | Increase | p95 frame time |
+| --- | ---: | ---: | ---: | ---: |
+| off | 39.05 | 59.88 | 53.3% | 35 → 18 ms |
+| MySense | 34.56 | 59.94 | 73.4% | 36 → 18 ms |
+| Balansis | 34.06 | 59.93 | 76.0% | 35 → 17 ms |
+| MySelf Profile | 35.89 | 59.92 | 66.9% | 36 → 18 ms |
+
+The original baseline also measured 39.26 / 34.23 / 36.07 / 35.86 FPS in the earlier diagnostic pass. The difference after disabling WebGPU timestamp queries shows why the profiled timings must not substitute for normal application FPS.
+
+Final image comparisons (Safari captures at 2868 × 1128) show mean absolute RGB errors of 0.151 / 0.245 / 0.244 / 0.245 on a 0–255 scale, in table order. Fewer than 0.3% of pixels differ by more than two channel levels in these sampled poses, but they are **not identical**. Small average errors do not override the user's observed quality regression. Fixed-pose screenshots also do not certify quality throughout the moving ride. Production controls and sensor behavior were not altered; benchmark pages temporarily replayed a fixed camera, bypassed the motion prompt and hid controls for captures, so they were not suitable for claiming unchanged interactive UX.
+
+The iPhone session was restarted on the original baseline, confirmed as WebGL2 with `timeScale = 1`, a visible page and normal controls. Further improvements must retain baseline quality and pass exact image and interaction checks. Skipping impaired blur only where the lens geometry completely overwrites it is a future WebGL hypothesis; it has not been implemented or accepted.
+
+
 ## Objective and acceptance criteria
 
 Target a 50% increase in sustained mobile frame rate relative to commit `e48f074`, while preserving the rendered resolution, scene detail, lens optics, animations, controls, and user experience. A 50% FPS increase requires frame time to fall to two-thirds of baseline: 30 to 45 FPS means 33.33 to 22.22 ms. GPU-time improvements on a desktop are screening evidence, not proof of mobile FPS improvement.
@@ -72,7 +92,7 @@ A paired iPhone 16 Pro Max running iOS 26.6.2 is discoverable. Remote inspection
 
 WebGPU experiments exposed two compatibility failures. First, raw GLSL `in`/`out` declarations and `textureLod` bypass the engine's GLSL-to-WGSL binding macros; use the documented `attribute`/`varying` and `texture2DLod` forms. Second, the engine's GLSL depth helper samples implicitly inside the lens's non-uniform blur branch, which WGSL validation rejects. Depth has no mip chain, so an explicit level-zero sample preserves its semantics. The failed render produced blank frames and thousands of nominal callbacks per second with zero GPU timings; all such results are rejected. The benchmark now checks GPU validation warnings as well as JavaScript/console errors, and image comparison remains mandatory.
 
-## Candidate implementation
+## Rejected candidate implementation (historical)
 
 The candidate requests WebGPU on touch devices, with the existing WebGL2 fallback, and keeps desktop on WebGL2. Native WGSL implements the existing lens and impaired-vision shaders with eight identical golden-angle taps, unchanged mip selection, depth rejection, focus curves, soft zones, and dotted traces. Screen-space Y is reversed for the disk offsets to preserve the GLSL sampling positions. No runtime shader translator downloads or package upgrades are required. The existing engine's native depth helper uses `textureLoad`, avoiding the failed implicit-derivative path. [13]
 
@@ -99,7 +119,7 @@ Use `PERF_REFERENCE=artifacts/perf/<label>/results.json` to rerun exactly the sa
 
 `scripts/perf-smoke.mjs <results.json> <label>` checks fixed-angle and traced lens captures, the actual ride listeners with fixed timesteps, traffic stop/wrap, lens teardown/re-entry, pointer look, and portrait remount. It does not simulate a physical gyroscope or certify Safari/Android GPU behavior. Compare its captures with `python3 scripts/perf-diff.py <baseline-directory> <candidate-directory>` (Pillow required).
 
-## Regression checks and limits
+## Earlier regression checks and limits (before physical rejection)
 
 The original, native-WebGPU and final WebGL-fallback smoke runs pass lens removal/re-entry, pointer look, portrait remount, and traffic stop/wrap. Final fallback captures (MySense, off, left, right and trace) are pixel-identical to the original; fallback lens matrices and ride positions are exactly equal. Their 7,200 fixed-step ride positions are exactly equal; lens world matrices differ by at most 7.5 × 10⁻⁹, consistent with floating-point transform multiplication.
 
@@ -129,3 +149,19 @@ Final quality gates: production build, complete Biome lint and diff whitespace c
 12. npm registry, [PlayCanvas package metadata](https://registry.npmjs.org/playcanvas/latest); other version observations from `bun outdated`, 12 September 2026.
 
 13. PlayCanvas, [WGSL shader requirements](https://developer.playcanvas.com/user-manual/graphics/shaders/wgsl-specifics/) and [vertex/fragment shaders](https://developer.playcanvas.com/user-manual/graphics/shaders/wgsl-vertex-fragment-shaders/), accessed 12 September 2026.
+
+## Physical iPhone protocol (12 September follow-up)
+
+The connected device is an iPhone 16 Pro Max on iOS 26.6.2. `scripts/perf-iphone.mjs` attaches to a dedicated Safari automation tab through pymobiledevice3's native Web Inspector/CDP bridge. Two temporary HTTPS tunnels serve the preserved original (`baseline-throughput`) and candidate (`fallback-final`) production builds. No public production deployment or iOS developer-mode change is required.
+
+The phone reports a 956 × 376 CSS viewport and DPR 3; the actual application framebuffer remains 956 × 376. Viewport size and refresh rate are not emulated. The benchmark shares its in-page workload with the desktop runner through `scripts/perf-sample.mjs`. It disables motion input only in the test page so both builds follow the same camera path, without changing iOS sensor permissions. Each state loads and warms up before 30 seconds of on-device frame sampling, followed by a fixed-pose screenshot. Results are retrieved after sampling, with no inspector polling during the timed interval.
+
+The bridge does not implement CDP `awaitPromise`: it initially returned an empty Promise object instead of completed measurements. That calibration attempt is rejected. The runner now saves the completed sample into the page and retrieves it after its 30-second interval. Console exceptions, unexpected backend/fallback, hidden pages, changed resolution and missing scene data invalidate a run. Safari does not necessarily expose GPU timestamp queries; actual frame intervals remain the primary measurement.
+
+Safari's `snapshotRect` initially captured DOM controls before the opacity change had reached the compositor. Those first off-state images cannot be used for fidelity scoring. Capture now disables control transitions and waits 500 ms after hiding controls; frame sampling finishes before any of these capture-only changes. Raw screenshots use Safari's native DPR (2868 × 1128); framebuffer resolution is independently asserted as 956 × 376.
+
+The first physical diagnostic pair enabled engine GPU profiling. WebGL2 returned no GPU queries on this Safari, while WebGPU did return timings. To avoid asymmetric profiling overhead, final FPS runs pass `profileGPU: false` to the shared sampler for both builds. The rendering workload and all quality settings remain unchanged. Initial diagnostic FPS (off/MySense/Balansis/MySelf) was 39.26/34.23/36.07/35.86 on WebGL2 and 55.68/53.61/45.29/50.72 on WebGPU; these are preliminary, profiled observations rather than the final comparison.
+
+The phone stayed connected to external power. Battery snapshots after the first baseline and profiled candidate reported 93% and 94% charge; raw `Temperature` values were 3189 and 3289. These are recorded as diagnostics, not as a measurement of GPU die temperature or proof against throttling. Low Power Mode, screen brightness and system settings were not changed.
+
+To rerun: serve the two preserved build `outDir` directories on separate local ports, expose each through HTTPS, start `pymobiledevice3 webinspector cdp --native --udid <device-udid> --port 9224`, and open a dedicated test Safari tab. Then run `PERF_REFERENCE=<build-results.json> node scripts/perf-iphone.mjs <https-url>/hoyasim/scenes/1 <label> <webgl2|webgpu>`. Keep the phone unlocked in landscape with Safari visible. `PERF_PRODUCTS=MySense` selects a focused repeat; defaults cover all four states. Temporary build paths and tunnels are local run artifacts, not permanent hosting.
