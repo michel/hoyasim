@@ -1,0 +1,21 @@
+experiment	engine	backend	seconds_per_state	status	notes
+pilot	2.21.4	webgl2	30	invalid	Calibration only: production CPU stats invalid, off fade frozen early, competing old headless render paused mid-run.
+engine-222	2.22.2	webgl2	30	provisional	Off/MySense/Balansis/MySelf GPU mean 3.568/3.452/3.306/3.510 ms; near 60 FPS; missing favicon tripped strict console gate; await calibrated baseline.
+webgpu-222-pilot	2.22.2	webgpu	10	failed	Custom GLSL lacks engine attribute/varying and sampler macros; no speed claim; inspected exact compiler output.
+baseline-screen	2.21.4	webgl2	10	baseline-screening	MySense: 60.007 FPS, mean GPU 4.088 ms, p95 GPU 6.097 ms; 852x393; 495902 splats; clean browser gate; image captured.
+webgpu-221-compatible	2.21.4	webgpu	10	failed	GLSL compiles but WGSL rejects implicit depth sample inside non-uniform blur branch; blank capture.
+webgpu-screen	2.21.4	webgpu	10	failed	Displayed canvas blank; image comparison fails (100% pixels); console warnings revealed invalid pipeline.
+webgpu-throughput	2.21.4	webgpu	30	invalid	3855 callbacks/sec with zero GPU timings is invalid-command-buffer failure, not rendering performance.
+webgpu-throughput-valid	2.21.4	webgpu	30	rejected-fidelity	Translated shader renders validly at 1002 callbacks/sec, but camera scale changes distant fog.
+baseline-throughput	2.21.4	webgl2	30	baseline	MySense 627.0 uncapped callbacks/sec; GPU mean 1.471 ms.
+native-throughput	2.21.4	webgpu	30	rejected-fidelity	Native shader removes translator downloads; MySense 1001.2 callbacks/sec; GPU 0.798 ms; camera fog mismatch remains.
+native-camera-fixed	2.21.4	webgpu	10	fidelity-screen	Camera unit scale with 0.3 glasses mount fixes fog; MySense RGB MAE 0.091; 0.190% pixels differ by >2 levels.
+native-final-1	2.21.4	webgpu	30	screening	Uncapped off/MySense/Balansis/MySelf 1010.8/994.5/971.3/857.5 callbacks/sec; GPU 0.791/0.806/0.828/0.937 ms; no errors.
+baseline-final-1	2.21.4	webgl2	30	baseline	Same original build and workload: 648.3/645.6/649.9/647.8 callbacks/sec; GPU 1.430/1.437/1.409/1.421 ms.
+baseline-capped-final	2.21.4	webgl2	10	pacing-control	Unchanged baseline now 30.10 FPS; environment refresh pacing changed since earlier 60 FPS runs; compare contemporary pairs only.
+native-capped-final	2.21.4	webgpu	10	pacing-control	MySense 30.03 FPS vs contemporary original 30.10; GPU 4.58 vs 5.19 ms; no presented-FPS improvement.
+native-smoke	2.21.4	webgpu	n/a	passed-sampled-checks	Ride positions exactly equal; world matrices max delta 7.5e-9. Teardown/re-entry, pointer, portrait remount pass. Off/left/right/trace RGB MAE 0.060/0.081/0.228/0.098.
+fallback-final	2.21.4	webgl2	10	fallback	WebGPU unavailable in test page; original camera scale retained; MySense 30.10 FPS; no errors.
+fallback-final-smoke	2.21.4	webgl2	n/a	passed	All five sampled captures pixel-identical; lens matrices and ride positions exactly equal; interactions pass.
+native-repeat	2.21.4	webgpu	30	invalid-capture	Uncapped RAF starved Playwright element-stability screenshot heuristic; no retained results. Capture now clips the stable viewport directly; exceptions recorded explicitly.
+native-repeat-2	2.21.4	webgpu	30	invalid-host-load	MySense 549.5 callbacks/sec during host load averages 81.27/37.59/18.44; repeat interrupted with SIGINT. Not comparable to earlier screening; baseline-repeat not run.

@@ -38,3 +38,4 @@ workbox-*.js
 .claude
 /docs/plans
 .worktrees
+artifacts/perf
