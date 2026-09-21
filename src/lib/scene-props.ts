@@ -35,13 +35,14 @@ const BIKE_SCREEN_EMISSIVE = 0.6
 // mirrored right-hand copy so the pair spans the road. TRAFFIC_LIGHT_Z is the single
 // "down the road" knob — an absolute world Z, deliberately decoupled from LOOP_PERIOD
 // so re-tuning the loop length doesn't drag the lights along with it. The bike's stop
-// line is derived from it. X is the left light's lateral offset (0 = centred on the
-// road); the right light mirrors it at -X. X/Y/scale/rotation are tuned visually.
+// line is derived from it. The pair is nudged left; X keeps its original spacing.
+// X/Y/scale/rotation are tuned visually.
 const TRAFFIC_LIGHT_ASSET_NAME = 'trafficlight.glb'
 // A mid-block crossing stop ~37% through the lap (moved 20% of the loop
 // earlier from the crossroads at the user's request), leaving a long cruise
 // after the green before the wrap.
 const TRAFFIC_LIGHT_Z = -4.9
+const TRAFFIC_LIGHT_PAIR_X = -0.3
 const TRAFFIC_LIGHT_X = 1.4
 const TRAFFIC_LIGHT_SCALE = 0.33
 // The bike stops this far ahead of (i.e. +Z of) the lights, eases off over
@@ -109,21 +110,23 @@ export function setupBus(app: pc.AppBase, loopPeriod: number) {
 
 // Plants the overhead traffic lights beside the road at the configured Z (parented
 // to the world root — static, so the looping rig passes them once per lap): the
-// left-hand GLB plus a right-hand mirror across the road centreline. A second
+// left-hand GLB plus a right-hand mirror across the pair's centre. A second
 // pair stands one loop period further down, on the trailing tile's copy of the
 // crossroads: right after the wrap the nearest pair sits at exactly the same
 // relative distance as the far pair did just before it, so the lights loop as
 // seamlessly as the splat does (with one pair they pop in at the snap).
 export function setupTrafficLight(app: pc.AppBase, loopPeriod: number) {
+  const leftX = TRAFFIC_LIGHT_PAIR_X + TRAFFIC_LIGHT_X
+  const rightX = TRAFFIC_LIGHT_PAIR_X - TRAFFIC_LIGHT_X
   for (const dz of [0, -loopPeriod]) {
-    plantTrafficLight(app, TRAFFIC_LIGHT_X, TRAFFIC_LIGHT_SCALE, dz)
-    plantTrafficLight(app, -TRAFFIC_LIGHT_X, -TRAFFIC_LIGHT_SCALE, dz)
+    plantTrafficLight(app, leftX, TRAFFIC_LIGHT_SCALE, dz)
+    plantTrafficLight(app, rightX, -TRAFFIC_LIGHT_SCALE, dz)
   }
 }
 
 // Instantiates one traffic-light container at lateral offset x, parents it to the
 // world root, and drives its bulbs from the bike. A negative scaleX mirrors the model
-// across the road centreline (X=0); paired with the negated x position that is an
+// across the pair's centre; paired with the mirrored x position that is an
 // exact reflection, so the right light's arm still reaches over the road and its faces
 // stay toward the oncoming bike (a 180° spin would face them away instead).
 function plantTrafficLight(app: pc.AppBase, x: number, scaleX: number, dz = 0) {
