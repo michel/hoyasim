@@ -350,8 +350,8 @@
       "name": "bus.glb",
       "type": "container",
       "file": {
-        "hash": "3301d457a0d2c75356d9622a79353959",
-        "size": 1797444,
+        "hash": "7b66fa52f64fae27477158e1356cc500",
+        "size": 737632,
         "filename": "bus.glb",
         "url": "assets/models/bus.glb"
       },
