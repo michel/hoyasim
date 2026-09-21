@@ -1,7 +1,18 @@
 import assert from 'node:assert/strict'
-import { nextBusZ } from '../src/lib/scene-props.ts'
+import { busCycleAt } from '../src/lib/scene-props.ts'
 
-const lap = 35.2
-assert.ok(Math.abs(nextBusZ(-14, 10, 11, 1, lap) + 12.8) < 1e-9)
-assert.ok(Math.abs(nextBusZ(-14, 11, -24.2, 0, lap) - 11 - 10.2) < 1e-9)
-assert.ok(nextBusZ(48.1, 11, 11, 0, lap) - 11 + 3.1 < -30)
+const waiting = busCycleAt(10)
+const crossing = busCycleAt(16)
+const stopped = busCycleAt(18.5)
+const dwelling = busCycleAt(20.5)
+const leaving = busCycleAt(22)
+
+assert.equal(waiting.x, 20)
+assert.ok(waiting.x > crossing.x && crossing.x > stopped.x)
+assert.equal(stopped.x, -5.5)
+assert.equal(dwelling.x, stopped.x)
+assert.ok(leaving.x < stopped.x)
+assert.equal(busCycleAt(13.9).red, false)
+assert.equal(crossing.red, true)
+assert.equal(dwelling.red, true)
+assert.equal(leaving.red, false)

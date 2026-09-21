@@ -8,6 +8,7 @@ import {
 import { setupImpairedVision } from './impaired-vision'
 import { renderComponents } from './pc-utils'
 import {
+  busCycleAt,
   RIG_ENTITY_NAME,
   setupBike,
   setupBillboards,
@@ -232,25 +233,27 @@ function setupTileCulling(app: pc.AppBase, cam: pc.Entity, tiles: pc.Entity[]) {
 // ride, ease off at the traffic light, wait, then wrap back to the start.
 function setupRig(app: pc.AppBase) {
   const rig = app.root.findByName(RIG_ENTITY_NAME)
-  if (!(rig instanceof pc.Entity)) return
+  if (!(rig instanceof pc.Entity)) return () => 0
 
   let stopped = false
   let waited = false
   let waitTimer = 0
+  let lapSeconds = 0
 
   app.on('update', (dt: number) => {
+    lapSeconds += dt
     const pos = rig.getLocalPosition()
     let z = pos.z
     let effSpeed = RIG_SPEED
 
-    // Ease off toward, then idle at, the traffic-light stop line — once per
-    // lap. dist > 0 while approaching from the +Z (start) side.
+    // Ease off toward the light and wait until the bus has crossed and stopped
+    // beside the shelter. dist > 0 while approaching from the +Z side.
     if (TRAFFIC_LIGHT_SLOWDOWN > 0 && !waited) {
       const dist = z - TRAFFIC_LIGHT_STOP_Z
       if (stopped) {
         waitTimer += dt
         effSpeed = 0
-        if (waitTimer >= TRAFFIC_LIGHT_WAIT) {
+        if (waitTimer >= TRAFFIC_LIGHT_WAIT && !busCycleAt(lapSeconds).red) {
           waited = true
           stopped = false
         }
@@ -272,10 +275,12 @@ function setupRig(app: pc.AppBase) {
       stopped = false
       waited = false
       waitTimer = 0
+      lapSeconds = 0
     }
 
     rig.setLocalPosition(pos.x, pos.y, nextZ)
   })
+  return () => lapSeconds
 }
 
 // Post-load scene wiring: tunes entities baked into the scene JSON and starts
@@ -286,11 +291,11 @@ function setupScene(app: pc.AppBase): pc.Entity | null {
   // so the bulbs read the current frame's rig z (script-component updates used
   // to run before app 'update' listeners; ordering within the listeners keeps
   // that behaviour).
-  setupRig(app)
+  const getLapSeconds = setupRig(app)
 
   setupBike(app)
-  setupBus(app, LOOP_PERIOD)
-  setupTrafficLight(app, LOOP_PERIOD)
+  setupBus(app, getLapSeconds)
+  setupTrafficLight(app, LOOP_PERIOD, getLapSeconds)
   setupBillboards(app, LOOP_PERIOD)
 
   stripShadows(app)

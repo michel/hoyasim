@@ -4,7 +4,7 @@ import { renderComponents } from './pc-utils'
 
 // The props baked into (or planted onto) the PlayCanvas scene: the e-bike the
 // camera rides, the traffic lights and billboards it stops at, and the
-// oncoming bus. Split from playcanvasApp so the boot/loop core stays readable;
+// crossing bus. Split from playcanvasApp so the boot/loop core stays readable;
 // placement is tuned against the current splat bundle.
 
 // Entity names baked into the PlayCanvas scene JSON.
@@ -46,7 +46,7 @@ const TRAFFIC_LIGHT_PAIR_X = -0.3
 const TRAFFIC_LIGHT_X = 1.1
 const TRAFFIC_LIGHT_SCALE = 0.33
 // The bike stops this far ahead of (i.e. +Z of) the lights, eases off over
-// SLOWDOWN units, and idles at the stop line for WAIT seconds each lap.
+// SLOWDOWN units, and waits at least WAIT seconds for the crossing bus.
 const TRAFFIC_LIGHT_STOP_OFFSET = 2.0
 export const TRAFFIC_LIGHT_SLOWDOWN = 3.3
 export const TRAFFIC_LIGHT_WAIT = 3
@@ -60,14 +60,16 @@ const BILLBOARDS = [
 ] as const
 
 const BUS_ASSET_NAME = 'bus.glb'
-const BUS_X = -0.8
-const BUS_Y = 0
+const BUS_Z = -6.8
+const BUS_ROAD_GRADE = 0.01
 const BUS_SCALE = 0.28
-const BUS_SPEED = 1.2
-const BUS_START_AHEAD = 25
-// At this distance the whole bus is behind the fog; subtracting two laps
-// places its front beyond the far fog edge too.
-const BUS_RECYCLE_BEHIND = 37
+const BUS_START_X = 20
+const BUS_STOP_X = -5.5
+const BUS_SPEED = 3.2
+const BUS_APPROACH_AT = 10
+const BUS_RED_AT = 14
+const BUS_ARRIVE_AT = BUS_APPROACH_AT + (BUS_START_X - BUS_STOP_X) / BUS_SPEED
+const BUS_LEAVE_AT = BUS_ARRIVE_AT + 3.5
 
 // Looks up a preloaded container asset (config.json) and instantiates its
 // render hierarchy, or null when the asset is missing.
@@ -81,38 +83,32 @@ function instantiateContainer(
   return resource?.instantiateRenderEntity() ?? null
 }
 
-export function nextBusZ(
-  z: number,
-  rigZ: number,
-  previousRigZ: number,
-  dt: number,
-  loopPeriod: number,
-) {
-  let nextZ = z + BUS_SPEED * dt + (rigZ > previousRigZ ? loopPeriod : 0)
-  while (nextZ - rigZ > BUS_RECYCLE_BEHIND) nextZ -= 2 * loopPeriod
-  return nextZ
+export function busCycleAt(seconds: number) {
+  const crossing = Math.min(
+    Math.max(seconds - BUS_APPROACH_AT, 0) * BUS_SPEED,
+    BUS_START_X - BUS_STOP_X,
+  )
+  const departure = Math.max(seconds - BUS_LEAVE_AT, 0) * BUS_SPEED
+  return {
+    x: BUS_START_X - crossing - departure,
+    red: seconds >= BUS_RED_AT && seconds < BUS_LEAVE_AT,
+  }
 }
 
-export function setupBus(app: pc.AppBase, loopPeriod: number) {
-  const rig = app.root.findByName(RIG_ENTITY_NAME)
+export function setupBus(app: pc.AppBase, getLapSeconds: () => number) {
   const bus = instantiateContainer(app, BUS_ASSET_NAME)
-  if (!(rig instanceof pc.Entity) || !bus) return
+  if (!bus) return
 
-  // The GLB faces local +X; the rider faces -Z, so -90° Y makes it oncoming.
-  bus.setLocalEulerAngles(0, -90, 0)
+  // The GLB faces local +X. Turn it left across the bike's road toward the
+  // shelter baked into the far-left corner of the splat.
+  bus.setLocalEulerAngles(0, 180, 0)
   bus.setLocalScale(BUS_SCALE, BUS_SCALE, BUS_SCALE)
-  bus.setLocalPosition(BUS_X, BUS_Y, rig.getLocalPosition().z - BUS_START_AHEAD)
+  bus.setLocalPosition(BUS_START_X, BUS_START_X * BUS_ROAD_GRADE, BUS_Z)
   app.root.addChild(bus)
 
-  let previousRigZ = rig.getLocalPosition().z
-  app.on('update', (dt: number) => {
-    const rigZ = rig.getLocalPosition().z
-    bus.setLocalPosition(
-      BUS_X,
-      BUS_Y,
-      nextBusZ(bus.getLocalPosition().z, rigZ, previousRigZ, dt, loopPeriod),
-    )
-    previousRigZ = rigZ
+  app.on('update', () => {
+    const x = busCycleAt(getLapSeconds()).x
+    bus.setLocalPosition(x, x * BUS_ROAD_GRADE, BUS_Z)
   })
 }
 
@@ -123,12 +119,16 @@ export function setupBus(app: pc.AppBase, loopPeriod: number) {
 // crossroads: right after the wrap the nearest pair sits at exactly the same
 // relative distance as the far pair did just before it, so the lights loop as
 // seamlessly as the splat does (with one pair they pop in at the snap).
-export function setupTrafficLight(app: pc.AppBase, loopPeriod: number) {
+export function setupTrafficLight(
+  app: pc.AppBase,
+  loopPeriod: number,
+  getLapSeconds: () => number,
+) {
   const leftX = TRAFFIC_LIGHT_PAIR_X + TRAFFIC_LIGHT_X
   const rightX = TRAFFIC_LIGHT_PAIR_X - TRAFFIC_LIGHT_X
   for (const dz of [0, -loopPeriod]) {
-    plantTrafficLight(app, leftX, TRAFFIC_LIGHT_SCALE, dz)
-    plantTrafficLight(app, rightX, -TRAFFIC_LIGHT_SCALE, dz)
+    plantTrafficLight(app, leftX, TRAFFIC_LIGHT_SCALE, dz, getLapSeconds)
+    plantTrafficLight(app, rightX, -TRAFFIC_LIGHT_SCALE, dz, getLapSeconds)
   }
 }
 
@@ -150,21 +150,29 @@ export function setupBillboards(app: pc.AppBase, loopPeriod: number) {
 // across the pair's centre; paired with the mirrored x position that is an
 // exact reflection, so the right light's arm still reaches over the road and its faces
 // stay toward the oncoming bike (a 180° spin would face them away instead).
-function plantTrafficLight(app: pc.AppBase, x: number, scaleX: number, dz = 0) {
+function plantTrafficLight(
+  app: pc.AppBase,
+  x: number,
+  scaleX: number,
+  dz: number,
+  getLapSeconds: () => number,
+) {
   const light = instantiateContainer(app, TRAFFIC_LIGHT_ASSET_NAME)
   if (!light) return
   light.setLocalPosition(x, 0, TRAFFIC_LIGHT_Z + dz)
   light.setLocalScale(scaleX, TRAFFIC_LIGHT_SCALE, TRAFFIC_LIGHT_SCALE)
   app.root.addChild(light)
-  setupTrafficLightCycle(app, light)
+  setupTrafficLightCycle(app, light, getLapSeconds)
 }
 
 // The model ships three coloured bulbs (named green/red/yellow) that rest hidden
-// at scale 0. Rather than free-run the baked clips, drive them from the bike so
-// the signal actually matches its stop-and-go: green while riding, amber on the
-// approach, red while idling at the stop line — the red → green → amber cycle the
-// model was authored for, in sync with the lap.
-function setupTrafficLightCycle(app: pc.AppBase, light: pc.Entity) {
+// at scale 0. The bus holds red while it crosses and stops at the shelter;
+// the bike's approach shows amber before that, then green after the bus leaves.
+function setupTrafficLightCycle(
+  app: pc.AppBase,
+  light: pc.Entity,
+  getLapSeconds: () => number,
+) {
   const rig = app.root.findByName(RIG_ENTITY_NAME)
   if (!(rig instanceof pc.Entity)) return
   // Bulb nodes by colour; the v02 model suffixes them ("red.001"), so match on
@@ -184,11 +192,11 @@ function setupTrafficLightCycle(app: pc.AppBase, light: pc.Entity) {
     const moving = Math.abs(z - prevZ) > 1e-4
     prevZ = z
     const dist = z - stopZ
-    const stopped = !moving && Math.abs(dist) < 0.5
+    const busRed = busCycleAt(getLapSeconds()).red
     const approaching = moving && dist > 0 && dist <= TRAFFIC_LIGHT_SLOWDOWN
-    setBulb(red, stopped)
-    setBulb(yellow, approaching)
-    setBulb(green, !stopped && !approaching)
+    setBulb(red, busRed)
+    setBulb(yellow, !busRed && approaching)
+    setBulb(green, !busRed && !approaching)
   })
 }
 
