@@ -10,6 +10,7 @@ import { renderComponents } from './pc-utils'
 import {
   RIG_ENTITY_NAME,
   setupBike,
+  setupBus,
   setupTrafficLight,
   TRAFFIC_LIGHT_SLOWDOWN,
   TRAFFIC_LIGHT_STOP_Z,
@@ -284,6 +285,7 @@ function setupScene(app: pc.AppBase): pc.Entity | null {
   setupRig(app)
 
   setupBike(app)
+  setupBus(app, LOOP_PERIOD)
   setupTrafficLight(app, LOOP_PERIOD)
 
   stripShadows(app)

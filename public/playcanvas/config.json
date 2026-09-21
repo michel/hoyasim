@@ -346,6 +346,21 @@
       "i18n": {},
       "id": "287159700"
     },
+    "287159701": {
+      "name": "bus.glb",
+      "type": "container",
+      "file": {
+        "hash": "3301d457a0d2c75356d9622a79353959",
+        "size": 1797444,
+        "filename": "bus.glb",
+        "url": "assets/models/bus.glb"
+      },
+      "data": {},
+      "preload": true,
+      "tags": [],
+      "i18n": {},
+      "id": "287159701"
+    },
     "287159656": {
       "name": "defaultMat",
       "type": "material",

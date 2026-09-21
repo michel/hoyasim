@@ -3,8 +3,8 @@ import { createNavScreenTexture } from './nav-screen'
 import { renderComponents } from './pc-utils'
 
 // The props baked into (or planted onto) the PlayCanvas scene: the e-bike the
-// camera rides and the traffic lights it stops at. Split from playcanvasApp so
-// the boot/loop core stays readable; all placement values are hand-tuned
+// camera rides, the traffic lights it stops at, and the oncoming bus. Split
+// from playcanvasApp so the boot/loop core stays readable; placement is tuned
 // against the current splat bundle.
 
 // Entity names baked into the PlayCanvas scene JSON.
@@ -50,6 +50,16 @@ const TRAFFIC_LIGHT_STOP_OFFSET = 2.0
 export const TRAFFIC_LIGHT_SLOWDOWN = 3.3
 export const TRAFFIC_LIGHT_WAIT = 3
 
+const BUS_ASSET_NAME = 'bus.glb'
+const BUS_X = -0.8
+const BUS_Y = 0
+const BUS_SCALE = 0.28
+const BUS_SPEED = 1.2
+const BUS_START_AHEAD = 25
+// At this distance the whole bus is behind the fog; subtracting two laps
+// places its front beyond the far fog edge too.
+const BUS_RECYCLE_BEHIND = 37
+
 // Looks up a preloaded container asset (config.json) and instantiates its
 // render hierarchy, or null when the asset is missing.
 function instantiateContainer(
@@ -60,6 +70,41 @@ function instantiateContainer(
     | pc.ContainerResource
     | undefined
   return resource?.instantiateRenderEntity() ?? null
+}
+
+export function nextBusZ(
+  z: number,
+  rigZ: number,
+  previousRigZ: number,
+  dt: number,
+  loopPeriod: number,
+) {
+  let nextZ = z + BUS_SPEED * dt + (rigZ > previousRigZ ? loopPeriod : 0)
+  while (nextZ - rigZ > BUS_RECYCLE_BEHIND) nextZ -= 2 * loopPeriod
+  return nextZ
+}
+
+export function setupBus(app: pc.AppBase, loopPeriod: number) {
+  const rig = app.root.findByName(RIG_ENTITY_NAME)
+  const bus = instantiateContainer(app, BUS_ASSET_NAME)
+  if (!(rig instanceof pc.Entity) || !bus) return
+
+  // The GLB faces local +X; the rider faces -Z, so -90° Y makes it oncoming.
+  bus.setLocalEulerAngles(0, -90, 0)
+  bus.setLocalScale(BUS_SCALE, BUS_SCALE, BUS_SCALE)
+  bus.setLocalPosition(BUS_X, BUS_Y, rig.getLocalPosition().z - BUS_START_AHEAD)
+  app.root.addChild(bus)
+
+  let previousRigZ = rig.getLocalPosition().z
+  app.on('update', (dt: number) => {
+    const rigZ = rig.getLocalPosition().z
+    bus.setLocalPosition(
+      BUS_X,
+      BUS_Y,
+      nextBusZ(bus.getLocalPosition().z, rigZ, previousRigZ, dt, loopPeriod),
+    )
+    previousRigZ = rigZ
+  })
 }
 
 // Plants the overhead traffic lights beside the road at the configured Z (parented
