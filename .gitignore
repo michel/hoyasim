@@ -6,6 +6,9 @@ dist
 dist-split
 dist-ssr
 
+# Generated performance captures
+/artifacts/perf/
+
 # TypeScript
 *.tsbuildinfo
 
