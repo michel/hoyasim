@@ -53,11 +53,10 @@ export const TRAFFIC_LIGHT_WAIT = 3
 
 const BILLBOARD_ASSET_NAME = 'billboard.glb'
 const BILLBOARD_SCALE = 0.4
-const BILLBOARD_Z = TRAFFIC_LIGHT_Z + 1.0
-// World X and yaw: each eye chart faces the bike at the stop line.
+// World X, yaw and Z: each eye chart faces the bike at the stop line.
 const BILLBOARDS = [
-  [-1.6, 58],
-  [1.3, -52],
+  [-1.6, 58, TRAFFIC_LIGHT_Z + 0.5],
+  [1.3, -52, TRAFFIC_LIGHT_Z + 1.0],
 ] as const
 
 const BUS_ASSET_NAME = 'bus.glb'
@@ -135,10 +134,10 @@ export function setupTrafficLight(app: pc.AppBase, loopPeriod: number) {
 
 export function setupBillboards(app: pc.AppBase, loopPeriod: number) {
   for (const dz of [0, -loopPeriod]) {
-    for (const [x, yaw] of BILLBOARDS) {
+    for (const [x, yaw, z] of BILLBOARDS) {
       const board = instantiateContainer(app, BILLBOARD_ASSET_NAME)
       if (!board) return
-      board.setLocalPosition(x, 0, BILLBOARD_Z + dz)
+      board.setLocalPosition(x, 0, z + dz)
       board.setLocalEulerAngles(0, yaw, 0)
       board.setLocalScale(BILLBOARD_SCALE, BILLBOARD_SCALE, BILLBOARD_SCALE)
       app.root.addChild(board)
