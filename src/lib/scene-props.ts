@@ -3,9 +3,9 @@ import { createNavScreenTexture } from './nav-screen'
 import { renderComponents } from './pc-utils'
 
 // The props baked into (or planted onto) the PlayCanvas scene: the e-bike the
-// camera rides, the traffic lights it stops at, and the oncoming bus. Split
-// from playcanvasApp so the boot/loop core stays readable; placement is tuned
-// against the current splat bundle.
+// camera rides, the traffic lights and billboards it stops at, and the
+// oncoming bus. Split from playcanvasApp so the boot/loop core stays readable;
+// placement is tuned against the current splat bundle.
 
 // Entity names baked into the PlayCanvas scene JSON.
 const BIKE_ENTITY_NAME = 'Render'
@@ -35,7 +35,7 @@ const BIKE_SCREEN_EMISSIVE = 0.6
 // mirrored right-hand copy so the pair spans the road. TRAFFIC_LIGHT_Z is the single
 // "down the road" knob — an absolute world Z, deliberately decoupled from LOOP_PERIOD
 // so re-tuning the loop length doesn't drag the lights along with it. The bike's stop
-// line is derived from it. The pair is nudged left; X keeps its original spacing.
+// line is derived from it. The pair is nudged left; X controls their spacing.
 // X/Y/scale/rotation are tuned visually.
 const TRAFFIC_LIGHT_ASSET_NAME = 'trafficlight.glb'
 // A mid-block crossing stop ~37% through the lap (moved 20% of the loop
@@ -43,13 +43,22 @@ const TRAFFIC_LIGHT_ASSET_NAME = 'trafficlight.glb'
 // after the green before the wrap.
 const TRAFFIC_LIGHT_Z = -4.9
 const TRAFFIC_LIGHT_PAIR_X = -0.3
-const TRAFFIC_LIGHT_X = 1.4
+const TRAFFIC_LIGHT_X = 1.1
 const TRAFFIC_LIGHT_SCALE = 0.33
 // The bike stops this far ahead of (i.e. +Z of) the lights, eases off over
 // SLOWDOWN units, and idles at the stop line for WAIT seconds each lap.
 const TRAFFIC_LIGHT_STOP_OFFSET = 2.0
 export const TRAFFIC_LIGHT_SLOWDOWN = 3.3
 export const TRAFFIC_LIGHT_WAIT = 3
+
+const BILLBOARD_ASSET_NAME = 'billboard.glb'
+const BILLBOARD_SCALE = 0.4
+const BILLBOARD_Z = TRAFFIC_LIGHT_Z + 1.0
+// World X and yaw: each eye chart faces the bike at the stop line.
+const BILLBOARDS = [
+  [-1.6, 58],
+  [1.3, -52],
+] as const
 
 const BUS_ASSET_NAME = 'bus.glb'
 const BUS_X = -0.8
@@ -121,6 +130,19 @@ export function setupTrafficLight(app: pc.AppBase, loopPeriod: number) {
   for (const dz of [0, -loopPeriod]) {
     plantTrafficLight(app, leftX, TRAFFIC_LIGHT_SCALE, dz)
     plantTrafficLight(app, rightX, -TRAFFIC_LIGHT_SCALE, dz)
+  }
+}
+
+export function setupBillboards(app: pc.AppBase, loopPeriod: number) {
+  for (const dz of [0, -loopPeriod]) {
+    for (const [x, yaw] of BILLBOARDS) {
+      const board = instantiateContainer(app, BILLBOARD_ASSET_NAME)
+      if (!board) return
+      board.setLocalPosition(x, 0, BILLBOARD_Z + dz)
+      board.setLocalEulerAngles(0, yaw, 0)
+      board.setLocalScale(BILLBOARD_SCALE, BILLBOARD_SCALE, BILLBOARD_SCALE)
+      app.root.addChild(board)
+    }
   }
 }
 

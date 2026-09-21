@@ -361,6 +361,21 @@
       "i18n": {},
       "id": "287159701"
     },
+    "287159702": {
+      "name": "billboard.glb",
+      "type": "container",
+      "file": {
+        "hash": "aa30e0cf5ff58325f51f6ce8387c6201",
+        "size": 529500,
+        "filename": "billboard.glb",
+        "url": "assets/models/billboard.glb"
+      },
+      "data": {},
+      "preload": true,
+      "tags": [],
+      "i18n": {},
+      "id": "287159702"
+    },
     "287159656": {
       "name": "defaultMat",
       "type": "material",
