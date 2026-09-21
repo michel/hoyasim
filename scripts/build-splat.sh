@@ -3,7 +3,7 @@
 # build-splat.sh — turn the raw Gaussian-splat capture into the streamed LOD
 # bundle that ships under public/playcanvas/assets/.
 #
-# Two passes of @playcanvas/splat-transform (via bunx, no install needed):
+# Two passes of @playcanvas/splat-transform 3.3.3 (via bunx, no install needed):
 #
 #   PASS 1 — place the capture in the scene frame and strip SH to match the
 #            shipped 0-SH format.
@@ -12,15 +12,15 @@
 # Usage:  bun run build-splat            # uses the defaults below
 #         SRC=/path/to/new.ply bun run build-splat
 #
-# The bundle directory name carries a version (splat-v8, -v9, ...): chunk URLs
+# The bundle directory name carries a version (splat-v9, -v10, ...): chunk URLs
 # are identical across rebuilds, so browsers/CDNs serve stale chunks unless the
 # directory changes. Bump it on every geometry rebuild and update the asset url
 # + size/hash in public/playcanvas/config.json (printed at the end).
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
-SRC="${SRC:-$HOME/Downloads/Aanlevermap/Cleaned Up/Omgeving - v03 -100k.compressed2.ply}"
-OUT="${OUT:-public/playcanvas/assets/splat-v8}"
+SRC="${SRC:-$HOME/Downloads/Hoya splat - v05 - 200k_Clean_compressed.ply}"
+OUT="${OUT:-public/playcanvas/assets/splat-v9}"
 ALIGNED="${ALIGNED:-/tmp/splat_aligned.ply}"
 
 # Scene placement, solved against the raw capture (probe road landmarks):
@@ -36,7 +36,7 @@ SCALE="0.026437995666495091"
 TRANSLATE="-0.047,0,3.20"
 
 echo "===== PASS 1: place in scene frame + strip SH ====="
-bunx @playcanvas/splat-transform -w "$SRC" \
+bunx @playcanvas/splat-transform@3.3.3 -w "$SRC" \
   -N \
   -r "$ROTATE" \
   -s "$SCALE" \
@@ -50,10 +50,10 @@ echo "===== PASS 2: build 4-tier LOD bundle (~128K-gaussian chunks) ====="
 # assembles the tiers. --lod-chunk-count 128 keeps per-frame streaming cheap.
 for tier in "50:1" "25:2" "12.5:3"; do
   pct="${tier%%:*}"; lvl="${tier##*:}"
-  bunx @playcanvas/splat-transform -w "$ALIGNED" --decimate "$pct%" "/tmp/splat_lod$lvl.ply"
+  bunx @playcanvas/splat-transform@3.3.3 -w "$ALIGNED" --decimate "$pct%" "/tmp/splat_lod$lvl.ply"
 done
 rm -rf "$OUT"; mkdir -p "$OUT"
-bunx @playcanvas/splat-transform -w \
+bunx @playcanvas/splat-transform@3.3.3 -w \
   "$ALIGNED" -l 0 \
   /tmp/splat_lod1.ply -l 1 \
   /tmp/splat_lod2.ply -l 2 \

@@ -84,7 +84,7 @@ The 3D environment itself (Gaussian splat + PlayCanvas config) lives under `publ
 
 ## The Gaussian Splat Environment
 
-The photoreal scene is a [Gaussian splat](https://repo-sam.inria.fr/fungraph/3d-gaussian-splatting/) (~3.9M gaussians) served as a **streamed LOD bundle** at `public/playcanvas/assets/splat-v8/` (the directory name carries a version — see below). Instead of one monolithic file, the splat is split into a spatial octree of small chunks, each available at four detail tiers. At runtime PlayCanvas streams in only the chunks the camera can see and picks an LOD level per chunk from its screen-space size and the per-frame splat budget — so the iPhone never tries to draw all 3.9M gaussians at once.
+The photoreal scene is a [Gaussian splat](https://repo-sam.inria.fr/fungraph/3d-gaussian-splatting/) (~4.8M gaussians) served as a **streamed LOD bundle** at `public/playcanvas/assets/splat-v9/` (the directory name carries a version — see below). Instead of one monolithic file, the splat is split into a spatial octree of small chunks, each available at four detail tiers. At runtime PlayCanvas streams in only the chunks the camera can see and picks an LOD level per chunk from its screen-space size and the per-frame splat budget — so the iPhone never tries to draw all 4.8M gaussians at once.
 
 The bundle is two things on disk:
 
@@ -96,13 +96,13 @@ The bundle is two things on disk:
 The whole pipeline is captured in one script — **`bun run build-splat`** (`scripts/build-splat.sh`). Point it at a source `.ply` and it rebuilds the shipped bundle in place:
 
 ```bash
-bun run build-splat                      # uses the v03 capture from ~/Downloads/Aanlevermap by default
+bun run build-splat                      # uses the v05 capture from ~/Downloads by default
 SRC=/path/to/new_capture.ply bun run build-splat
 ```
 
-It runs [`@playcanvas/splat-transform`](https://github.com/playcanvas/splat-transform) (via `bunx`, no install) in **two passes**: PASS 1 places the capture in the scene frame and strips SH to the shipped 0-SH format; PASS 2 decimates three coarser tiers and assembles the 4-tier LOD octree. The exact invocations, the placement constants and the output path live in `scripts/build-splat.sh` — read it there rather than here, and note that since splat-transform 3.3.0 each `--decimate` must be its own invocation writing a `.ply`, with the final run assembling the tiers.
+It runs [`@playcanvas/splat-transform`](https://github.com/playcanvas/splat-transform) 3.3.3 (via `bunx`, no install) in **two passes**: PASS 1 places the capture in the scene frame and strips SH to the shipped 0-SH format; PASS 2 decimates three coarser tiers and assembles the 4-tier LOD octree. The exact invocations, the placement constants and the output path live in `scripts/build-splat.sh` — read it there rather than here, and note that since splat-transform 3.3.0 each `--decimate` must be its own invocation writing a `.ply`, with the final run assembling the tiers.
 
-Expect a few minutes and ~3 GB peak RAM on a multi-million-gaussian splat. The current bundle (from the 3.9M-gaussian `Omgeving - v03` cleaned render) is 46 chunks (22 at LOD 0, 13 at LOD 1, 7 at LOD 2, 4 at LOD 3), ~93 MB total, 0 SH bands.
+Expect a few minutes and ~3 GB peak RAM on a multi-million-gaussian splat. The current bundle comes from `Hoya splat - v05 - 200k_Clean_compressed.ply` (4,790,931 gaussians) and is 64 chunks (32 at LOD 0, 18 at LOD 1, 9 at LOD 2, 5 at LOD 3), ~113 MB total, 0 SH bands.
 
 > **Placement (PASS 1).** `ROTATE`/`SCALE`/`TRANSLATE` in `build-splat.sh` place the
 > capture in the scene frame: street along the riding axis, road plane at local
@@ -111,6 +111,7 @@ Expect a few minutes and ~3 GB peak RAM on a multi-million-gaussian splat. The c
 > PASS 1 only, measure the road's center/height/extent on `$ALIGNED`, and adjust.
 > Note: splat-transform applies parts of `-t` sign-flipped (Y always; X after
 > rotations) — solve empirically, don't reason about signs.
+> The v05 capture matches the v03 road frame, so it keeps the same placement and lap constants.
 
 **Tuning knobs** (all in `scripts/build-splat.sh`): the `--decimate` percentages and the number of `-l` tiers trade quality for size — `-l 0` is full resolution and carries no `--decimate`. `--lod-chunk-count` (in thousands; default 512, the bundle ships 128) trades file count for streaming smoothness: smaller chunks mean more files, but each streamed upload is ~4× cheaper, spreading the per-frame upload spike across more frames.
 
@@ -132,13 +133,13 @@ This was used in earlier single-file experiments; the shipped LOD bundle current
 
 ### After regenerating: the `config.json` entry
 
-PlayCanvas loads the bundle via asset `287139133` in `public/playcanvas/config.json`, whose `file.url` points at the bundle's `lod-meta.json`. **The bundle directory name carries a version (`splat-v8`, `splat-v9`, …): bump it whenever a rebuild changes geometry** and update the `url` to match. The per-chunk file URLs are identical between rebuilds, so without a fresh directory name browsers and CDNs keep serving stale chunk data — only `lod-meta.json` itself is cache-busted by the size/hash below.
+PlayCanvas loads the bundle via asset `287139133` in `public/playcanvas/config.json`, whose `file.url` points at the bundle's `lod-meta.json`. **The bundle directory name carries a version (`splat-v9`, `splat-v10`, …): bump it whenever a rebuild changes geometry** and update the `url` to match. The per-chunk file URLs are identical between rebuilds, so without a fresh directory name browsers and CDNs keep serving stale chunk data — only `lod-meta.json` itself is cache-busted by the size/hash below.
 
 `config.json` also carries `file.size` and `file.hash` for that asset. These act as a **cache-busting hint, not an integrity check** — PlayCanvas does not validate the file against them and will happily load a bundle whose size/hash don't match. Updating them forces browsers / the service worker to refetch a changed bundle, so keep them current (`build-splat` prints both values when it finishes):
 
 ```bash
-stat -f "%z" public/playcanvas/assets/splat-v8/lod-meta.json   # -> file.size
-md5 -q       public/playcanvas/assets/splat-v8/lod-meta.json   # -> file.hash
+stat -f "%z" public/playcanvas/assets/splat-v9/lod-meta.json   # -> file.size
+md5 -q       public/playcanvas/assets/splat-v9/lod-meta.json   # -> file.hash
 ```
 
 Then edit `file.size` and `file.hash` for `287139133` in `config.json`. If you're seeing a stale splat in the browser, hard-reload / clear the service worker rather than relying on this.
@@ -147,16 +148,13 @@ Then edit `file.size` and `file.hash` for `287139133` in `config.json`. If you'r
 
 How aggressively the engine streams and coarsens lives in `src/lib/playcanvasApp.ts` (search `app.scene.gsplat`). Current values:
 
-| Setting                             | Desktop   | Touch   | iOS                       |
-| ----------------------------------- | --------- | ------- | ------------------------- |
-| `splatBudget` (max gaussians/frame) | 4,000,000 | 500,000 | 200,000                   |
-| `lodRangeMin` / `lodRangeMax`       | default   | min 2   | pinned to 3 (single tier) |
-| `lodBaseDistance`                   | 1         | 0.5     | 0.5                       |
-| `lodMultiplier`                     | 1.5       | 2       | 2                         |
+| Setting                             | Desktop   | Touch   |
+| ----------------------------------- | --------- | ------- |
+| `splatBudget` (max gaussians/frame) | 4,000,000 | 500,000 |
+| `lodBaseDistance`                   | 1         | 0.5     |
+| `lodMultiplier`                     | 1.5       | 2       |
 
-Shared (all platforms): `lodUnderfillLimit = 2` (draw a coarser cached tier while the target streams in), `cooldownTicks = 120` (~2s before evicting off-screen chunks), `lodBehindPenalty = 3`, `lodUpdateDistance = 3` (re-evaluate LOD every 3 m of camera motion), `radialSorting = true`, `highQualitySH = false`.
-
-iOS is deliberately pinned to a single LOD: Metal's WebGL texture allocator doesn't promptly reclaim freed chunks, so repeated load/evict cycles compound into FPS drift. Pinning uploads the same 3 chunk files once and never churns them.
+Shared (all platforms): `lodUnderfillLimit = 2` (draw a coarser cached tier while the target streams in), `cooldownTicks = 120` (~2s before evicting off-screen chunks), `lodBehindPenalty = 3`, `lodUpdateDistance = 3` (re-evaluate LOD every 3 m of camera motion), `radialSorting = true`.
 
 ## Tech Stack
 
