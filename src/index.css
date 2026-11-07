@@ -1,6 +1,39 @@
 @import "tailwindcss";
 @import "tw-animate-css";
 
+/* Phone in landscape: the viewport is short, so the overlay UI tightens up. */
+@custom-variant short (@media (max-height: 500px));
+
+/* Overlay UI edge offsets: a fixed gap, tighter on short screens, never under
+   a notch or home indicator (index.html sets viewport-fit=cover). */
+:root {
+  --ui-gap: 1.5rem;
+}
+@media (max-height: 500px) {
+  :root {
+    --ui-gap: 0.75rem;
+  }
+}
+/* Frosted "liquid glass" hint bubbles: a dark tint keeps white copy readable
+   over the bright street, the blur + saturation give the glass look. */
+@utility glass-fill {
+  background: rgb(24 26 32 / 0.55);
+  -webkit-backdrop-filter: blur(24px) saturate(180%);
+  backdrop-filter: blur(24px) saturate(180%);
+}
+@utility ui-top {
+  top: max(var(--ui-gap), env(safe-area-inset-top));
+}
+@utility ui-bottom {
+  bottom: max(var(--ui-gap), env(safe-area-inset-bottom));
+}
+@utility ui-left {
+  left: max(var(--ui-gap), env(safe-area-inset-left));
+}
+@utility ui-right {
+  right: max(var(--ui-gap), env(safe-area-inset-right));
+}
+
 @theme inline {
   --radius-xl: calc(var(--radius) + 4px);
   --color-hoya-blue: #0055c4;

@@ -102,6 +102,7 @@ export interface BootedApp {
   putOnGlasses: () => Promise<void>
   takeOffGlasses: () => void
   setLensProduct: (side: LensSide, product: LensProduct) => void
+  setPaused: (paused: boolean) => void
 }
 
 // Wires the component systems, resource handlers, and input devices onto a fresh
@@ -408,6 +409,10 @@ export async function bootApp(
     },
     setLensProduct: (side, product) => {
       glasses?.setLensProduct(side, product)
+    },
+    // Every ride/bus/light update is dt-driven; looking around is not.
+    setPaused: (paused) => {
+      app.timeScale = paused ? 0 : 1
     },
   }
 }

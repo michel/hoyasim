@@ -2,26 +2,214 @@ import {
   ChevronRight,
   Glasses,
   Loader2,
+  Pause,
+  Play,
   Pointer,
+  Settings,
   Smartphone,
 } from 'lucide-react'
-import { useEffect, useMemo, useRef, useState } from 'react'
+import {
+  type ReactNode,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react'
 import hoyaLogo from '@/assets/hoya-logo.svg'
 import TuningPanel from '@/components/TuningPanel'
 import { Button } from '@/components/ui/button'
 import { useDeviceOrientation } from '@/hooks/useDeviceOrientation'
 import { usePointerControls } from '@/hooks/usePointerControls'
-import {
-  DEFAULT_LENS_PRODUCT,
-  LENS_PRODUCT_ORDER,
-  type LensProduct,
-} from '@/lib/glasses-pc'
+import { lineState } from '@/lib/glasses-anim'
+import type { LensProduct } from '@/lib/glasses-pc'
 import { type BootedApp, bootApp } from '@/lib/playcanvasApp'
 import { createLookState } from '@/lib/scripts/lookCamera'
 
-function nextProduct(current: LensProduct): LensProduct {
-  const idx = LENS_PRODUCT_ORDER.indexOf(current)
-  return LENS_PRODUCT_ORDER[(idx + 1) % LENS_PRODUCT_ORDER.length]
+// The left eye always wears the reference lens; the right eye switches between
+// the others so the two can be compared side by side.
+const FIXED_PRODUCT: LensProduct = 'MySense'
+const SWITCH_PRODUCTS: LensProduct[] = ['MySelf Profile', 'Balansis']
+
+const nextProduct = (current: LensProduct) =>
+  SWITCH_PRODUCTS[
+    (SWITCH_PRODUCTS.indexOf(current) + 1) % SWITCH_PRODUCTS.length
+  ]
+
+// Onboarding tour, played once when the glasses first go on: one tooltip per
+// control, pointing at it. Product hints follow each later lens switch.
+// ponytail: placeholder copy, swap in HOYA's wording when it arrives.
+type TourTarget = 'fixed' | 'switch' | 'pause' | 'settings'
+const TOUR: { target: TourTarget; text: string }[] = [
+  {
+    target: 'fixed',
+    text: `Your left eye wears ${FIXED_PRODUCT}, our premium lens. It stays the same so you can compare.`,
+  },
+  {
+    target: 'switch',
+    text: 'Tap here to switch the lens on your right eye, then compare the blurred lower corners.',
+  },
+  {
+    target: 'pause',
+    text: 'Pause the ride to look at the difference at your own pace.',
+  },
+  {
+    target: 'settings',
+    text: 'Show or hide the mushroom line that marks where each lens is sharp.',
+  },
+]
+const LENS_EXPLAINERS: Record<LensProduct, string> = {
+  MySense: 'MySense: the widest clear view, with smooth transitions.',
+  'MySelf Profile':
+    'MySelf Profile: compare the blurred lower corners with the left lens.',
+  Balansis:
+    'Balansis: notice the larger blurred corners and the abrupt switch between far and near.',
+}
+const HINT_MS = 5000
+
+const TIP_RADIUS = 16
+const TAIL_W = 22
+const TAIL_H = 10
+// Tail centre from the bubble edge for start/end alignment: past the corner
+// radius so the tail leaves a straight edge, close to a 44px button centre.
+const TAIL_INSET = 27
+
+// Outline of bubble + tail as ONE path, so the glass, its edge and the pointer
+// are a single shape. Tail on the bottom edge when the bubble sits above its
+// anchor, on the top edge when below; y is offset to leave room for it.
+function bubblePath(w: number, h: number, tailX: number, tailDown: boolean) {
+  const r = TIP_RADIUS
+  const y0 = tailDown ? 0 : TAIL_H
+  const y1 = y0 + h
+  const a = tailX - TAIL_W / 2
+  const b = tailX + TAIL_W / 2
+  const top = tailDown
+    ? `H ${w - r}`
+    : `H ${a} Q ${tailX - 3} ${y0} ${tailX} 0 Q ${tailX + 3} ${y0} ${b} ${y0} H ${w - r}`
+  const bottom = tailDown
+    ? `H ${b} Q ${tailX + 3} ${y1} ${tailX} ${y1 + TAIL_H} Q ${tailX - 3} ${y1} ${a} ${y1} H ${r}`
+    : `H ${r}`
+  return `M ${r} ${y0} ${top} Q ${w} ${y0} ${w} ${y0 + r} V ${y1 - r} Q ${w} ${y1} ${w - r} ${y1} ${bottom} Q 0 ${y1} 0 ${y1 - r} V ${y0 + r} Q 0 ${y0} ${r} ${y0} Z`
+}
+
+// Speech-bubble hint with a tail pointing at its anchor. Render it inside the
+// anchor's `relative` wrapper: `side` is where the bubble sits, `align` lines
+// the bubble and tail up with the anchor's left edge, centre or right edge.
+function Tooltip({
+  side,
+  align,
+  children,
+}: {
+  side: 'top' | 'bottom'
+  align: 'start' | 'center' | 'end'
+  children: ReactNode
+}) {
+  const ref = useRef<HTMLDivElement>(null)
+  const [size, setSize] = useState<{ w: number; h: number } | null>(null)
+  useLayoutEffect(() => {
+    const el = ref.current
+    if (!el) return
+    const ro = new ResizeObserver(() =>
+      setSize({ w: el.offsetWidth, h: el.offsetHeight }),
+    )
+    ro.observe(el)
+    return () => ro.disconnect()
+  }, [])
+  const box = {
+    start: 'left-0',
+    center: 'left-1/2 -translate-x-1/2',
+    end: 'right-0',
+  }[align]
+  const tailDown = side === 'top'
+  let shape: ReactNode = null
+  if (size) {
+    const tailX = {
+      start: TAIL_INSET,
+      center: size.w / 2,
+      end: size.w - TAIL_INSET,
+    }[align]
+    const d = bubblePath(size.w, size.h, tailX, tailDown)
+    const layer = {
+      left: 0,
+      top: tailDown ? 0 : -TAIL_H,
+      width: size.w,
+      height: size.h + TAIL_H,
+    }
+    shape = (
+      <>
+        <span
+          aria-hidden="true"
+          className="glass-fill absolute"
+          style={{ ...layer, clipPath: `path('${d}')` }}
+        />
+        <svg
+          aria-hidden="true"
+          className="absolute overflow-visible"
+          style={layer}
+          viewBox={`0 0 ${layer.width} ${layer.height}`}
+        >
+          <path
+            d={d}
+            fill="none"
+            stroke="rgb(255 255 255 / 0.4)"
+            strokeWidth="1"
+          />
+        </svg>
+      </>
+    )
+  }
+  return (
+    <div
+      ref={ref}
+      role="status"
+      className={`absolute z-30 w-64 short:w-56 p-3.5 short:p-3 text-left text-sm short:text-[13px] font-medium leading-snug text-white [text-shadow:0_1px_2px_rgb(0_0_0/0.35)] animate-in fade-in zoom-in-95 ${box} ${
+        side === 'top' ? 'bottom-full mb-3' : 'top-full mt-3'
+      }`}
+    >
+      {shape}
+      <div className="relative">{children}</div>
+    </div>
+  )
+}
+
+function TourStep({
+  step,
+  onNext,
+  onSkip,
+}: {
+  step: number
+  onNext: () => void
+  onSkip: () => void
+}) {
+  const last = step === TOUR.length - 1
+  return (
+    <>
+      <p>{TOUR[step].text}</p>
+      <div className="mt-2 flex items-center justify-between gap-2">
+        <span className="text-xs tabular-nums text-white/70">
+          {step + 1} / {TOUR.length}
+        </span>
+        <span className="flex gap-1">
+          {!last && (
+            <button
+              type="button"
+              onClick={onSkip}
+              className="rounded-full px-3 py-2 text-xs text-white/80 active:bg-white/10"
+            >
+              Skip
+            </button>
+          )}
+          <button
+            type="button"
+            onClick={onNext}
+            className="rounded-full bg-white px-4 py-2 text-xs font-semibold text-hoya-dark [text-shadow:none] active:scale-95 transition-transform"
+          >
+            {last ? 'Got it' : 'Next'}
+          </button>
+        </span>
+      </div>
+    </>
+  )
 }
 
 const LENS_TAGLINES: Record<LensProduct, string> = {
@@ -51,48 +239,94 @@ function LensSelector({
   active,
   onCycle,
   showHint = false,
+  fixedTip,
+  switchTip,
 }: {
   active: LensProduct
   onCycle: () => void
   showHint?: boolean
+  fixedTip?: ReactNode
+  switchTip?: ReactNode
 }) {
   return (
-    <div className="absolute bottom-8 left-1/2 -translate-x-1/2 z-10">
-      <button
-        type="button"
-        aria-label={`Swap lenses (currently ${active}). Tap to cycle.`}
-        onClick={onCycle}
-        className="group relative flex items-stretch overflow-hidden rounded-xl bg-hoya-blue text-white shadow-md shadow-black/30 active:scale-[0.98] transition-transform duration-150"
-      >
-        <span className="flex flex-col items-start gap-1 py-2.5 pl-4 pr-3">
-          <span className="text-[10px] font-semibold uppercase tracking-[0.16em] text-white/80 leading-none">
-            {LENS_TAGLINES[active]}
-          </span>
-          <span className="text-sm font-semibold tracking-tight leading-none">
-            {active}
-          </span>
-          <span className="mt-1 flex items-center gap-1">
-            {LENS_PRODUCT_ORDER.map((p) => {
-              const isActive = p === active
-              return (
-                <span
-                  key={p}
-                  className={`h-1 rounded-full transition-all duration-200 ${
-                    isActive ? 'w-5 bg-white' : 'w-2 bg-white/35'
-                  }`}
-                />
-              )
-            })}
-          </span>
+    <div className="absolute ui-bottom left-1/2 -translate-x-1/2 z-10 flex items-end gap-3 short:gap-2">
+      <div className="relative flex flex-col items-start gap-1 rounded-xl bg-black/45 py-2.5 short:py-2 px-4 short:px-3 text-white shadow-md shadow-black/30 backdrop-blur-sm">
+        <span className="text-[10px] font-semibold uppercase tracking-[0.16em] text-white/80 leading-none">
+          Left lens
         </span>
-        <span className="flex items-center justify-center px-3.5 bg-hoya-blue-active text-white group-hover:bg-black/20 transition-colors">
-          <ChevronRight
-            className="h-5 w-5 transition-transform group-active:translate-x-0.5"
-            aria-hidden="true"
-          />
+        <span className="text-sm font-semibold tracking-tight leading-none">
+          {FIXED_PRODUCT}
         </span>
-      </button>
-      {showHint && <TapHint />}
+        {fixedTip && (
+          <Tooltip side="top" align="start">
+            {fixedTip}
+          </Tooltip>
+        )}
+      </div>
+      <div className="relative">
+        <button
+          type="button"
+          aria-label={`Switch right lens (currently ${active}). Tap to cycle.`}
+          onClick={onCycle}
+          className="group relative flex items-stretch overflow-hidden rounded-xl bg-hoya-blue text-white shadow-md shadow-black/30 active:scale-[0.98] transition-transform duration-150"
+        >
+          <span className="flex flex-col items-start gap-1 py-2.5 short:py-2 pl-4 short:pl-3 pr-3">
+            <span className="text-[10px] font-semibold uppercase tracking-[0.16em] text-white/80 leading-none">
+              {LENS_TAGLINES[active]}
+            </span>
+            <span className="text-sm font-semibold tracking-tight leading-none">
+              {active}
+            </span>
+            <span className="mt-1 flex items-center gap-1">
+              {SWITCH_PRODUCTS.map((p) => {
+                const isActive = p === active
+                return (
+                  <span
+                    key={p}
+                    className={`h-1 rounded-full transition-all duration-200 ${
+                      isActive ? 'w-5 bg-white' : 'w-2 bg-white/35'
+                    }`}
+                  />
+                )
+              })}
+            </span>
+          </span>
+          <span className="flex items-center justify-center px-3.5 bg-hoya-blue-active text-white group-hover:bg-black/20 transition-colors">
+            <ChevronRight
+              className="h-5 w-5 transition-transform group-active:translate-x-0.5"
+              aria-hidden="true"
+            />
+          </span>
+        </button>
+        {showHint && <TapHint />}
+        {switchTip && (
+          <Tooltip side="top" align="center">
+            {switchTip}
+          </Tooltip>
+        )}
+      </div>
+    </div>
+  )
+}
+
+function SettingsPanel({
+  lineVisible,
+  onLineVisible,
+}: {
+  lineVisible: boolean
+  onLineVisible: (v: boolean) => void
+}) {
+  return (
+    <div className="absolute top-full right-0 mt-2 z-10 whitespace-nowrap rounded-xl bg-black/60 p-1 text-sm text-white shadow-md backdrop-blur-sm">
+      <label className="flex min-h-11 items-center gap-3 px-3">
+        <input
+          className="h-5 w-5 accent-hoya-blue"
+          type="checkbox"
+          checked={lineVisible}
+          onChange={(e) => onLineVisible(e.target.checked)}
+        />
+        Show mushroom line
+      </label>
     </div>
   )
 }
@@ -104,8 +338,32 @@ export default function PlayCanvasView() {
   const [error, setError] = useState<string | null>(null)
   const [glassesOn, setGlassesOn] = useState(false)
   const [puttingOnGlasses, setPuttingOnGlasses] = useState(false)
-  const [product, setProduct] = useState<LensProduct>(DEFAULT_LENS_PRODUCT)
+  const [product, setProduct] = useState<LensProduct>(SWITCH_PRODUCTS[0])
   const [hasCycledLens, setHasCycledLens] = useState(false)
+  const [paused, setPaused] = useState(false)
+  const [settingsOpen, setSettingsOpen] = useState(false)
+  const [lineVisible, setLineVisible] = useState(lineState.visible)
+  // Index into TOUR while the onboarding runs; null before and after.
+  const [tourStep, setTourStep] = useState<number | null>(null)
+  const [tourDone, setTourDone] = useState(false)
+  const [lensHint, setLensHint] = useState<string | null>(null)
+  useEffect(() => {
+    if (!lensHint) return
+    const id = setTimeout(() => setLensHint(null), HINT_MS)
+    return () => clearTimeout(id)
+  }, [lensHint])
+  const endTour = () => {
+    setTourStep(null)
+    setTourDone(true)
+  }
+  const nextTourStep = () => {
+    if (tourStep === null || tourStep === TOUR.length - 1) return endTour()
+    setTourStep(tourStep + 1)
+  }
+  const tip = (target: TourTarget) =>
+    tourStep !== null && TOUR[tourStep].target === target ? (
+      <TourStep step={tourStep} onNext={nextTourStep} onSkip={endTour} />
+    ) : undefined
   // Developer tuning panel: ?tune in the URL opens it, T toggles it.
   const [tuningOpen, setTuningOpen] = useState(() =>
     new URLSearchParams(window.location.search).has('tune'),
@@ -151,9 +409,10 @@ export default function PlayCanvasView() {
     await bootedAppRef.current.putOnGlasses()
     // A rebuilt controller starts both eyes at the default; restore the user's
     // current selection.
-    bootedAppRef.current.setLensProduct('left', product)
+    bootedAppRef.current.setLensProduct('left', FIXED_PRODUCT)
     bootedAppRef.current.setLensProduct('right', product)
     setGlassesOn(true)
+    if (!tourDone) setTourStep(0)
     setPuttingOnGlasses(false)
   }
 
@@ -166,8 +425,22 @@ export default function PlayCanvasView() {
     setHasCycledLens(true)
     const next = nextProduct(product)
     setProduct(next)
-    bootedAppRef.current?.setLensProduct('left', next)
     bootedAppRef.current?.setLensProduct('right', next)
+    if (tourStep === null) setLensHint(LENS_EXPLAINERS[next])
+  }
+
+  const togglePause = () => {
+    bootedAppRef.current?.setPaused(!paused)
+    setPaused(!paused)
+  }
+
+  const changeLineVisible = (visible: boolean) => {
+    lineState.visible = visible
+    setLineVisible(visible)
+    const url = new URL(window.location.href)
+    if (visible) url.searchParams.delete('line')
+    else url.searchParams.set('line', '0')
+    window.history.replaceState(null, '', url)
   }
 
   const { gyroActive, showEnableButton, enableMotionControls } =
@@ -240,17 +513,67 @@ export default function PlayCanvasView() {
         </div>
       )}
       {!loading && !error && tuningOpen && <TuningPanel product={product} />}
+      {!loading && !error && (
+        <>
+          <div className="absolute ui-top ui-left z-10">
+            <Button
+              variant="glass"
+              size="icon"
+              className="size-11"
+              aria-label={paused ? 'Resume' : 'Pause'}
+              onClick={togglePause}
+            >
+              {paused ? (
+                <Play className="h-5 w-5" />
+              ) : (
+                <Pause className="h-5 w-5" />
+              )}
+            </Button>
+            {glassesOn && tip('pause') && (
+              <Tooltip side="bottom" align="start">
+                {tip('pause')}
+              </Tooltip>
+            )}
+          </div>
+          <div className="absolute ui-top ui-right z-10">
+            <Button
+              variant="glass"
+              size="icon"
+              className="size-11"
+              aria-label="Settings"
+              aria-expanded={settingsOpen}
+              onClick={() => setSettingsOpen((open) => !open)}
+            >
+              <Settings className="h-5 w-5" />
+            </Button>
+            {settingsOpen && (
+              <SettingsPanel
+                lineVisible={lineVisible}
+                onLineVisible={changeLineVisible}
+              />
+            )}
+            {glassesOn && tip('settings') && (
+              <Tooltip side="bottom" align="end">
+                {tip('settings')}
+              </Tooltip>
+            )}
+          </div>
+        </>
+      )}
       {!loading && !error && glassesOn && (
         <>
           <LensSelector
             active={product}
             onCycle={cycleLenses}
-            showHint={!hasCycledLens}
+            showHint={tourDone && !hasCycledLens}
+            fixedTip={tip('fixed')}
+            switchTip={tip('switch') ?? lensHint}
           />
-          <div className="absolute bottom-6 right-6 z-10">
+          <div className="absolute ui-bottom ui-right z-10">
             <Button
               variant="glass"
               size="icon"
+              className="size-11"
               aria-label="Take off glasses"
               onClick={takeOffGlasses}
             >

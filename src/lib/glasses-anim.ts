@@ -28,6 +28,11 @@ function easeOutBack(t: number): number {
   return 1 + c3 * p * p * p + c1 * p * p
 }
 
+// Settings-panel toggle for the boundary ("mushroom") line; ?line=0 starts off.
+export const lineState = {
+  visible: new URLSearchParams(window.location.search).get('line') !== '0',
+}
+
 // Kick the boundary-line trace for a side (idempotent restart).
 export const startTrace = (s: SideState | null) => {
   if (s) s.traceElapsed = 0
@@ -35,8 +40,14 @@ export const startTrace = (s: SideState | null) => {
 
 // Per-frame trace ramp: sweep the dotted line on, hold, fade out. Costs nothing
 // while idle (no trace pending on either eye).
+// Runs on wall-clock time, not the app's dt, so the trace still plays while
+// the ride is paused (timeScale 0).
 export function createTraceUpdate(sides: Record<LensSide, SideState | null>) {
-  return (dt: number) => {
+  let last = performance.now()
+  return () => {
+    const now = performance.now()
+    const dt = Math.min(0.1, (now - last) / 1000)
+    last = now
     if (sides.left?.traceElapsed == null && sides.right?.traceElapsed == null)
       return
     for (const s of [sides.left, sides.right]) {
@@ -53,7 +64,7 @@ export function createTraceUpdate(sides: Record<LensSide, SideState | null>) {
         s.traceElapsed = null
       }
       s.material.setParameter('uLineTrace', trace)
-      s.material.setParameter('uLineFade', fade)
+      s.material.setParameter('uLineFade', lineState.visible ? fade : 0)
     }
   }
 }
