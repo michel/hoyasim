@@ -34,8 +34,7 @@ const MAX_PIXEL_RATIO_DESKTOP = 1.5
 // Vertical FOV on touch. The scene's 74° becomes a ~117° horizontal view on a
 // landscape phone, which shrinks the cockpit — and the phone screens the demo
 // is about reading — to a sliver. 52° puts them ~1.5x larger; the glasses
-// scale down by the same factor (glasses-pc TOUCH_LENS_FACTOR) so the lens
-// outline stays on screen.
+// refit to the window on their own (glasses-pc createLayoutFit).
 export const TOUCH_FOV = 52
 // On touch the eye also moves in toward the handlebar (rig-local; the scene
 // bakes the camera at (-0.01, 0.378, 0.06)) so the phones — the reading

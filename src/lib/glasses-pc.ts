@@ -16,11 +16,11 @@ import { notifyTuning, onTuningChange, tuning } from './tuning'
 // out of that rewrite.
 const ASSETS_PATH = `${window.location.origin}${import.meta.env.BASE_URL}assets/glasses/`
 
-// Touch runs a narrower camera FOV (playcanvasApp TOUCH_FOV) so the cockpit
-// reads larger; the glasses shrink by the inverse so their outline still fits
-// the screen — the phones grow, the frame does not.
-const TOUCH_LENS_FACTOR = pc.platform.touch ? 0.7 : 1
-const LENS_SCALE_MULT = 1.08 * TOUCH_LENS_FACTOR
+// Lens size/position at their design layout. fitLayout scales the pair (size
+// and spread together) every frame so the outer lens edges sit
+// LENS_EDGE_MARGIN_PX from the window's left/right edges at any aspect ratio
+// or camera FOV.
+const LENS_SCALE_MULT = 1.08
 const LENS_SCALE = new pc.Vec3(
   0.16875 * LENS_SCALE_MULT,
   0.16875 * LENS_SCALE_MULT,
@@ -28,9 +28,14 @@ const LENS_SCALE = new pc.Vec3(
 )
 // Spread the lenses outward so the glasses frame each eye with a clear bridge
 // between, rather than crowding the centre of the screen.
-const LENS_X = 0.39375 * TOUCH_LENS_FACTOR
-const LENS_LEFT_POS = new pc.Vec3(-LENS_X, 0, -0.4875)
-const LENS_RIGHT_POS = new pc.Vec3(LENS_X, 0, -0.4875)
+const LENS_X = 0.39375
+const LENS_Z = -0.4875
+const LENS_LEFT_POS = new pc.Vec3(-LENS_X, 0, LENS_Z)
+const LENS_RIGHT_POS = new pc.Vec3(LENS_X, 0, LENS_Z)
+// Gap (CSS px) between each lens's outer edge and the window's side edge.
+const LENS_EDGE_MARGIN_PX = 24
+// Minimum gap (CSS px) above/below the lenses; caps growth on very wide windows.
+const LENS_VERTICAL_MARGIN_PX = 24
 
 type AssetType = ConstructorParameters<typeof pc.Asset>[1]
 
@@ -226,6 +231,9 @@ export interface SideState {
 
 interface BuiltSide {
   group: pc.Entity
+  // Lens bounding-box corners in the group's local space (GLB node transforms
+  // applied).
+  corners: pc.Vec3[]
   finalPosition: pc.Vec3
   side: LensSide
   state: SideState
@@ -277,8 +285,26 @@ function buildSide(
   group.setLocalScale(LENS_SCALE)
   lensParent.addChild(group)
 
+  // The GLB's rotation/scale sit on a child node of `lens`, so map the mesh
+  // box through the full mesh-node -> group transform.
+  const toGroup = new pc.Mat4()
+    .copy(group.getWorldTransform())
+    .invert()
+    .mul(mi.node.getWorldTransform())
+  const { center: c, halfExtents: h } = mi.mesh.aabb
+  const corners: pc.Vec3[] = []
+  for (const sx of [-1, 1])
+    for (const sy of [-1, 1])
+      for (const sz of [-1, 1])
+        corners.push(
+          toGroup.transformPoint(
+            new pc.Vec3(c.x + sx * h.x, c.y + sy * h.y, c.z + sz * h.z),
+          ),
+        )
+
   return {
     group,
+    corners,
     finalPosition: cfg.position,
     side: cfg.side,
     state: {
@@ -287,6 +313,57 @@ function buildSide(
       traceElapsed: null,
       lineArmed: false,
     },
+  }
+}
+
+// Returns a per-frame fit that scales `layout` in screen X/Y (depth untouched)
+// so both lenses' outer edges sit LENS_EDGE_MARGIN_PX from the window's sides,
+// capped so they also keep LENS_VERTICAL_MARGIN_PX above and below. Works in
+// the lens parent's space; the camera/mount scale only rescales the units, so
+// the projection ratios below hold either way. The camera uses a vertical FOV,
+// so the visible half-width at the lens depth is halfHeight * aspect.
+function createLayoutFit(
+  app: pc.AppBase,
+  cam: pc.CameraComponent | undefined,
+  layout: pc.Entity,
+  built: BuiltSide[],
+) {
+  // Widest/tallest projected extent of the pair at layout scale 1, as
+  // tan-of-angle (|x| / depth). Per corner, since the curved lens rim sits
+  // nearer the camera than its centre and so projects wider. The layout
+  // scales X/Y only, so each corner's ratio scales linearly with k.
+  let outer = 0
+  let vertical = 0
+  for (const b of built) {
+    for (const g of b.corners) {
+      const x = b.finalPosition.x + g.x * LENS_SCALE.x
+      const y = b.finalPosition.y + g.y * LENS_SCALE.y
+      const depth = -(b.finalPosition.z + g.z * LENS_SCALE.z)
+      if (depth <= 0) continue
+      outer = Math.max(outer, Math.abs(x) / depth)
+      vertical = Math.max(vertical, Math.abs(y) / depth)
+    }
+  }
+  let lastW = -1
+  let lastH = -1
+  let lastFov = -1
+  return () => {
+    if (!cam) return
+    const canvas = app.graphicsDevice.canvas as HTMLCanvasElement
+    const w = canvas.clientWidth
+    const h = canvas.clientHeight
+    if (!w || !h) return
+    if (w === lastW && h === lastH && cam.fov === lastFov) return
+    lastW = w
+    lastH = h
+    lastFov = cam.fov
+    const halfH = Math.tan((cam.fov * Math.PI) / 360)
+    const halfW = halfH * (w / h)
+    const unitsPerPx = (2 * halfH) / h
+    const fitW = (halfW - LENS_EDGE_MARGIN_PX * unitsPerPx) / outer
+    const fitH = (halfH - LENS_VERTICAL_MARGIN_PX * unitsPerPx) / vertical
+    const k = Math.max(0.01, Math.min(fitW, fitH))
+    layout.setLocalScale(k, k, 1)
   }
 }
 
@@ -313,9 +390,13 @@ export async function setupLenses(
   const mount = new pc.Entity('GlassesMount')
   if (app.graphicsDevice.isWebGPU) mount.setLocalScale(0.3, 0.3, 0.3)
   cameraEntity.addChild(mount)
+  // Scaled in screen X/Y (not depth) by fitLayout to fit the window.
+  const layout = new pc.Entity('GlassesLayout')
+  mount.addChild(layout)
   const built = SIDES.map((cfg, i) =>
-    buildSide(cfg, lensAssets[i], mount, pxScale),
+    buildSide(cfg, lensAssets[i], layout, pxScale),
   )
+  const fitLayout = createLayoutFit(app, cam, layout, built)
   const glassesGroups = built.map((b) => b.group)
   // Rest position per group, captured so the entrance animation can lerp the
   // groups back down to it from their dropped start.
@@ -323,7 +404,12 @@ export async function setupLenses(
   const sides: Record<LensSide, SideState | null> = { left: null, right: null }
   for (const b of built) sides[b.side] = b.state
 
-  const onUpdate = createTraceUpdate(sides)
+  const onTrace = createTraceUpdate(sides)
+  const onUpdate = () => {
+    fitLayout()
+    onTrace()
+  }
+  fitLayout()
   app.on('update', onUpdate)
   const offTuning = onTuningChange(() => {
     for (const s of [sides.left, sides.right]) {
