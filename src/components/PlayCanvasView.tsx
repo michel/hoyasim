@@ -248,9 +248,11 @@ function LensSelector({
   fixedTip?: ReactNode
   switchTip?: ReactNode
 }) {
+  // Left lens card in the bottom-left corner, switcher in the bottom-right:
+  // the outer corners stay clear of the lenses, the centre does not.
   return (
-    <div className="absolute ui-bottom left-1/2 -translate-x-1/2 z-10 flex items-end gap-3 short:gap-2">
-      <div className="relative flex flex-col items-start gap-1 rounded-xl bg-black/45 py-2.5 short:py-2 px-4 short:px-3 text-white shadow-md shadow-black/30 backdrop-blur-sm">
+    <>
+      <div className="absolute ui-bottom ui-left z-10 flex flex-col items-start gap-1 rounded-xl bg-black/45 py-2.5 short:py-2 px-4 short:px-3 text-white shadow-md shadow-black/30 backdrop-blur-sm">
         <span className="text-[10px] font-semibold uppercase tracking-[0.16em] text-white/80 leading-none">
           Left lens
         </span>
@@ -263,7 +265,7 @@ function LensSelector({
           </Tooltip>
         )}
       </div>
-      <div className="relative">
+      <div className="absolute ui-bottom ui-right z-10">
         <button
           type="button"
           aria-label={`Switch right lens (currently ${active}). Tap to cycle.`}
@@ -300,12 +302,12 @@ function LensSelector({
         </button>
         {showHint && <TapHint />}
         {switchTip && (
-          <Tooltip side="top" align="center">
+          <Tooltip side="top" align="end">
             {switchTip}
           </Tooltip>
         )}
       </div>
-    </div>
+    </>
   )
 }
 
@@ -535,52 +537,52 @@ export default function PlayCanvasView() {
               </Tooltip>
             )}
           </div>
-          <div className="absolute ui-top ui-right z-10">
-            <Button
-              variant="glass"
-              size="icon"
-              className="size-11"
-              aria-label="Settings"
-              aria-expanded={settingsOpen}
-              onClick={() => setSettingsOpen((open) => !open)}
-            >
-              <Settings className="h-5 w-5" />
-            </Button>
-            {settingsOpen && (
-              <SettingsPanel
-                lineVisible={lineVisible}
-                onLineVisible={changeLineVisible}
-              />
+          <div className="absolute ui-top ui-right z-10 flex gap-2">
+            {glassesOn && (
+              <Button
+                variant="glass"
+                size="icon"
+                className="size-11"
+                aria-label="Take off glasses"
+                onClick={takeOffGlasses}
+              >
+                <Glasses className="h-5 w-5" />
+              </Button>
             )}
-            {glassesOn && tip('settings') && (
-              <Tooltip side="bottom" align="end">
-                {tip('settings')}
-              </Tooltip>
-            )}
+            <div className="relative">
+              <Button
+                variant="glass"
+                size="icon"
+                className="size-11"
+                aria-label="Settings"
+                aria-expanded={settingsOpen}
+                onClick={() => setSettingsOpen((open) => !open)}
+              >
+                <Settings className="h-5 w-5" />
+              </Button>
+              {settingsOpen && (
+                <SettingsPanel
+                  lineVisible={lineVisible}
+                  onLineVisible={changeLineVisible}
+                />
+              )}
+              {glassesOn && tip('settings') && (
+                <Tooltip side="bottom" align="end">
+                  {tip('settings')}
+                </Tooltip>
+              )}
+            </div>
           </div>
         </>
       )}
       {!loading && !error && glassesOn && (
-        <>
-          <LensSelector
-            active={product}
-            onCycle={cycleLenses}
-            showHint={tourDone && !hasCycledLens}
-            fixedTip={tip('fixed')}
-            switchTip={tip('switch') ?? lensHint}
-          />
-          <div className="absolute ui-bottom ui-right z-10">
-            <Button
-              variant="glass"
-              size="icon"
-              className="size-11"
-              aria-label="Take off glasses"
-              onClick={takeOffGlasses}
-            >
-              <Glasses className="h-5 w-5" />
-            </Button>
-          </div>
-        </>
+        <LensSelector
+          active={product}
+          onCycle={cycleLenses}
+          showHint={tourDone && !hasCycledLens}
+          fixedTip={tip('fixed')}
+          switchTip={tip('switch') ?? lensHint}
+        />
       )}
     </>
   )
