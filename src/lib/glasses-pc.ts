@@ -220,6 +220,8 @@ export interface SideState {
   product: LensProduct
   // Seconds since the boundary-line trace started, or null when idle.
   traceElapsed: number | null
+  // True once the glasses have landed, so the settings toggle may show the line.
+  lineArmed: boolean
 }
 
 interface BuiltSide {
@@ -283,6 +285,7 @@ function buildSide(
       material,
       product: DEFAULT_LENS_PRODUCT,
       traceElapsed: null,
+      lineArmed: false,
     },
   }
 }

@@ -5,11 +5,10 @@ import type { LensSide, SideState } from './glasses-pc'
 // that sweeps each product's clear-field contour. Split from glasses-pc so the
 // lens construction stays readable.
 
-// Boundary-line trace timing: sweep the dotted line on, hold, then fade out.
-// Triggered on put-on (both eyes) and on every product switch (that eye).
+// Boundary-line trace timing: sweep the dotted line on, then it stays while
+// the settings toggle is on. Swept on put-on (both eyes), on every product
+// switch (that eye) and when the toggle is switched back on.
 const TRACE_IN_SEC = 0.55
-const TRACE_HOLD_SEC = 0.7
-const TRACE_OUT_SEC = 0.6
 
 // "Putting on glasses" entrance. The glasses start this far above their rest
 // position (in camera-local Y units, i.e. screen-vertical) and slide down into
@@ -33,38 +32,46 @@ export const lineState = {
   visible: new URLSearchParams(window.location.search).get('line') !== '0',
 }
 
-// Kick the boundary-line trace for a side (idempotent restart).
+// Kick the boundary-line trace for a side (idempotent restart). Also arms the
+// side so later toggle changes apply to it (not before the glasses land).
 export const startTrace = (s: SideState | null) => {
-  if (s) s.traceElapsed = 0
+  if (!s) return
+  s.lineArmed = true
+  s.traceElapsed = 0
 }
 
-// Per-frame trace ramp: sweep the dotted line on, hold, fade out. Costs nothing
-// while idle (no trace pending on either eye).
+// Per-frame trace ramp: sweep the dotted line on; it then stays visible while
+// lineState.visible is true. Also applies settings-toggle changes. Costs
+// nothing while idle beyond a boolean compare.
 // Runs on wall-clock time, not the app's dt, so the trace still plays while
 // the ride is paused (timeScale 0).
 export function createTraceUpdate(sides: Record<LensSide, SideState | null>) {
   let last = performance.now()
+  let shownVisible = lineState.visible
   return () => {
     const now = performance.now()
     const dt = Math.min(0.1, (now - last) / 1000)
     last = now
+    if (lineState.visible !== shownVisible) {
+      shownVisible = lineState.visible
+      for (const s of [sides.left, sides.right]) {
+        if (!s?.lineArmed) continue
+        if (shownVisible) startTrace(s)
+        else {
+          s.traceElapsed = null
+          s.material.setParameter('uLineFade', 0)
+        }
+      }
+    }
     if (sides.left?.traceElapsed == null && sides.right?.traceElapsed == null)
       return
     for (const s of [sides.left, sides.right]) {
       if (!s || s.traceElapsed == null) continue
       s.traceElapsed += dt
-      const e = s.traceElapsed
-      const trace = Math.min(1, e / TRACE_IN_SEC)
-      let fade: number
-      if (e < TRACE_IN_SEC + TRACE_HOLD_SEC) fade = 1
-      else if (e < TRACE_IN_SEC + TRACE_HOLD_SEC + TRACE_OUT_SEC)
-        fade = 1 - (e - TRACE_IN_SEC - TRACE_HOLD_SEC) / TRACE_OUT_SEC
-      else {
-        fade = 0
-        s.traceElapsed = null
-      }
+      const trace = Math.min(1, s.traceElapsed / TRACE_IN_SEC)
       s.material.setParameter('uLineTrace', trace)
-      s.material.setParameter('uLineFade', lineState.visible ? fade : 0)
+      s.material.setParameter('uLineFade', shownVisible ? 1 : 0)
+      if (trace >= 1) s.traceElapsed = null
     }
   }
 }

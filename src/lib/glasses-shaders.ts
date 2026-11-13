@@ -104,7 +104,7 @@ uniform float uCornerWidth;   // horizontal reach in from each side of the lens
 uniform float uCornerHeight;  // vertical climb up from the lens bottom edge
 uniform float uFeather;       // ramp width from sharp -> blurred
 uniform float uLineTrace;     // 0..1 boundary-line reveal progress (sweeps the trace on)
-uniform float uLineFade;      // 0..1 boundary-line opacity (handles the fade-out)
+uniform float uLineFade;      // 0..1 boundary-line opacity (0 = hidden via settings toggle)
 // Progressive focus (see tuning.ts). Distances in world units, blur in CSS px.
 uniform float uTopStrength;      // top lens: blur of things nearer than the limit
 uniform float uTopNearLimit;     // top lens: close/far edge
@@ -177,7 +177,7 @@ void main(void) {
   // where this product's clear field ends. uLineFade is a uniform, so this
   // branch is uniform across the whole draw (no divergent-quad artifacts). The
   // line is a thin, constant-width (fwidth) dotted contour at LINE_LEVEL, swept
-  // on from the top of the zone downward by uLineTrace, then faded by uLineFade.
+  // on from the top of the zone downward by uLineTrace, gated by uLineFade.
   if (uLineFade > 0.001) {
     float d = abs(blurAmt - LINE_LEVEL);
     float aa = max(fwidth(blurAmt) * LINE_HALF_CSS * uPxScale, 1e-5);
