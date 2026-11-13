@@ -20,6 +20,7 @@ import hoyaLogo from '@/assets/hoya-logo.svg'
 import TuningPanel from '@/components/TuningPanel'
 import { Button } from '@/components/ui/button'
 import { useDeviceOrientation } from '@/hooks/useDeviceOrientation'
+import { useMediaQuery } from '@/hooks/useMediaQuery'
 import { usePointerControls } from '@/hooks/usePointerControls'
 import { lineState } from '@/lib/glasses-anim'
 import type { LensProduct } from '@/lib/glasses-pc'
@@ -66,6 +67,8 @@ const LENS_EXPLAINERS: Record<LensProduct, string> = {
     'Balansis: notice the larger blurred corners and the abrupt switch between far and near.',
 }
 const HINT_MS = 5000
+// Same breakpoint as the `short` CSS variant (index.css): phone in landscape.
+const COMPACT_QUERY = '(max-height: 500px)'
 
 const TIP_RADIUS = 16
 const TAIL_W = 22
@@ -241,13 +244,31 @@ function LensSelector({
   showHint = false,
   fixedTip,
   switchTip,
+  compact = false,
 }: {
   active: LensProduct
+  // Phone layout: a small blue card (like the left one) that grows into the
+  // full selector while the lens hint shows.
+  compact?: boolean
   onCycle: () => void
   showHint?: boolean
   fixedTip?: ReactNode
   switchTip?: ReactNode
 }) {
+  // The content sits absolutely (anchored bottom-right) so the button can
+  // transition between its measured sizes instead of jumping.
+  const contentRef = useRef<HTMLSpanElement>(null)
+  const [size, setSize] = useState<{ w: number; h: number } | null>(null)
+  // biome-ignore lint/correctness/useExhaustiveDependencies: re-observe the remounted content when the layout flips
+  useLayoutEffect(() => {
+    const el = contentRef.current
+    if (!el) return
+    const measure = () => setSize({ w: el.offsetWidth, h: el.offsetHeight })
+    measure()
+    const ro = new ResizeObserver(measure)
+    ro.observe(el)
+    return () => ro.disconnect()
+  }, [compact])
   // Left lens card in the bottom-left corner, switcher in the bottom-right:
   // the outer corners stay clear of the lenses, the centre does not.
   return (
@@ -270,34 +291,56 @@ function LensSelector({
           type="button"
           aria-label={`Switch right lens (currently ${active}). Tap to cycle.`}
           onClick={onCycle}
-          className="group relative flex items-stretch overflow-hidden rounded-xl bg-hoya-blue text-white shadow-md shadow-black/30 active:scale-[0.98] transition-transform duration-150"
+          // Explicit size, measured from the content, so the switch between
+          // the compact card and the full selector animates.
+          style={size ? { width: size.w, height: size.h } : undefined}
+          className="group relative block overflow-hidden rounded-xl bg-hoya-blue text-white shadow-md shadow-black/30 active:scale-[0.98] transition-[width,height,transform] duration-300 ease-out"
         >
-          <span className="flex flex-col items-start gap-1 py-2.5 short:py-2 pl-4 short:pl-3 pr-3">
-            <span className="text-[10px] font-semibold uppercase tracking-[0.16em] text-white/80 leading-none">
-              {LENS_TAGLINES[active]}
-            </span>
-            <span className="text-sm font-semibold tracking-tight leading-none">
-              {active}
-            </span>
-            <span className="mt-1 flex items-center gap-1">
-              {SWITCH_PRODUCTS.map((p) => {
-                const isActive = p === active
-                return (
-                  <span
-                    key={p}
-                    className={`h-1 rounded-full transition-all duration-200 ${
-                      isActive ? 'w-5 bg-white' : 'w-2 bg-white/35'
-                    }`}
+          <span
+            ref={contentRef}
+            key={compact ? 'compact' : 'full'}
+            className="absolute right-0 bottom-0 flex w-max items-stretch animate-in fade-in duration-300"
+          >
+            {compact ? (
+              <span className="flex flex-col items-start gap-1 py-2.5 short:py-2 px-4 short:px-3">
+                <span className="text-[10px] font-semibold uppercase tracking-[0.16em] text-white/80 leading-none">
+                  Right lens
+                </span>
+                <span className="text-sm font-semibold tracking-tight leading-none">
+                  {active}
+                </span>
+              </span>
+            ) : (
+              <>
+                <span className="flex flex-col items-start gap-1 py-2.5 short:py-2 pl-4 short:pl-3 pr-3">
+                  <span className="text-[10px] font-semibold uppercase tracking-[0.16em] text-white/80 leading-none">
+                    {LENS_TAGLINES[active]}
+                  </span>
+                  <span className="text-sm font-semibold tracking-tight leading-none">
+                    {active}
+                  </span>
+                  <span className="mt-1 flex items-center gap-1">
+                    {SWITCH_PRODUCTS.map((p) => {
+                      const isActive = p === active
+                      return (
+                        <span
+                          key={p}
+                          className={`h-1 rounded-full transition-all duration-200 ${
+                            isActive ? 'w-5 bg-white' : 'w-2 bg-white/35'
+                          }`}
+                        />
+                      )
+                    })}
+                  </span>
+                </span>
+                <span className="flex items-center justify-center px-3.5 bg-hoya-blue-active text-white group-hover:bg-black/20 transition-colors">
+                  <ChevronRight
+                    className="h-5 w-5 transition-transform group-active:translate-x-0.5"
+                    aria-hidden="true"
                   />
-                )
-              })}
-            </span>
-          </span>
-          <span className="flex items-center justify-center px-3.5 bg-hoya-blue-active text-white group-hover:bg-black/20 transition-colors">
-            <ChevronRight
-              className="h-5 w-5 transition-transform group-active:translate-x-0.5"
-              aria-hidden="true"
-            />
+                </span>
+              </>
+            )}
           </span>
         </button>
         {showHint && <TapHint />}
@@ -445,6 +488,10 @@ export default function PlayCanvasView() {
     window.history.replaceState(null, '', url)
   }
 
+  // On phones the switcher stays a compact card, expanding to the full
+  // selector only while the hint for a freshly picked lens is showing.
+  const isPhone = useMediaQuery(COMPACT_QUERY)
+
   const { gyroActive, showEnableButton, enableMotionControls } =
     useDeviceOrientation(lookState)
   usePointerControls(canvasRef.current, lookState, gyroActive)
@@ -582,6 +629,7 @@ export default function PlayCanvasView() {
           showHint={tourDone && !hasCycledLens}
           fixedTip={tip('fixed')}
           switchTip={tip('switch') ?? lensHint}
+          compact={isPhone && !lensHint}
         />
       )}
     </>
